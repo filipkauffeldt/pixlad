@@ -23,7 +23,9 @@ This is an AI-developed proof of concept. Expect rough edges.
    - Zoom: `Z` toggles Fit and 100%, `Ctrl`/`⌘` + `+` / `-`, `Ctrl`/`⌘` + scroll. Pan with scroll
      or `Space` + drag. 100% lines up with the device pixel grid.
 3. **Export.** `Export` (`Ctrl`/`⌘`+`E`) saves the current photo; `Export all` saves every photo
-   that has a mosaic. See [Where exports go](#where-exports-go).
+   that has a mosaic. See [Where exports go](#where-exports-go). Afterwards the app asks whether to
+   remove the exported photos from the session. A photo edited since its export is left out of
+   that question, and removing never deletes a file.
 
 Face detection uses the YuNet model (below).
 
@@ -31,9 +33,10 @@ Face detection uses the YuNet model (below).
 
 A session lives in memory and is gone when the app closes.
 
-- Nothing about it is saved: no library, database, recent files, saved areas, sidecars, settings or
-  thumbnail cache. The window uses an in-memory Chromium profile, and photos are never copied.
-  The only files the app writes are the exported `_edit` JPEGs.
+- Nothing about it is saved: no library, database, recent files, saved areas, sidecars or thumbnail
+  cache. The window uses an in-memory Chromium profile, and photos are never copied. The only files
+  the app writes are the exported JPEGs and `settings.json` in the app's data folder, which holds
+  the export setting and nothing about the photos.
 - **Any number of photos.** Hundreds are fine. Dropping reads only each file's header. Only the
   current photo is decoded (one worker thread holds its pixels); thumbnails are made when they come
   into view, from the photo's DC coefficients, and a small number of recent ones is kept in memory.
@@ -41,7 +44,7 @@ A session lives in memory and is gone when the app closes.
   does not freeze.
 - **Removing a photo** from the session (the `×` on a thumbnail, or `Delete`) never touches the file.
 - **Closing with mosaics not exported** asks once, e.g. `3 photos have unexported mosaics. Close
-anyway?` Nothing else prompts.
+anyway?`
 - **Export all** exports every photo with at least one enabled mosaic area, skips the others, and
   ends with a count such as `12 exported, 3 failed`; the failures are named. One failure does not stop
   the rest. It runs in the background, with progress in the strip, so you can keep working. Each
@@ -49,8 +52,11 @@ anyway?` Nothing else prompts.
 
 ## Where exports go
 
-Next to the source, named `<source name>_edit.jpg`, keeping the extension's case:
-`_DSC1234.JPG` becomes `_DSC1234_edit.JPG`. There is no export folder to choose.
+**Settings → Export** chooses between two targets, and the choice is remembered between runs.
+
+**Add `_edit` to the file name** is the default. The export goes next to the source, named
+`<source name>_edit.jpg`, keeping the extension's case: `_DSC1234.JPG` becomes `_DSC1234_edit.JPG`.
+There is no export folder to choose.
 
 - A file that already exists (from an earlier session, or anything else) is never overwritten: the
   export is `_edit-2`, `_edit-3`, …
@@ -60,6 +66,13 @@ Next to the source, named `<source name>_edit.jpg`, keeping the extension's case
 - The source is never written to. Export writes a temporary file in the same folder and renames it
   into place. If the folder is read-only, that photo fails with a message naming the folder; nothing
   is written elsewhere.
+
+**Overwrite the original** replaces the source file with the export. This cannot be undone.
+
+- The new file is written and verified first and then renamed over the source, so a failed export
+  leaves the source as it was. A read-only file is refused.
+- The mosaic is now part of the photo: its areas and Undo history are cleared, and the file is
+  loaded again from disk.
 
 ## How the colours are handled
 

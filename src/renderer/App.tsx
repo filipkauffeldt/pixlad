@@ -12,6 +12,12 @@ export function App() {
   const [zoom, setZoom] = useState<number | undefined>();
   const onZoom = useCallback((percent: number | undefined) => setZoom(percent), []);
 
+  useEffect(() => {
+    actions.loadSettings().catch((cause: unknown) => {
+      actions.notice([`Could not load the settings: ${String(cause)}`], 'error');
+    });
+  }, []);
+
   // Drag and drop anywhere on the window.
   useEffect(() => {
     let depth = 0;
@@ -63,7 +69,7 @@ export function App() {
         target instanceof HTMLTextAreaElement;
       if (primary && (event.key === 'e' || event.key === 'E')) {
         event.preventDefault();
-        actions.exportCurrent();
+        void actions.exportCurrent();
         return;
       }
       if (typing) return;
@@ -128,7 +134,7 @@ export function App() {
       ))}
       <div className="stageWrap">
         {photo ? (
-          <Stage key={photo.info.id} photo={photo} onZoom={onZoom} />
+          <Stage key={`${photo.info.id}-${photo.fileVersion}`} photo={photo} onZoom={onZoom} />
         ) : (
           <div className="empty" data-testid="empty">
             <h1>Drop JPEG photos here</h1>

@@ -417,7 +417,7 @@ export function Stage({
       {size.w > 0 && (
         <>
           <img
-            src={`mr://photo/${id}`}
+            src={`mr://photo/${id}?v=${photo.fileVersion}`}
             alt={photo.info.name}
             draggable={false}
             style={imageStyle(0, 0, iw, ih)}

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
+import type { ExportTarget } from '../shared/ipc';
 import { countAreas } from './retouch';
 import {
   actions,
@@ -60,6 +61,69 @@ function NumberField({
         }
       }}
     />
+  );
+}
+
+const EXPORT_TARGETS: Array<{ target: ExportTarget; label: string; note: string }> = [
+  { target: 'suffix', label: 'Add _edit to the file name', note: 'The original stays as it is.' },
+  {
+    target: 'overwrite',
+    label: 'Overwrite the original',
+    note: 'The mosaic replaces the original file. This cannot be undone.',
+  },
+];
+
+function Settings({ exporting }: { exporting: boolean }) {
+  const app = useApp();
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+  return (
+    <div className="settings" ref={root}>
+      <button
+        type="button"
+        className="btn"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        data-testid="settings"
+      >
+        Settings
+      </button>
+      {open && (
+        <fieldset className="settingsPanel" disabled={exporting} data-testid="settings-panel">
+          <legend className="label">Export</legend>
+          {EXPORT_TARGETS.map(({ target, label, note }) => (
+            <label className="radio" key={target}>
+              <input
+                type="radio"
+                name="export-target"
+                checked={app.exportTarget === target}
+                onChange={() => void actions.setExportTarget(target)}
+                data-testid={`export-target-${target}`}
+              />
+              <span>
+                {label}
+                <small>{note}</small>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+    </div>
   );
 }
 
@@ -179,9 +243,13 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       <button
         type="button"
         className="btn primary"
-        onClick={actions.exportCurrent}
+        onClick={() => void actions.exportCurrent()}
         disabled={!photo || !hasMosaic(photo) || photo.status === 'exporting'}
-        title="Save this photo with the mosaic next to the original as _edit (Ctrl/⌘+E)"
+        title={
+          app.exportTarget === 'overwrite'
+            ? 'Save the mosaic over the original file (Ctrl/⌘+E)'
+            : 'Save this photo with the mosaic next to the original as _edit (Ctrl/⌘+E)'
+        }
         data-testid="export"
       >
         Export
@@ -196,6 +264,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       >
         Export all
       </button>
+      <Settings exporting={exporting} />
     </div>
   );
 }

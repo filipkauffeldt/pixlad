@@ -11,6 +11,9 @@ const api: Api = {
   preview: (id, op) => ipcRenderer.invoke('photo:preview', id, op),
   detect: (id, region) => ipcRenderer.invoke('photo:detect', id, region),
   exportPhoto: (id, op) => ipcRenderer.invoke('photo:export', id, op),
+  confirmRemoveExported: (count, name) => ipcRenderer.invoke('dialog:remove-exported', count, name),
+  exportTarget: () => ipcRenderer.invoke('settings:export-target'),
+  setExportTarget: (target) => ipcRenderer.invoke('settings:set-export-target', target),
   setUnexported: (count) => ipcRenderer.send('session:unexported', count),
 };
 

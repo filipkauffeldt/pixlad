@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { defaultBlockPx } from '../shared/block-size';
-import type { PhotoInfo } from '../shared/ipc';
+import type { ExportTarget, PhotoInfo } from '../shared/ipc';
 import { opHasAddedArea, type Rect, type Shape } from '../shared/types';
 import {
   opFromAreas,
@@ -25,6 +25,8 @@ export interface PhotoState {
   exportedRev: number;
   status: ExportStatus;
   message?: string;
+  /** Bumped when the file on disk was overwritten, so the image and thumbnail load again. */
+  fileVersion: number;
 }
 
 export interface Notice {
@@ -45,6 +47,7 @@ export interface AppState {
   batch:
     { done: number; total: number; failed: string[]; finished: boolean; ok: number } | undefined;
   dragging: boolean;
+  exportTarget: ExportTarget;
 }
 
 const initial: AppState = {
@@ -58,6 +61,7 @@ const initial: AppState = {
   toasts: [],
   batch: undefined,
   dragging: false,
+  exportTarget: 'suffix',
 };
 
 let state = initial;
@@ -110,7 +114,35 @@ const newPhoto = (info: PhotoInfo): PhotoState => ({
   rev: 0,
   exportedRev: 0,
   status: 'idle',
+  fileVersion: 0,
 });
+
+let removalPrompts: Promise<void> = Promise.resolve();
+
+/**
+ * Ask whether to take these exported photos out of the session. One question at a time, and a
+ * photo edited since its export is left out: removing it would lose that edit.
+ */
+const offerRemoval = (ids: readonly string[]): Promise<void> => {
+  const removable = (): PhotoState[] =>
+    state.photos.filter((p) => ids.includes(p.info.id) && !isUnexported(p));
+  removalPrompts = removalPrompts
+    .then(async () => {
+      const offered = removable();
+      if (offered.length === 0) return;
+      const name = offered.length === 1 ? offered[0]!.info.name : undefined;
+      if (await window.api.confirmRemoveExported(offered.length, name)) {
+        for (const photo of removable()) actions.remove(photo.info.id);
+      }
+    })
+    .catch((cause: unknown) => {
+      notify([`Could not ask about removing: ${errorText(cause)}`], 'error');
+    });
+  return removalPrompts;
+};
+
+const errorText = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : String(cause);
 
 export const actions = {
   setDragging: (dragging: boolean): void => set({ dragging }),
@@ -249,9 +281,27 @@ export const actions = {
     if (!photo || !hasMosaic(photo)) return false;
     const rev = photo.rev;
     const op = opOf(photo);
+    const exportedAreas = photo.areas;
     updatePhoto(id, (p) => ({ ...p, status: 'exporting', message: 'Exporting…' }));
     const result = await window.api.exportPhoto(id, op);
-    if (result.ok) {
+    if (result.ok && result.overwrote) {
+      // The file now holds these areas and they cannot be taken out again, so they stop being
+      // edits. Only what was drawn while the export ran is still to be exported.
+      updatePhoto(id, (p) => {
+        const areas = p.areas.filter((area) => !exportedAreas.includes(area));
+        const nextRev = p.rev + 1;
+        return {
+          ...p,
+          areas,
+          undo: [],
+          rev: nextRev,
+          exportedRev: areas.length === 0 ? nextRev : p.exportedRev,
+          status: 'exported',
+          fileVersion: p.fileVersion + 1,
+          message: `Saved over ${result.name}`,
+        };
+      });
+    } else if (result.ok) {
       updatePhoto(id, (p) => ({
         ...p,
         status: 'exported',
@@ -265,8 +315,23 @@ export const actions = {
     return result.ok;
   },
 
-  exportCurrent(): void {
-    if (state.currentId) void actions.exportPhoto(state.currentId);
+  async exportCurrent(): Promise<void> {
+    const id = state.currentId;
+    if (!id || currentPhoto(state)?.status === 'exporting') return;
+    if (await actions.exportPhoto(id)) await offerRemoval([id]);
+  },
+
+  async loadSettings(): Promise<void> {
+    set({ exportTarget: await window.api.exportTarget() });
+  },
+
+  async setExportTarget(exportTarget: ExportTarget): Promise<void> {
+    set({ exportTarget });
+    try {
+      await window.api.setExportTarget(exportTarget);
+    } catch (cause) {
+      notify([`The setting applies now but could not be saved: ${errorText(cause)}`], 'error');
+    }
   },
 
   /** Every photo with a mosaic, one after the other, in the background. */
@@ -275,11 +340,13 @@ export const actions = {
     const ids = state.photos.filter(hasMosaic).map((p) => p.info.id);
     if (ids.length === 0) return;
     set({ batch: { done: 0, total: ids.length, failed: [], finished: false, ok: 0 } });
+    const exported: string[] = [];
     for (const id of ids) {
       const photo = state.photos.find((p) => p.info.id === id);
       const name = photo?.info.name ?? id;
       let ok = false;
       if (photo && hasMosaic(photo)) ok = await actions.exportPhoto(id, true);
+      if (ok) exported.push(id);
       else if (!photo) {
         set((s) => ({ batch: s.batch && { ...s.batch, total: s.batch.total - 1 } }));
         continue;
@@ -298,5 +365,6 @@ export const actions = {
     if (batch && batch.failed.length > 0) {
       toast([`${batch.ok} exported, ${batch.failed.length} failed:`, ...batch.failed]);
     }
+    await offerRemoval(exported);
   },
 };

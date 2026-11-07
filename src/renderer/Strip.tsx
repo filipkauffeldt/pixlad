@@ -130,7 +130,12 @@ export function Strip() {
               data-name={photo.info.name}
               onClick={() => actions.select(photo.info.id)}
             >
-              <img src={`mr://thumb/${photo.info.id}`} alt="" loading="lazy" draggable={false} />
+              <img
+                src={`mr://thumb/${photo.info.id}?v=${photo.fileVersion}`}
+                alt=""
+                loading="lazy"
+                draggable={false}
+              />
               <Badges photo={photo} />
               <span
                 className="remove"

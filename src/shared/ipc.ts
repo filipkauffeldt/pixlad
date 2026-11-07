@@ -32,7 +32,14 @@ export interface PreviewPatch {
 }
 
 export type ExportOutcome =
-  { ok: true; path: string; name: string; replaced: boolean } | { ok: false; message: string };
+  | { ok: true; path: string; name: string; replaced: boolean; overwrote: boolean }
+  | { ok: false; message: string };
+
+/** Where an export goes: `<name>_edit.jpg` next to the source, or over the source itself. */
+export type ExportTarget = 'suffix' | 'overwrite';
+
+export const isExportTarget = (value: unknown): value is ExportTarget =>
+  value === 'suffix' || value === 'overwrite';
 
 /** The surface the preload exposes as `window.api`. */
 export interface Api {
@@ -45,6 +52,10 @@ export interface Api {
   preview(id: string, op: MosaicOp): Promise<PreviewPatch | null>;
   detect(id: string, region: Rect): Promise<FaceDetection[]>;
   exportPhoto(id: string, op: MosaicOp): Promise<ExportOutcome>;
+  /** Ask whether to take exported photos out of the session. `name` is given for a single photo. */
+  confirmRemoveExported(count: number, name: string | undefined): Promise<boolean>;
+  exportTarget(): Promise<ExportTarget>;
+  setExportTarget(target: ExportTarget): Promise<void>;
   /** Tell the main process how many photos have mosaics that are not exported (for closing). */
   setUnexported(count: number): void;
 }

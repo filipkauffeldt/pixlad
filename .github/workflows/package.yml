@@ -32,7 +32,18 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm package --mac
+      - name: Build the dmg
+        run: pnpm package --mac
+        env:
+          # electron-builder skips signing on pull requests unless told otherwise. The identity is
+          # "-" (ad hoc), which needs no certificate or secret.
+          CSC_FOR_PULL_REQUEST: 'true'
+      - name: Check the ad-hoc signature
+        run: |
+          app="dist/mac-arm64/Pixlad.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv "$app" 2>&1 | tee signature.txt
+          grep -q "Signature=adhoc" signature.txt
       - name: Smoke test the packaged app
         run: pnpm test:package
       - name: Package sizes

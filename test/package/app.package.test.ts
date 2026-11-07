@@ -38,6 +38,17 @@ describe('the packaged app', () => {
     // The app is the packaged one, not the source tree.
     expect(await app.evaluate(({ app: electronApp }) => electronApp.isPackaged)).toBe(true);
 
+    // The window icon comes from the resources folder on Windows and Linux. macOS reads the
+    // bundle's own icon instead.
+    if (process.platform !== 'darwin') {
+      const iconSize = await app.evaluate(() => {
+        const { statSync } = process.getBuiltinModule('node:fs');
+        const { join } = process.getBuiltinModule('node:path');
+        return statSync(join(process.resourcesPath, 'icon.png')).size;
+      });
+      expect(iconSize).toBeGreaterThan(0);
+    }
+
     await dropFiles(page, [file]);
     await page.waitForSelector('[data-testid="photo"]', { timeout: 30_000 });
     await page.waitForFunction(() => {

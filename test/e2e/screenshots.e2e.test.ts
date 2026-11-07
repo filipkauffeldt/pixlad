@@ -78,7 +78,7 @@ it.skipIf(!out)(
   'takes the screenshots',
   async () => {
     await mkdir(out!, { recursive: true });
-    const dir = await mkdtemp(join(tmpdir(), 'mr-shots-'));
+    const dir = await mkdtemp(join(tmpdir(), 'pixlad-shots-'));
     const files: string[] = [];
     for (let i = 0; i < 5; i++) {
       const path = join(dir, `DSC_${String(1200 + i * 3)}.JPG`);

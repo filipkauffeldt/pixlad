@@ -4,7 +4,7 @@ import type { Plugin } from 'vite';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// Only the app's own bundle, the mr: photo protocol, blob: previews and data: URLs may load.
+// Only the app's own bundle, the pixlad: photo protocol, blob: previews and data: URLs may load.
 // Applied at build time only: the dev server needs inline scripts for React refresh.
 const contentSecurityPolicy: Plugin = {
   name: 'content-security-policy',
@@ -15,7 +15,7 @@ const contentSecurityPolicy: Plugin = {
       attrs: {
         'http-equiv': 'Content-Security-Policy',
         content:
-          "default-src 'self'; img-src 'self' mr: blob: data:; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+          "default-src 'self'; img-src 'self' pixlad: blob: data:; style-src 'self' 'unsafe-inline'; connect-src 'self'",
       },
       injectTo: 'head-prepend',
     },

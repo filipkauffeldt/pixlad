@@ -32,11 +32,11 @@ import { readExportTarget, writeExportTarget } from './settings';
 declare const __APP_VERSION__: string;
 
 const MODEL_FILE = 'face_detection_yunet_2026may.onnx';
-const PARTITION = 'mosaic-retouch'; // no "persist:" prefix: Chromium keeps nothing on disk for it
+const PARTITION = 'pixlad'; // no "persist:" prefix: Chromium keeps nothing on disk for it
 
-app.setName('Mosaic Retouch');
+app.setName('Pixlad');
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'mr', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: 'pixlad', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
 /**
@@ -107,7 +107,7 @@ function createWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 600,
     backgroundColor: '#0e0e0f',
-    title: 'Mosaic Retouch',
+    title: 'Pixlad',
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       partition: PARTITION,
@@ -271,7 +271,7 @@ function registerIpc(): void {
 
 function registerProtocol(): void {
   const ses = electronSession.fromPartition(PARTITION);
-  ses.protocol.handle('mr', async (request) => {
+  ses.protocol.handle('pixlad', async (request) => {
     const url = new URL(request.url);
     const id = url.pathname.replace(/^\//, '');
     const photo = session.get(id);

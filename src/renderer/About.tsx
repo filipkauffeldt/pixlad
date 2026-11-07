@@ -45,7 +45,7 @@ export function About() {
       >
         <header className="modalHeader">
           <div>
-            <h2 id="about-title">Mosaic Retouch</h2>
+            <h2 id="about-title">Pixlad</h2>
             <div className="mono muted">{info ? `Version ${info.version}` : ' '}</div>
           </div>
           <button
@@ -87,7 +87,7 @@ export function About() {
                 onClick={() => toggle('gpl')}
                 data-testid="about-gpl"
               >
-                <span>Mosaic Retouch</span>
+                <span>Pixlad</span>
                 <span className="mono muted">GPL-3.0-or-later</span>
               </button>
               {expanded === 'gpl' && <pre className="licenseText">{info.license}</pre>}

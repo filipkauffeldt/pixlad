@@ -134,7 +134,7 @@ function Settings({ exporting }: { exporting: boolean }) {
             }}
             data-testid="open-about"
           >
-            About Mosaic Retouch
+            About Pixlad
           </button>
         </div>
       )}

@@ -44,7 +44,7 @@ export const isExportTarget = (value: unknown): value is ExportTarget =>
   value === 'suffix' || value === 'overwrite';
 
 /** Where the source code is published, as the GPL asks for. */
-export const SOURCE_URL = 'https://github.com/filipkauffeldt/mosaic-retouch';
+export const SOURCE_URL = 'https://github.com/filipkauffeldt/pixlad';
 
 /** One part of THIRD_PARTY_NOTICES.txt: e.g. `react 19.3.1 (MIT)` and its licence text. */
 export interface Notice {

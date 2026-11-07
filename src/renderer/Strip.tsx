@@ -133,7 +133,7 @@ export function Strip() {
               onClick={() => actions.select(photo.info.id)}
             >
               <img
-                src={`mr://thumb/${photo.info.id}?v=${photo.fileVersion}`}
+                src={`pixlad://thumb/${photo.info.id}?v=${photo.fileVersion}`}
                 alt=""
                 loading="lazy"
                 draggable={false}

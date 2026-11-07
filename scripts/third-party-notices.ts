@@ -138,9 +138,9 @@ function licenseText(pkg: Package): string {
 function render(): string {
   const rule = RULE;
   const parts = [
-    'Third-party notices for Mosaic Retouch',
+    'Third-party notices for Pixlad',
     '',
-    'Mosaic Retouch is Copyright (C) 2026 Filip Kauffeldt and licensed under the GNU General',
+    'Pixlad is Copyright (C) 2026 Filip Kauffeldt and licensed under the GNU General',
     'Public License, version 3 or later (see LICENSE). It includes the third-party software',
     'below, each under its own licence.',
     '',

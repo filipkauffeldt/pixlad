@@ -15,7 +15,7 @@ async function measure(input: string): Promise<void> {
   const width = meta.width!;
   const height = meta.height!;
   const rect = { type: 'rect' as const, x: 0.3, y: 0.25, w: 0.3, h: 0.4 };
-  const dir = await mkdtemp(join(tmpdir(), 'mr-measure-'));
+  const dir = await mkdtemp(join(tmpdir(), 'pixlad-measure-'));
   const path = join(dir, basename(input));
   await writeFile(path, source);
 

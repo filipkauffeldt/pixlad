@@ -13,7 +13,7 @@ afterEach(async () => {
 
 describe('About', () => {
   it('shows the copyright, the version and every licence, and blocks shortcuts while open', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'mr-about-'));
+    const dir = await mkdtemp(join(tmpdir(), 'pixlad-about-'));
     const file = join(dir, 'a.jpg');
     await writeFile(file, await encodeJpeg(syntheticPhoto(320, 240)));
     running = await launch();
@@ -30,7 +30,7 @@ describe('About', () => {
     ) as { version: string };
     await page.getByText(`Version ${version}`).waitFor();
     expect(await about.innerText()).toContain('Copyright © 2026 Filip Kauffeldt');
-    expect(await about.innerText()).toContain('github.com/filipkauffeldt/mosaic-retouch');
+    expect(await about.innerText()).toContain('github.com/filipkauffeldt/pixlad');
 
     await page.click('[data-testid="about-gpl"]');
     expect(await about.innerText()).toContain('GNU GENERAL PUBLIC LICENSE');

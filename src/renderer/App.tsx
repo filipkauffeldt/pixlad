@@ -99,11 +99,11 @@ export function App() {
     const none = (): void => void actions.notice(['No faces found in that area.']);
     const failed = (e: Event): void =>
       void actions.notice([`Face detection failed: ${(e as CustomEvent<string>).detail}`], 'error');
-    document.addEventListener('mr:no-faces', none);
-    document.addEventListener('mr:detect-failed', failed);
+    document.addEventListener('pixlad:no-faces', none);
+    document.addEventListener('pixlad:detect-failed', failed);
     return () => {
-      document.removeEventListener('mr:no-faces', none);
-      document.removeEventListener('mr:detect-failed', failed);
+      document.removeEventListener('pixlad:no-faces', none);
+      document.removeEventListener('pixlad:detect-failed', failed);
     };
   }, []);
 

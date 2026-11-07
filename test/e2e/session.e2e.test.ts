@@ -28,7 +28,7 @@ afterEach(async () => {
   running = undefined;
 });
 
-const tmp = (prefix = 'mr-e2e-'): Promise<string> => mkdtemp(join(tmpdir(), prefix));
+const tmp = (prefix = 'pixlad-e2e-'): Promise<string> => mkdtemp(join(tmpdir(), prefix));
 const photoReady = (page: Page): Promise<unknown> =>
   page.waitForFunction(() => {
     const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
@@ -375,7 +375,7 @@ describe('after an export', () => {
 describe('overwriting the original', () => {
   it('replaces the file, clears the areas, shows the file again and remembers the choice', async () => {
     const dir = await tmp();
-    const userData = await tmp('mr-userdata-');
+    const userData = await tmp('pixlad-userdata-');
     const file = await photoFile(dir, 'over.jpg');
     const before = await readFile(file);
 
@@ -424,8 +424,8 @@ describe('the window', () => {
 describe('nothing survives the session', () => {
   it('starts empty after a restart and writes nothing outside the exported _edit files', async () => {
     const dir = await tmp();
-    const tmpDir = await tmp('mr-apptmp-');
-    const userData = await tmp('mr-userdata-');
+    const tmpDir = await tmp('pixlad-apptmp-');
+    const userData = await tmp('pixlad-userdata-');
     const marker = 'session-marker-4f7a91';
     const file = await photoFile(dir, `${marker}.jpg`);
     const sourceBytes = await readFile(file);

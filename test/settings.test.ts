@@ -6,7 +6,7 @@ import { readExportTarget, writeExportTarget } from '../src/main/settings';
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'mr-settings-'));
+  dir = await mkdtemp(join(tmpdir(), 'pixlad-settings-'));
 });
 afterEach(async () => {
   vi.restoreAllMocks();

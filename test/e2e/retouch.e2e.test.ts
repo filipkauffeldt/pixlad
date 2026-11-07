@@ -15,7 +15,7 @@ afterEach(async () => {
   running = undefined;
 });
 
-const tmp = (): Promise<string> => mkdtemp(join(tmpdir(), 'mr-e2e-'));
+const tmp = (): Promise<string> => mkdtemp(join(tmpdir(), 'pixlad-e2e-'));
 
 async function photoBox(page: Page): Promise<{ x: number; y: number; w: number; h: number }> {
   const box = await page.locator('[data-testid="photo"]').boundingBox();

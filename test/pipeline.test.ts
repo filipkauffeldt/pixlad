@@ -10,7 +10,7 @@ import { decodeRaw, encodeJpeg, syntheticPhoto } from './helpers/fixtures';
 
 let dir: string;
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'mr-pipeline-'));
+  dir = await mkdtemp(join(tmpdir(), 'pixlad-pipeline-'));
 });
 afterAll(async () => {
   await rm(dir, { recursive: true, force: true });

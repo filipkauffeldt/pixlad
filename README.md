@@ -1,4 +1,4 @@
-# Mosaic Retouch
+# Pixlad
 
 A small desktop app that does one thing: drop JPEG photos on it, pixelate (mosaic) faces and
 areas, and export JPEGs. There is no library, no develop settings, no crop, resize or sharpening.
@@ -151,8 +151,8 @@ a SHA-256), and the first `pnpm start` downloads Electron.
 **Linux**
 
 ```sh
-git clone https://github.com/filipkauffeldt/mosaic-retouch.git
-cd mosaic-retouch
+git clone https://github.com/filipkauffeldt/pixlad.git
+cd pixlad
 npm install --global pnpm@12.15.0
 pnpm install
 pnpm start
@@ -161,8 +161,8 @@ pnpm start
 **Windows (PowerShell)**
 
 ```powershell
-git clone https://github.com/filipkauffeldt/mosaic-retouch.git
-cd mosaic-retouch
+git clone https://github.com/filipkauffeldt/pixlad.git
+cd pixlad
 npm install --global pnpm@12.15.0
 pnpm install
 pnpm start
@@ -223,7 +223,7 @@ handling are new.
 
 ## Licence
 
-Copyright (C) 2026 Filip Kauffeldt. Mosaic Retouch is free software under the GNU General Public
+Copyright (C) 2026 Filip Kauffeldt. Pixlad is free software under the GNU General Public
 License, version 3 or later ([LICENSE](LICENSE)). Every source file carries an SPDX header.
 
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) holds the licence text of everything else that

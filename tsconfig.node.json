@@ -4,6 +4,7 @@
     "electron.vite.config.ts",
     "vitest.config.ts",
     "vitest.e2e.config.ts",
+    "vitest.package.config.ts",
     "src/main",
     "src/preload",
     "src/shared",

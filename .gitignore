@@ -1,0 +1,12 @@
+node_modules/
+out/
+dist/
+coverage/
+resources/models/
+test-results/
+playwright-report/
+.env*
+*.log
+.DS_Store
+*.tsbuildinfo
+.eslintcache

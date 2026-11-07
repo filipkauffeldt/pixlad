@@ -13,6 +13,7 @@ const required = [
   'out/main/worker.js',
   'out/preload/index.cjs',
   'out/renderer/index.html',
+  'build/icon.png',
   'LICENSE',
   'THIRD_PARTY_NOTICES.txt',
   'resources/models/face_detection_yunet_2026may.onnx',

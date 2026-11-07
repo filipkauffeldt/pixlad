@@ -4,7 +4,7 @@
   "private": true,
   "description": "Drop JPEG photos, mosaic faces and areas, export JPEGs. Nothing else.",
   "license": "GPL-3.0-or-later",
-  "homepage": "https://github.com/filipkauffeldt/mosaic-retouch",
+  "homepage": "https://github.com/filipkauffeldt/pixlad",
   "type": "module",
   "packageManager": "pnpm@12.15.0",
   "engines": {

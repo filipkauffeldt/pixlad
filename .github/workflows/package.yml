@@ -38,7 +38,7 @@ jobs:
         run: ls -lh dist/*.dmg
       - uses: actions/upload-artifact@v7
         with:
-          name: mosaic-retouch-macos-arm64-dmg
+          name: pixlad-macos-arm64-dmg
           path: dist/*.dmg
           if-no-files-found: error
 
@@ -62,7 +62,7 @@ jobs:
         run: ls -lh dist/*.exe
       - uses: actions/upload-artifact@v7
         with:
-          name: mosaic-retouch-windows-x64-installer
+          name: pixlad-windows-x64-installer
           path: dist/*.exe
           if-no-files-found: error
 
@@ -91,6 +91,6 @@ jobs:
           rpm -qip dist/*.rpm
       - uses: actions/upload-artifact@v7
         with:
-          name: mosaic-retouch-fedora-x64-rpm
+          name: pixlad-fedora-x64-rpm
           path: dist/*.rpm
           if-no-files-found: error

@@ -1,8 +1,8 @@
-# Packaging for `pnpm package`. The app's name lives in two places: `productName` and `appId`
-# here, plus the window title and app name in src/main/index.ts. File names are built from the
-# package.json `name`, so a rename is these strings, `name`, and the README.
-appId: io.github.filipkauffeldt.mosaicretouch
-productName: Mosaic Retouch
+# Packaging for `pnpm package`. The product name is `productName` here. A rename also touches
+# `appId`, the app name and window title in src/main/index.ts, and the package.json `name`, which
+# the package file names use.
+appId: io.github.filipkauffeldt.pixlad
+productName: Pixlad
 copyright: Copyright (C) 2026 Filip Kauffeldt
 
 directories:
@@ -31,6 +31,9 @@ extraResources:
     to: LICENSE
   - from: THIRD_PARTY_NOTICES.txt
     to: THIRD_PARTY_NOTICES.txt
+  # iconPath() in src/main/index.ts uses it for the window icon on Windows and Linux.
+  - from: build/icon.png
+    to: icon.png
   - from: resources/models/face_detection_yunet_2026may.onnx
     to: models/face_detection_yunet_2026may.onnx
 
@@ -40,6 +43,7 @@ mac:
     - target: dmg
       arch: arm64
   category: public.app-category.photography
+  icon: build/icon.png
   # Ad-hoc signing, which Apple Silicon requires. No Developer ID, so no notarization.
   identity: '-'
   hardenedRuntime: false
@@ -53,6 +57,7 @@ win:
   target:
     - target: nsis
       arch: x64
+  icon: build/icon.png
   # No certificate: the installer and the executable are unsigned.
   files:
     - '!node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}/**'
@@ -63,6 +68,7 @@ linux:
     - target: rpm
       arch: x64
   category: Graphics
+  icon: build/icon.png
   maintainer: Filip Kauffeldt <filip.kauffeldt@gmail.com>
   files:
     - '!node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32}/**'

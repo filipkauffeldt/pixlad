@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import type { MosaicPatch } from '../../shared/mosaic';
 import type { Decoded } from './decode';
 import { fdctQuantize } from './encode';

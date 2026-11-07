@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 // Retouch areas and face geometry, adapted from editing-experiment's retouch-areas.ts and
 // retouch-geometry.ts (GPL-3.0-or-later), without lens correction.
 import { clamp, pointInPolygon, rectToPolygon, shapeBounds } from '../shared/geometry';

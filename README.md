@@ -219,6 +219,17 @@ zoom and pan maths, the preview allowlist, and the look) is adapted from the
 GPL-3.0-or-later; so is this one (see [LICENSE](LICENSE)). The JPEG codec, the export and the session
 handling are new.
 
+## Licence
+
+Copyright (C) 2026 Filip Kauffeldt. Mosaic Retouch is free software under the GNU General Public
+License, version 3 or later ([LICENSE](LICENSE)). Every source file carries an SPDX header.
+
+[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) holds the licence text of everything else that
+ships with the app. `pnpm notices` regenerates it from the installed production dependencies, and
+CI (`pnpm notices:check`) fails when it is out of date, when a dependency has no licence text, or
+when its licence is not on the GPL-compatible list in `scripts/third-party-notices.ts`. Licence texts
+that npm packages do not carry are kept under [third_party/](third_party).
+
 ## Third-party
 
 - **YuNet** face detection model, `face_detection_yunet_2026may.onnx`, from the
@@ -226,6 +237,12 @@ handling are new.
   MIT licence, Copyright (c) 2020 Shiqi Yu. The licence text is in
   [third_party/yunet/LICENSE](third_party/yunet/LICENSE). The model is downloaded at install and
   not committed.
-- Inter and JetBrains Mono, SIL OFL 1.1, from `@fontsource-variable`.
-- Runtime libraries: Electron (MIT), React (MIT), ONNX Runtime (MIT). Dev only: Playwright, Vitest,
-  sharp and exiftool-vendored (used by tests as independent references), and the lint/build tooling.
+- **ONNX Runtime** (MIT, Microsoft), with the notices of the components in its native library in
+  [third_party/onnxruntime/](third_party/onnxruntime).
+- **Inter** and **JetBrains Mono**, SIL OFL 1.1, from `@fontsource-variable`; licences in
+  [third_party/fonts/](third_party/fonts).
+- This software is based in part on the work of the Independent JPEG Group: the progressive JPEG
+  decoding follows libjpeg's algorithms ([third_party/libjpeg/](third_party/libjpeg)).
+- Runtime libraries: Electron (MIT; Chromium's licences ship with it), React (MIT). Dev only:
+  Playwright, Vitest, sharp and exiftool-vendored (used by tests as independent references), and the
+  lint/build tooling.

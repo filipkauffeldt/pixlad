@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { Api } from '../shared/ipc';
 

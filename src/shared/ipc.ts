@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import type { FaceDetection, MosaicOp, Rect } from './types';
 
 /** What the renderer knows about a photo in the session. Never the pixels. */

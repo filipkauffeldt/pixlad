@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { Worker } from 'node:worker_threads';
 import type { WorkerReply, WorkerRequest } from './worker';
 

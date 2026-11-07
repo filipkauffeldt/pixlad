@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 // Geometry and mosaic types, adapted from editing-experiment (GPL-3.0-or-later).
 
 export interface Point {

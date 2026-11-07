@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 export type JpegErrorCode = 'not-jpeg' | 'cmyk' | 'unsupported' | 'corrupt';
 
 /** A JPEG this app refuses or cannot read. The message is shown to the user after the file name. */

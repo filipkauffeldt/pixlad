@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { useSyncExternalStore } from 'react';
 import { defaultBlockPx } from '../shared/block-size';
 import type { ExportTarget, PhotoInfo } from '../shared/ipc';

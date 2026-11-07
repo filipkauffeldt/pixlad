@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 // One worker script, three instances (current photo, thumbnails, exporter), so decoding and
 // encoding never block the window.
 import { readFile } from 'node:fs/promises';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { polygonBounds, simplifyPolygon } from '../shared/geometry';
 import type { Point, Rect, Shape } from '../shared/types';

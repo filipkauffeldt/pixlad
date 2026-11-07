@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { useCallback, useEffect, useState } from 'react';
 import { Stage } from './Stage';
 import { Strip } from './Strip';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { MIN_BLOCK_SIZE } from './mosaic';
 
 /** The toolbar shows the block in pixels of the full-resolution photo; the op stores a fraction. */

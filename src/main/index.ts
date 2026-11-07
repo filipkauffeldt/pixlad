@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  Menu,
   protocol,
   session as electronSession,
 } from 'electron';
@@ -219,6 +220,8 @@ function registerProtocol(): void {
 }
 
 app.whenReady().then(() => {
+  // macOS keeps its menu: it sits outside the window and carries Quit and Copy/Paste.
+  if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
   const workerFile = new URL('./worker.js', import.meta.url);
   photoWorker = new WorkerClient(workerFile, modelPath());
   exportWorker = new WorkerClient(workerFile, modelPath());

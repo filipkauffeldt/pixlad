@@ -304,6 +304,14 @@ describe('closing and exporting a batch', () => {
   });
 });
 
+describe('the window', () => {
+  it('has no menu bar on Windows and Linux', async () => {
+    if (process.platform === 'darwin') return; // the macOS menu is outside the window
+    running = await launch();
+    expect(await running.app.evaluate(({ Menu }) => Menu.getApplicationMenu())).toBeNull();
+  });
+});
+
 describe('nothing survives the session', () => {
   it('starts empty after a restart and writes nothing outside the exported _edit files', async () => {
     const dir = await tmp();

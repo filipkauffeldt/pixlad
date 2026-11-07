@@ -29,7 +29,7 @@ async function drag(page: Page, from: [number, number], to: [number, number]): P
 
 describe('the packaged app', () => {
   it('opens a photo, exports it, detects faces and shows the licences', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'mr-package-'));
+    const dir = await mkdtemp(join(tmpdir(), 'pixlad-package-'));
     const file = join(dir, 'photo.jpg');
     await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
 

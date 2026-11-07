@@ -8,12 +8,11 @@ export interface Size {
 }
 
 /**
- * Zoom and pan of the main photo view, as pure maths (no DOM, no GL).
+ * Zoom and pan of the photo view, as pure maths (no DOM).
  *
  * A *layout* says where the picture sits in the viewport: `css = offset + scale * image`, with
- * `image` in pixels of the picture being shown (the full-resolution crop output, or the whole
- * oriented image in crop and retouch modes). The Fit layout is computed by the caller (it
- * depends on the mode's margins); a {@link ZoomView} moves away from it.
+ * `image` in pixels of the upright (oriented) photo. The Fit layout is computed by the caller; a
+ * {@link ZoomView} moves away from it.
  */
 
 /** Where a picture sits in the viewport: `css = offset + scale * image`. */
@@ -36,7 +35,7 @@ export interface ZoomView {
 
 export const FIT_VIEW: ZoomView = { scale: null, pan: { x: 0, y: 0 } };
 
-/** The levels in the footer, in device pixels per picture pixel (1 = 100%, one-to-one). */
+/** Zoom levels in device pixels per picture pixel (1 = 100%, one-to-one). */
 export const ZOOM_LEVELS: readonly number[] = [0.5, 1, 2];
 export const DEFAULT_ZOOM_LEVEL = 1;
 /** The most the view zooms in, in device pixels per picture pixel. */
@@ -83,7 +82,7 @@ function unsnappedLayout(view: ZoomView, base: ViewLayout, image: Size): ViewLay
  * snap does it no harm). At 200% and up the filter still smooths, but with one phase everywhere,
  * so panning does not shimmer. Other scales (Fit, Ctrl+scroll) have
  * no grid to land on and stay smooth, so they are returned as they are. `layout.offset` is in CSS
- * pixels of the stage, whose own corner is on a device pixel (see `PhotoCanvas`).
+ * pixels of the stage, whose own corner is on a device pixel (see `Stage`).
  */
 export function snapToDevicePixels(layout: ViewLayout, dpr: number): ViewLayout {
   const perDevice = layout.scale * dpr;

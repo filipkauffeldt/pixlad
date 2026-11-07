@@ -139,7 +139,17 @@ function mosaicClass(
   for (const { area, blockSize: size } of ordered) {
     if (isAdded(area)) {
       if (size === blockSize) {
-        paintShape(mask, localWidth, localHeight, imageX0, imageY0, area.shape, width, height, false);
+        paintShape(
+          mask,
+          localWidth,
+          localHeight,
+          imageX0,
+          imageY0,
+          area.shape,
+          width,
+          height,
+          false,
+        );
       }
     } else {
       paintShape(mask, localWidth, localHeight, imageX0, imageY0, area.shape, width, height, true);
@@ -152,8 +162,16 @@ function mosaicClass(
   const regionX1 = regionX0 + masked.w;
   const regionY1 = regionY0 + masked.h;
 
-  for (let blockY = Math.floor(regionY0 / blockSize) * blockSize; blockY < regionY1; blockY += blockSize) {
-    for (let blockX = Math.floor(regionX0 / blockSize) * blockSize; blockX < regionX1; blockX += blockSize) {
+  for (
+    let blockY = Math.floor(regionY0 / blockSize) * blockSize;
+    blockY < regionY1;
+    blockY += blockSize
+  ) {
+    for (
+      let blockX = Math.floor(regionX0 / blockSize) * blockSize;
+      blockX < regionX1;
+      blockX += blockSize
+    ) {
       const x0 = Math.max(0, blockX);
       const y0 = Math.max(0, blockY);
       const x1 = Math.min(width, blockX + blockSize);

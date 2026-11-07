@@ -18,7 +18,8 @@ export function fdctQuantize(
   for (let y = 0; y < 8; y++) {
     for (let u = 0; u < 8; u++) {
       let sum = 0;
-      for (let x = 0; x < 8; x++) sum += (plane[(py + y) * planeStride + px + x]! - 128) * COS[x * 8 + u]!;
+      for (let x = 0; x < 8; x++)
+        sum += (plane[(py + y) * planeStride + px + x]! - 128) * COS[x * 8 + u]!;
       tmp[y * 8 + u] = sum;
     }
   }
@@ -274,7 +275,8 @@ export function encodeCoefficients(decoded: Decoded, keptSegments: readonly Segm
     parts.push(head, Buffer.from(payload.buffer, payload.byteOffset, payload.byteLength));
   };
   for (const s of keptSegments) {
-    if (!OWN_MARKERS.has(s.marker) && !(s.marker >= 0xc0 && s.marker <= 0xcf)) segment(s.marker, s.payload);
+    if (!OWN_MARKERS.has(s.marker) && !(s.marker >= 0xc0 && s.marker <= 0xcf))
+      segment(s.marker, s.payload);
   }
   segment(wide ? 0xc1 : 0xc0, sof);
   for (let i = 0; i < nTables; i++) segment(0xc4, dht(0, i, dcTab[i]!).payload);

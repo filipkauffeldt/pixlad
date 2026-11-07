@@ -10,3 +10,4 @@ playwright-report/
 .DS_Store
 *.tsbuildinfo
 .eslintcache
+fixtures/

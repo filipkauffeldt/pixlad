@@ -49,7 +49,9 @@ export interface JpegOptions {
 
 /** Plain JPEG from sharp/libjpeg, with whatever metadata sharp adds stripped back out. */
 export async function encodeJpeg(photo: Rgb, options: JpegOptions = {}): Promise<Buffer> {
-  const buffer = await sharp(photo.data, { raw: { width: photo.width, height: photo.height, channels: 3 } })
+  const buffer = await sharp(photo.data, {
+    raw: { width: photo.width, height: photo.height, channels: 3 },
+  })
     .jpeg({
       quality: options.quality ?? 90,
       chromaSubsampling: options.subsampling ?? '4:2:0',
@@ -115,7 +117,8 @@ export function adobeRgbProfile(): Buffer {
     const b = Buffer.concat([Buffer.from(type, 'latin1'), Buffer.alloc(4), body]);
     return Buffer.concat([b, Buffer.alloc((4 - (b.length % 4)) % 4)]);
   };
-  const xyz = (x: number, y: number, z: number): Buffer => tag('XYZ ', Buffer.concat([s15(x), s15(y), s15(z)]));
+  const xyz = (x: number, y: number, z: number): Buffer =>
+    tag('XYZ ', Buffer.concat([s15(x), s15(y), s15(z)]));
   const gamma = Buffer.alloc(8);
   gamma.writeUInt32BE(1, 0);
   gamma.writeUInt16BE(Math.round(2.19921875 * 256), 4);
@@ -176,7 +179,11 @@ export function iccSegments(profile: Buffer): RawSegment[] {
   for (let at = 0; at < profile.length; at += max) chunks.push(profile.subarray(at, at + max));
   return chunks.map((chunk, i) => ({
     marker: 0xe2,
-    payload: Buffer.concat([Buffer.from('ICC_PROFILE\0', 'latin1'), Buffer.from([i + 1, chunks.length]), chunk]),
+    payload: Buffer.concat([
+      Buffer.from('ICC_PROFILE\0', 'latin1'),
+      Buffer.from([i + 1, chunks.length]),
+      chunk,
+    ]),
   }));
 }
 
@@ -195,16 +202,23 @@ export function exifSegment(options: ExifOptions = {}): RawSegment {
   const le = true;
   const w16 = (v: number): Buffer => {
     const b = Buffer.alloc(2);
-    le ? b.writeUInt16LE(v) : b.writeUInt16BE(v);
+    if (le) b.writeUInt16LE(v);
+    else b.writeUInt16BE(v);
     return b;
   };
   const w32 = (v: number): Buffer => {
     const b = Buffer.alloc(4);
-    le ? b.writeUInt32LE(v) : b.writeUInt32BE(v);
+    if (le) b.writeUInt32LE(v);
+    else b.writeUInt32BE(v);
     return b;
   };
   const entry = (tag: number, type: number, count: number, value: Buffer): Buffer =>
-    Buffer.concat([w16(tag), w16(type), w32(count), Buffer.concat([value, Buffer.alloc(4)]).subarray(0, 4)]);
+    Buffer.concat([
+      w16(tag),
+      w16(type),
+      w32(count),
+      Buffer.concat([value, Buffer.alloc(4)]).subarray(0, 4),
+    ]);
   const date = Buffer.from(`${options.dateTimeOriginal ?? '2024:06:01 12:34:56'}\0`, 'latin1');
   const make = Buffer.from('FixtureCam\0', 'latin1');
   const maker = options.makerNotePreview
@@ -288,10 +302,13 @@ export function xmpSegment(options: { thumbnail?: Buffer } = {}): RawSegment {
   const thumb = options.thumbnail
     ? `<xmp:Thumbnails><rdf:Alt><rdf:li rdf:parseType="Resource"><xmpGImg:format>JPEG</xmpGImg:format><xmpGImg:width>8</xmpGImg:width><xmpGImg:height>8</xmpGImg:height><xmpGImg:image>${options.thumbnail.toString('base64')}</xmpGImg:image></rdf:li></rdf:Alt></xmp:Thumbnails>`
     : '';
-  const packet = `<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:xmpGImg="http://ns.adobe.com/xap/1.0/g/img/" xmp:CreateDate="2024-06-01T12:34:56"><dc:title><rdf:Alt><rdf:li xml:lang="x-default">Fixture title</rdf:li></rdf:Alt></dc:title>${thumb}</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>`;
+  const packet = `<?xpacket begin="${String.fromCharCode(0xfeff)}" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:xmpGImg="http://ns.adobe.com/xap/1.0/g/img/" xmp:CreateDate="2024-06-01T12:34:56"><dc:title><rdf:Alt><rdf:li xml:lang="x-default">Fixture title</rdf:li></rdf:Alt></dc:title>${thumb}</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>`;
   return {
     marker: 0xe1,
-    payload: Buffer.concat([Buffer.from('http://ns.adobe.com/xap/1.0/\0', 'latin1'), Buffer.from(packet, 'utf8')]),
+    payload: Buffer.concat([
+      Buffer.from('http://ns.adobe.com/xap/1.0/\0', 'latin1'),
+      Buffer.from(packet, 'utf8'),
+    ]),
   };
 }
 

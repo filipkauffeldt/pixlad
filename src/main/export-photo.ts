@@ -58,7 +58,9 @@ export async function exportEdit(request: ExportRequest): Promise<ExportResult> 
     source = await readFile(sourcePath);
     sourceStat = await stat(sourcePath);
   } catch (cause) {
-    throw new ExportFailure(`${name}: cannot read the source file (${errorText(cause)})`, { cause });
+    throw new ExportFailure(`${name}: cannot read the source file (${errorText(cause)})`, {
+      cause,
+    });
   }
 
   const decoded = decodeCoefficients(source);
@@ -107,7 +109,10 @@ export async function exportEdit(request: ExportRequest): Promise<ExportResult> 
     const check = decodeCoefficients(written);
     const same = decoded.components.every((c, i) => {
       const other = check.components[i]!;
-      return c.coeffs.length === other.coeffs.length && Buffer.compare(Buffer.from(c.coeffs.buffer), Buffer.from(other.coeffs.buffer)) === 0;
+      return (
+        c.coeffs.length === other.coeffs.length &&
+        Buffer.compare(Buffer.from(c.coeffs.buffer), Buffer.from(other.coeffs.buffer)) === 0
+      );
     });
     if (!same) throw new ExportFailure(`${name}: the written file does not match what was encoded`);
     if (!sameBytes(iccProfile(decoded.header.segments), iccProfile(check.header.segments))) {

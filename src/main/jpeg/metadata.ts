@@ -26,7 +26,8 @@ export function scrubSegments(segments: readonly Segment[]): ScrubResult {
   // Extended XMP is split over several segments; decide for all of them together.
   const extended = segments.filter((s) => s.marker === 0xe1 && startsWith(s.payload, XMP_EXT));
   const extendedHasThumbnail =
-    extended.length > 0 && /g\/img\/|GImg:image|:Thumbnails/i.test(extended.map((s) => latin1(s.payload)).join(''));
+    extended.length > 0 &&
+    /g\/img\/|GImg:image|:Thumbnails/i.test(extended.map((s) => latin1(s.payload)).join(''));
 
   for (const segment of segments) {
     const { marker, payload } = segment;
@@ -52,7 +53,10 @@ export function scrubSegments(segments: readonly Segment[]): ScrubResult {
         if (scrubbed !== text) removed.push('XMP thumbnail');
         kept.push({
           marker,
-          payload: Buffer.concat([Buffer.from(payload.subarray(0, head)), Buffer.from(scrubbed, 'latin1')]),
+          payload: Buffer.concat([
+            Buffer.from(payload.subarray(0, head)),
+            Buffer.from(scrubbed, 'latin1'),
+          ]),
         });
       } else if (startsWith(payload, XMP_EXT)) {
         if (extendedHasThumbnail) {
@@ -135,7 +139,21 @@ function resource(id: number, nameField: Uint8Array, data: Buffer): Buffer {
 
 // ------------------------------------------------------------------------------------- EXIF
 
-const TYPE_SIZE: Record<number, number> = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8, 13: 4 };
+const TYPE_SIZE: Record<number, number> = {
+  1: 1,
+  2: 1,
+  3: 2,
+  4: 4,
+  5: 8,
+  6: 1,
+  7: 1,
+  8: 2,
+  9: 4,
+  10: 8,
+  11: 4,
+  12: 8,
+  13: 4,
+};
 
 /**
  * Take the thumbnail and preview out of an EXIF block: IFD1 is unlinked and blanked together with
@@ -148,8 +166,10 @@ export function scrubExif(payload: Uint8Array): { payload: Uint8Array; removed: 
   const tiff = out.subarray(6);
   const little = tiff[0] === 0x49;
   const view = new DataView(tiff.buffer, tiff.byteOffset, tiff.byteLength);
-  const u16 = (at: number): number => (at >= 0 && at + 2 <= tiff.length ? view.getUint16(at, little) : 0);
-  const u32 = (at: number): number => (at >= 0 && at + 4 <= tiff.length ? view.getUint32(at, little) : 0);
+  const u16 = (at: number): number =>
+    at >= 0 && at + 2 <= tiff.length ? view.getUint16(at, little) : 0;
+  const u32 = (at: number): number =>
+    at >= 0 && at + 4 <= tiff.length ? view.getUint32(at, little) : 0;
   const set32 = (at: number, v: number): void => void view.setUint32(at, v, little);
   const set16 = (at: number, v: number): void => void view.setUint16(at, v, little);
   if (tiff.length < 8 || (tiff[0] !== 0x49 && tiff[0] !== 0x4d) || u16(2) !== 42) {
@@ -171,13 +191,20 @@ export function scrubExif(payload: Uint8Array): { payload: Uint8Array; removed: 
     const count = u16(offset);
     if (count > 512 || offset + 2 + count * 12 + 4 > tiff.length) return;
     const entries: Array<{ tag: number; at: number }> = [];
-    for (let i = 0; i < count; i++) entries.push({ tag: u16(offset + 2 + i * 12), at: offset + 2 + i * 12 });
+    for (let i = 0; i < count; i++)
+      entries.push({ tag: u16(offset + 2 + i * 12), at: offset + 2 + i * 12 });
     const thumbOffset = entries.find((e) => e.tag === 0x201);
     const thumbLength = entries.find((e) => e.tag === 0x202);
     if (thumbOffset && thumbLength) zero(valueAt(thumbOffset.at), valueAt(thumbLength.at));
     const stripOffsets = entries.find((e) => e.tag === 0x111);
     const stripCounts = entries.find((e) => e.tag === 0x117);
-    if (isThumbnail && stripOffsets && stripCounts && u32(stripOffsets.at + 4) === 1 && u32(stripCounts.at + 4) === 1) {
+    if (
+      isThumbnail &&
+      stripOffsets &&
+      stripCounts &&
+      u32(stripOffsets.at + 4) === 1 &&
+      u32(stripCounts.at + 4) === 1
+    ) {
       zero(valueAt(stripOffsets.at), valueAt(stripCounts.at));
     }
     const doomed = new Set([0x201, 0x202, 0x2e, 0xc51b]);
@@ -206,7 +233,10 @@ export function scrubExif(payload: Uint8Array): { payload: Uint8Array; removed: 
       tiff.fill(0, offset, end);
       set16(offset, kept.length);
       kept.forEach((e, i) => {
-        Buffer.from(raw.subarray((e.at - offset - 2), e.at - offset - 2 + 12)).copy(tiff, offset + 2 + i * 12);
+        Buffer.from(raw.subarray(e.at - offset - 2, e.at - offset - 2 + 12)).copy(
+          tiff,
+          offset + 2 + i * 12,
+        );
       });
       set32(offset + 2 + kept.length * 12, next);
     }
@@ -218,7 +248,8 @@ export function scrubExif(payload: Uint8Array): { payload: Uint8Array; removed: 
         walkIfd(next, true);
         void before;
         const c1 = u16(next);
-        if (c1 <= 512 && next + 2 + c1 * 12 + 4 <= tiff.length) tiff.fill(0, next, next + 2 + c1 * 12 + 4);
+        if (c1 <= 512 && next + 2 + c1 * 12 + 4 <= tiff.length)
+          tiff.fill(0, next, next + 2 + c1 * 12 + 4);
         set32(nextAt, 0);
         removed.push('EXIF thumbnail');
       } else {

@@ -5,7 +5,8 @@ import { storedToOriented } from './parse';
 export const COS = new Float64Array(64);
 for (let x = 0; x < 8; x++) {
   for (let u = 0; u < 8; u++) {
-    COS[x * 8 + u] = (u === 0 ? Math.SQRT1_2 : 1) * 0.5 * Math.cos(((2 * x + 1) * u * Math.PI) / 16);
+    COS[x * 8 + u] =
+      (u === 0 ? Math.SQRT1_2 : 1) * 0.5 * Math.cos(((2 * x + 1) * u * Math.PI) / 16);
   }
 }
 
@@ -30,7 +31,8 @@ export function idctBlock(
   }
   if (acOnlyZero) {
     const v = Math.min(255, Math.max(0, Math.round((coeffs[offset]! * quant[0]!) / 8 + 128)));
-    for (let y = 0; y < 8; y++) plane.fill(v, (py + y) * planeStride + px, (py + y) * planeStride + px + 8);
+    for (let y = 0; y < 8; y++)
+      plane.fill(v, (py + y) * planeStride + px, (py + y) * planeStride + px + 8);
     return;
   }
   // Columns: tmp[y][u] = sum_v F[v][u] * COS[y][v]
@@ -101,10 +103,8 @@ export function planesToRgba(decoded: Decoded, planes: Plane[]): Uint8Array {
       let g = lum;
       let b = lum;
       if (cb && cr) {
-        const cbv =
-          cb.data[Math.floor(row / vy[1]!) * cb.width + Math.floor(col / hx[1]!)]! - 128;
-        const crv =
-          cr.data[Math.floor(row / vy[2]!) * cr.width + Math.floor(col / hx[2]!)]! - 128;
+        const cbv = cb.data[Math.floor(row / vy[1]!) * cb.width + Math.floor(col / hx[1]!)]! - 128;
+        const crv = cr.data[Math.floor(row / vy[2]!) * cr.width + Math.floor(col / hx[2]!)]! - 128;
         r = lum + 1.402 * crv;
         g = lum - 0.344136 * cbv - 0.714136 * crv;
         b = lum + 1.772 * cbv;

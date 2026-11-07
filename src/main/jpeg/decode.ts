@@ -108,7 +108,8 @@ class BitReader {
   }
 }
 
-const extend = (v: number, n: number): number => (n === 0 ? 0 : v < 1 << (n - 1) ? v - (1 << n) + 1 : v);
+const extend = (v: number, n: number): number =>
+  n === 0 ? 0 : v < 1 << (n - 1) ? v - (1 << n) + 1 : v;
 
 interface ScanComponent {
   comp: Component;
@@ -150,7 +151,7 @@ export function decodeCoefficients(data: Uint8Array, options: { dcOnly?: boolean
   let pos = header.scanStart;
 
   const readTables = (payload: Uint8Array): void => {
-    for (let at = 0; at < payload.length; ) {
+    for (let at = 0; at < payload.length;) {
       const tc = payload[at]! >> 4;
       const th = payload[at]! & 15;
       const bits = payload.subarray(at + 1, at + 17);
@@ -163,7 +164,8 @@ export function decodeCoefficients(data: Uint8Array, options: { dcOnly?: boolean
   };
   for (const segment of header.segments) {
     if (segment.marker === 0xc4) readTables(segment.payload);
-    else if (segment.marker === 0xdd) restartInterval = (segment.payload[0]! << 8) | segment.payload[1]!;
+    else if (segment.marker === 0xdd)
+      restartInterval = (segment.payload[0]! << 8) | segment.payload[1]!;
   }
 
   for (;;) {
@@ -201,7 +203,19 @@ export function decodeCoefficients(data: Uint8Array, options: { dcOnly?: boolean
         continue;
       }
       const reader = new BitReader(data, pos);
-      decodeScan(reader, frame, header, scanComps, mcusPerLine, restartInterval, ss, se, ah, al, dcOnly);
+      decodeScan(
+        reader,
+        frame,
+        header,
+        scanComps,
+        mcusPerLine,
+        restartInterval,
+        ss,
+        se,
+        ah,
+        al,
+        dcOnly,
+      );
       pos = skipEntropy(data, reader.pos);
     }
   }
@@ -245,7 +259,8 @@ function decodeScan(
         throw new JpegError('corrupt', 'is missing a Huffman table');
       }
     }
-    if ((!progressive || ss > 0) && !sc.ac) throw new JpegError('corrupt', 'is missing a Huffman table');
+    if ((!progressive || ss > 0) && !sc.ac)
+      throw new JpegError('corrupt', 'is missing a Huffman table');
   }
 
   const decodeBlock = (sc: ScanComponent, index: number, c: Int16Array, off: number): void => {

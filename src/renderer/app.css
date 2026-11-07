@@ -1,0 +1,367 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Toolbar: one row in a fixed order; a narrow window wraps it, never resizes controls. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  min-height: var(--topbar-h);
+  padding: 6px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.control input[type='range'] {
+  width: 110px;
+}
+.spacer {
+  flex: 1;
+}
+.counts {
+  color: var(--muted);
+  min-width: 150px;
+  display: flex;
+  gap: 12px;
+}
+
+.btn {
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  padding: 4px 10px;
+  height: 24px;
+}
+.btn:hover:not(:disabled) {
+  background: var(--raised);
+}
+.btn:disabled {
+  color: var(--dim);
+  border-color: var(--line);
+}
+.btn.primary {
+  background: var(--text);
+  color: var(--on-text);
+  border-color: var(--text);
+}
+.btn.primary:disabled {
+  background: var(--raised);
+  color: var(--dim);
+  border-color: var(--line);
+}
+.tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  color: var(--muted);
+  padding: 4px 10px;
+  height: 24px;
+}
+.tab:hover {
+  color: var(--text);
+}
+.tab[aria-pressed='true'] {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+.numberField {
+  width: 52px;
+  height: 22px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  text-align: right;
+  padding: 0 2px;
+}
+.numberField:focus {
+  outline: 0;
+  border-bottom-color: var(--text);
+}
+.unit {
+  color: var(--dim);
+  margin-left: -4px;
+}
+
+input[type='range'] {
+  appearance: none;
+  height: 14px;
+  background: transparent;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--line-strong);
+}
+input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 2px;
+  height: 11px;
+  margin-top: -5px;
+  background: var(--text);
+}
+
+/* Notices */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+}
+.notice .lines {
+  flex: 1;
+}
+.notice .dot,
+.dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--dim);
+}
+.dot.error {
+  background: var(--error);
+}
+.dot.ok {
+  background: var(--ok);
+}
+.notice .close {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+}
+
+/* Stage */
+.stageWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+}
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+.stage.panning {
+  cursor: grab;
+}
+.stage.drawing {
+  cursor: crosshair;
+}
+.stage img {
+  position: absolute;
+  display: block;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.areaOn {
+  fill: rgba(255, 255, 255, 0.05);
+  stroke: var(--text);
+  stroke-width: 1;
+}
+.areaOff {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.areaSubtract {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 6 3;
+}
+.draft {
+  fill: rgba(255, 255, 255, 0.08);
+  stroke: var(--text);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+.busy {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  color: var(--muted);
+}
+
+/* Empty state and drop overlay */
+.empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border: 1px dashed var(--line-strong);
+  margin: 24px;
+}
+.empty h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+.empty p {
+  margin: 0;
+  color: var(--muted);
+}
+.dropOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(14, 14, 15, 0.82);
+  border: 2px solid var(--text);
+  font-size: 15px;
+  pointer-events: none;
+}
+
+/* Strip */
+.strip {
+  position: relative;
+  height: 92px;
+  flex: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+.stripInner {
+  position: relative;
+  height: 100%;
+}
+.thumb {
+  position: absolute;
+  top: 8px;
+  width: 96px;
+  height: 76px;
+  background: var(--bg);
+  border: 0;
+  padding: 0;
+  cursor: default;
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.thumb[aria-current='true'] {
+  outline: var(--select-outline);
+  outline-offset: var(--select-offset);
+}
+.thumb .badges {
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  display: flex;
+  gap: 3px;
+  padding: 2px 3px;
+  background: var(--scrim);
+  align-items: center;
+}
+.thumb .badges svg {
+  display: block;
+}
+.thumb .remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  padding: 0;
+  display: none;
+  background: var(--scrim);
+  border: 0;
+  color: var(--text);
+}
+.thumb:hover .remove {
+  display: block;
+}
+
+/* Footer */
+.footer {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  height: 28px;
+  flex: none;
+  padding: 0 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.footer .status {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.label {
+  color: var(--dim);
+  font-size: var(--fs-label);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+}
+
+/* Toasts: failures only */
+.toasts {
+  position: fixed;
+  right: 12px;
+  bottom: 44px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 520px;
+}
+.toast {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+}
+.toast .lines {
+  flex: 1;
+  word-break: break-word;
+}
+.toast .close {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+}

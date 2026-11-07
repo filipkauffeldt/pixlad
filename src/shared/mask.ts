@@ -1,5 +1,4 @@
-import type { Point, Rect, Shape } from './types';
-
+import type { Point } from './types';
 
 /**
  * A selection mask: one byte per pixel, 1 = selected, 0 = not selected.

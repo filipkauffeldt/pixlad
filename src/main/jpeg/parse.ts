@@ -2,8 +2,8 @@ import { JpegError } from './errors';
 
 export const ZIGZAG = new Uint8Array([
   0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48, 41, 34, 27, 20,
-  13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59,
-  52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63,
+  13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59, 52,
+  45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63,
 ]);
 
 export interface Segment {
@@ -121,11 +121,16 @@ export function parseHeader(data: Uint8Array): ParsedHeader {
       const width = (payload[3]! << 8) | payload[4]!;
       const count = payload[5]!;
       if (precision !== 8) throw new JpegError('unsupported', `has ${precision}-bit samples`);
-      if (width === 0 || height === 0) throw new JpegError('unsupported', 'has no size in its header');
+      if (width === 0 || height === 0)
+        throw new JpegError('unsupported', 'has no size in its header');
       if (count === 4) {
-        throw new JpegError('cmyk', 'is a CMYK JPEG; its colours would have to be altered to edit it');
+        throw new JpegError(
+          'cmyk',
+          'is a CMYK JPEG; its colours would have to be altered to edit it',
+        );
       }
-      if (count !== 1 && count !== 3) throw new JpegError('unsupported', `has ${count} colour components`);
+      if (count !== 1 && count !== 3)
+        throw new JpegError('unsupported', `has ${count} colour components`);
       const components: ComponentInfo[] = [];
       for (let i = 0; i < count; i++) {
         const at = 6 + i * 3;
@@ -146,7 +151,7 @@ export function parseHeader(data: Uint8Array): ParsedHeader {
         vmax: Math.max(...components.map((c) => c.v)),
       };
     } else if (marker === 0xdb) {
-      for (let at = 0; at < payload.length; ) {
+      for (let at = 0; at < payload.length;) {
         const pq = payload[at]! >> 4;
         const id = payload[at]! & 15;
         at++;
@@ -160,10 +165,16 @@ export function parseHeader(data: Uint8Array): ParsedHeader {
         }
         quant.set(id, table);
       }
-    } else if (marker === 0xee && Buffer.from(payload.subarray(0, 5)).toString('latin1') === 'Adobe') {
+    } else if (
+      marker === 0xee &&
+      Buffer.from(payload.subarray(0, 5)).toString('latin1') === 'Adobe'
+    ) {
       hasAdobe = true;
       adobeTransform = payload[11] ?? -1;
-    } else if (marker === 0xe0 && Buffer.from(payload.subarray(0, 5)).toString('latin1') === 'JFIF\0') {
+    } else if (
+      marker === 0xe0 &&
+      Buffer.from(payload.subarray(0, 5)).toString('latin1') === 'JFIF\0'
+    ) {
       hasJfif = true;
     }
     segments.push({ marker, payload });

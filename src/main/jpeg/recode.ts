@@ -17,7 +17,11 @@ import type { Plane } from './pixels';
  *
  * Returns how many blocks were rewritten (all components).
  */
-export function applyPatchToCoefficients(decoded: Decoded, planes: Plane[], patch: MosaicPatch): number {
+export function applyPatchToCoefficients(
+  decoded: Decoded,
+  planes: Plane[],
+  patch: MosaicPatch,
+): number {
   const { frame, orientation } = decoded.header;
   const { width, height, hmax, vmax } = frame;
   const comps = decoded.components;
@@ -26,7 +30,10 @@ export function applyPatchToCoefficients(decoded: Decoded, planes: Plane[], patc
   const chroma = comps.map((c, i) =>
     i === 0 || comps.length === 1
       ? undefined
-      : { sum: new Float32Array(planes[i]!.width * planes[i]!.height), count: new Uint8Array(planes[i]!.width * planes[i]!.height) },
+      : {
+          sum: new Float32Array(planes[i]!.width * planes[i]!.height),
+          count: new Uint8Array(planes[i]!.width * planes[i]!.height),
+        },
   );
 
   for (let py = 0; py < patch.height; py++) {
@@ -80,7 +87,15 @@ export function applyPatchToCoefficients(decoded: Decoded, planes: Plane[], patc
     for (let row = 0; row < comp.rows; row++) {
       for (let col = 0; col < comp.stride; col++) {
         if (!touched[ci]![row * comp.stride + col]) continue;
-        fdctQuantize(plane.data, plane.width, col * 8, row * 8, quant, comp.coeffs, (row * comp.stride + col) * 64);
+        fdctQuantize(
+          plane.data,
+          plane.width,
+          col * 8,
+          row * 8,
+          quant,
+          comp.coeffs,
+          (row * comp.stride + col) * 64,
+        );
         rewritten++;
       }
     }

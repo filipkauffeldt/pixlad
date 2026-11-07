@@ -41,6 +41,7 @@ export interface MosaicOp {
 export interface FaceDetection {
   box: Rect;
   score: number;
+  landmarks?: Point[];
 }
 
 export const isAdded = (area: MosaicArea): boolean =>

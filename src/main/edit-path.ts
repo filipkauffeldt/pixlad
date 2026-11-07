@@ -24,7 +24,9 @@ export function editPath(sourcePath: string, attempt: number): string {
   return join(dirname(sourcePath), `${base}${suffix}${editExtension(sourcePath)}`);
 }
 
-async function statOrUndefined(path: string): Promise<{ size: number; mtimeMs: number } | undefined> {
+async function statOrUndefined(
+  path: string,
+): Promise<{ size: number; mtimeMs: number } | undefined> {
   try {
     const info = await stat(path);
     return { size: info.size, mtimeMs: info.mtimeMs };
@@ -57,7 +59,8 @@ export async function chooseEditPath(
   for (let attempt = 1; attempt < 10_000; attempt++) {
     const candidate = editPath(sourcePath, attempt);
     if (candidate === sourcePath || protectedPaths.has(candidate)) continue;
-    if ((await statOrUndefined(candidate)) === undefined) return { path: candidate, replace: false };
+    if ((await statOrUndefined(candidate)) === undefined)
+      return { path: candidate, replace: false };
   }
   throw new Error(`No free file name for the edit of ${basename(sourcePath)}`);
 }

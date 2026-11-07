@@ -37,7 +37,9 @@ export class EmbeddedPreviewError extends Error {
 
   constructor(path: string, findings: PreviewFinding[]) {
     const detail = findings.map((f) => f.detail).join('; ');
-    super(`The export still contains an embedded preview (${detail}), so it was not saved: ${path}`);
+    super(
+      `The export still contains an embedded preview (${detail}), so it was not saved: ${path}`,
+    );
     this.name = 'EmbeddedPreviewError';
     this.findings = findings;
   }
@@ -199,7 +201,11 @@ function inspectAppSegment(marker: number, payload: Uint8Array, findings: Previe
     inspectApp13(payload, findings);
     return;
   }
-  if (marker === 0xee && startsWith(payload, Buffer.from('Adobe', 'latin1')) && payload.length === 12) {
+  if (
+    marker === 0xee &&
+    startsWith(payload, Buffer.from('Adobe', 'latin1')) &&
+    payload.length === 12
+  ) {
     return;
   }
   findings.push({

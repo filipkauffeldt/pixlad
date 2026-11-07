@@ -153,7 +153,9 @@ pnpm install
 pnpm start
 ```
 
-`pnpm start` builds the app and opens it. `pnpm dev` runs it with live reload. If the face model
+`pnpm start` builds the app and opens it. On Linux, Electron aborts with a message about
+`chrome-sandbox` unless that helper is set up as root (the message says how); `pnpm start:no-sandbox`
+runs without Chromium's sandbox instead. `pnpm dev` runs it with live reload. If the face model
 could not be downloaded during install, run `pnpm fetch-model`; everything except Faces works
 without it.
 

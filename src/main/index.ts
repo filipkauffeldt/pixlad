@@ -84,7 +84,7 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
     },
   });
-  void window.webContents.setVisualZoomLevelLimits(1, 1);
+  window.webContents.setVisualZoomLevelLimits(1, 1).catch(() => undefined);
 
   window.on('close', (event) => {
     if (forceClose || unexported === 0) return;

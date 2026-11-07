@@ -16,6 +16,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite build && electron-vite preview",
+    "start:no-sandbox": "electron-vite build && electron-vite preview -- --no-sandbox",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json",

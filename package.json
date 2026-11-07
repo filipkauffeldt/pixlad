@@ -14,6 +14,7 @@
     "postinstall": "node scripts/fetch-model.ts",
     "fetch-model": "node scripts/fetch-model.ts",
     "fetch-fixtures": "node scripts/fetch-fixtures.ts",
+    "render-icon": "node scripts/render-icon.ts",
     "notices": "node scripts/third-party-notices.ts",
     "notices:check": "node scripts/third-party-notices.ts --check",
     "dev": "node scripts/ensure-electron.mjs && electron-vite dev",

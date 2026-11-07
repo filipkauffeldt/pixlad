@@ -188,6 +188,13 @@ input[type='range']::-webkit-slider-thumb {
   padding: 14px 16px 10px;
   border-bottom: 1px solid var(--line);
 }
+.modalHeader .aboutIcon {
+  flex: none;
+  margin-right: 12px;
+}
+.modalHeader .aboutTitle {
+  flex: 1;
+}
 .modalHeader h2 {
   margin: 0 0 2px;
   font-size: 15px;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef, useState } from 'react';
+import icon from '../../build/icon.svg';
 import { SOURCE_URL, type AboutInfo } from '../shared/ipc';
 import { actions } from './store';
 
@@ -44,7 +45,8 @@ export function About() {
         data-testid="about"
       >
         <header className="modalHeader">
-          <div>
+          <img className="aboutIcon" src={icon} alt="" width={40} height={40} />
+          <div className="aboutTitle">
             <h2 id="about-title">Pixlad</h2>
             <div className="mono muted">{info ? `Version ${info.version}` : ' '}</div>
           </div>

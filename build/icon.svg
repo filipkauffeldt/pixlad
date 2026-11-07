@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" shape-rendering="crispEdges">
+  <!-- Pixlad: a blocky P six blocks wide and eight high, with its bowl's bottom-right corner cut away. -->
+  <rect width="10" height="10" rx="1.8" fill="#0e0e0f" shape-rendering="geometricPrecision"/>
+  <g fill="#e8e8e8">
+    <rect x="2" y="1" width="6" height="1"/>
+    <rect x="2" y="2" width="6" height="1"/>
+    <rect x="2" y="3" width="2" height="1"/>
+    <rect x="6" y="3" width="2" height="1"/>
+    <rect x="2" y="4" width="2" height="1"/>
+    <rect x="6" y="4" width="2" height="1"/>
+    <rect x="2" y="5" width="4" height="1"/>
+    <rect x="2" y="6" width="4" height="1"/>
+    <rect x="2" y="7" width="2" height="1"/>
+    <rect x="2" y="8" width="2" height="1"/>
+  </g>
+</svg>

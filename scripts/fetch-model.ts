@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 // Downloads the YuNet face detection model (MIT) into resources/models/ after checking its SHA-256.
 // The model is not committed. Runs after `pnpm install`; run `pnpm fetch-model` to retry.
 import { createHash } from 'node:crypto';

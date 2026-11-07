@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 // Downloads a public-domain group photo (NASA, via Wikimedia Commons) into fixtures/ for the face
 // detection tests. Gitignored, never committed. Tests that need it skip when it is missing.
 import { createHash } from 'node:crypto';

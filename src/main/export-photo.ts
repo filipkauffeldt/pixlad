@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access, open, readFile, rename, rm, stat, utimes } from 'node:fs/promises';

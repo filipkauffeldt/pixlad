@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 // Install scripts are not allowed to run for Electron (see pnpm-workspace.yaml), and electron-vite
 // fails on a missing binary instead of fetching it. Resolving the package downloads it when needed.
 import { existsSync } from 'node:fs';

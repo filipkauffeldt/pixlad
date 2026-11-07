@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { open, readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import type { AddResult, PhotoInfo, Refusal } from '../shared/ipc';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 // Zoom and pan maths, from editing-experiment apps/desktop/src/renderer/view-transform.ts (GPL-3.0-or-later).
 import type { Point } from '../shared/types';
 export interface Size {

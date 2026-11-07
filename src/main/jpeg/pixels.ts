@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import type { Component, Decoded } from './decode';
 import { storedToOriented } from './parse';
 

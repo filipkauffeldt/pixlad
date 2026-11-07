@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 // Ported from editing-experiment packages/retouch (GPL-3.0-or-later); the image resize is a plain
 // box filter here instead of the native core.
 import type { FaceDetection, Point, Rect } from '../../shared/types';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 // Adapted from editing-experiment packages/retouch/src/mosaic.ts (GPL-3.0-or-later).
 // Differences: the result is a sparse patch (bounding box plus a touched mask) instead of a full
 // copy of the image, so memory stays proportional to the retouched area, and the export can tell

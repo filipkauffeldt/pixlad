@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { readFile } from 'node:fs/promises';
 
 // Ported from editing-experiment packages/export (GPL-3.0-or-later). It is an allowlist: only

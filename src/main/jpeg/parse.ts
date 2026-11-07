@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { JpegError } from './errors';
 
 export const ZIGZAG = new Uint8Array([

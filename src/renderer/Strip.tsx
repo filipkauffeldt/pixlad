@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef, useState } from 'react';
 import { actions, hasMosaic, useApp, type PhotoState } from './store';
 

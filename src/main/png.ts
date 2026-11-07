@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import { crc32, deflateSync } from 'node:zlib';
 
 function chunk(type: string, data: Uint8Array): Buffer {

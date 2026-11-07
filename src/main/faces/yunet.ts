@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
 import * as ort from 'onnxruntime-node';
 import type { Point } from '../../shared/types';
 import type { PixelRect } from '../../shared/geometry';

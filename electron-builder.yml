@@ -69,7 +69,7 @@ linux:
       arch: x64
   category: Graphics
   icon: build/icon.png
-  maintainer: Filip Kauffeldt <filip.kauffeldt@gmail.com>
+  maintainer: Filip Kauffeldt <https://github.com/filipkauffeldt/pixlad>
   files:
     - '!node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32}/**'
     - '!node_modules/onnxruntime-node/bin/napi-v6/linux/arm64/**'

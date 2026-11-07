@@ -6,3 +6,4 @@ pnpm-lock.yaml
 LICENSE
 THIRD_PARTY_NOTICES.txt
 third_party/onnxruntime/ThirdPartyNotices.txt
+dist

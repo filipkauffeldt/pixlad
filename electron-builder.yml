@@ -1,0 +1,69 @@
+# Packaging for `pnpm package`. The app's name lives in two places: `productName` and `appId`
+# here, plus the window title and app name in src/main/index.ts. File names are built from the
+# package.json `name`, so a rename is these strings, `name`, and the README.
+appId: io.github.filipkauffeldt.mosaicretouch
+productName: Mosaic Retouch
+copyright: Copyright (C) 2026 Filip Kauffeldt
+
+directories:
+  output: dist
+
+artifactName: ${name}-${version}-${os}-${arch}.${ext}
+
+# Fails the build when a file the app needs at run time would be missing from the package.
+beforePack: scripts/check-package-inputs.mjs
+
+files:
+  - out/**
+  - package.json
+  # Bundled by Vite into out/renderer, so the packages themselves are not needed at run time.
+  - '!node_modules/react/**'
+  - '!node_modules/react-dom/**'
+  - '!node_modules/@fontsource-variable/**'
+
+# onnxruntime-node loads its native library from disk, which cannot be done from inside an asar.
+asarUnpack:
+  - node_modules/onnxruntime-node/bin/**
+
+# These sit at the root of the resources folder, where src/main/index.ts looks for them.
+extraResources:
+  - from: LICENSE
+    to: LICENSE
+  - from: THIRD_PARTY_NOTICES.txt
+    to: THIRD_PARTY_NOTICES.txt
+  - from: resources/models/face_detection_yunet_2026may.onnx
+    to: models/face_detection_yunet_2026may.onnx
+
+# Only the target platform's ONNX Runtime binaries go into each package.
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+  category: public.app-category.photography
+  # Ad-hoc signing, which Apple Silicon requires. No Developer ID, so no notarization.
+  identity: '-'
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
+  files:
+    - '!node_modules/onnxruntime-node/bin/napi-v6/{linux,win32}/**'
+    - '!node_modules/onnxruntime-node/bin/napi-v6/darwin/x64/**'
+
+win:
+  target:
+    - target: nsis
+      arch: x64
+  # No certificate: the installer and the executable are unsigned.
+  files:
+    - '!node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}/**'
+    - '!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**'
+
+linux:
+  target:
+    - target: rpm
+      arch: x64
+  category: Graphics
+  maintainer: Filip Kauffeldt <filip.kauffeldt@gmail.com>
+  files:
+    - '!node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32}/**'
+    - '!node_modules/onnxruntime-node/bin/napi-v6/linux/arm64/**'

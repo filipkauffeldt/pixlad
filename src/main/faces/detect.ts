@@ -225,7 +225,7 @@ export async function detectFaces(
     const longestSide = Math.max(regionWidth, regionHeight);
     if (longestSide > settings.maxInputEdge) {
       const region = cropRgba(rgba, width, regionX, regionY, regionWidth, regionHeight);
-      // The native resize returns the exact size it chose; map back with that.
+      // The resize returns the exact size it chose; map back with that.
       const scaled = await resizeRgba(region, regionWidth, regionHeight, {
         maxEdge: Math.floor(settings.maxInputEdge),
       });

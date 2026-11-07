@@ -8,12 +8,16 @@ import {
   Menu,
   protocol,
   session as electronSession,
+  shell,
 } from 'electron';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   isExportTarget,
+  SOURCE_URL,
+  type AboutInfo,
   type ExportOutcome,
   type ExportTarget,
   type PreviewPatch,
@@ -21,26 +25,46 @@ import {
 import { opHasAddedArea, type MosaicOp, type Rect } from '../shared/types';
 import type { WrittenEdit } from './edit-path';
 import { Limiter, WorkerClient } from './pool';
+import { parseNotices } from './notices';
 import { Session } from './session';
 import { readExportTarget, writeExportTarget } from './settings';
 
-const MODEL_FILE = 'face_detection_yunet_2026may.onnx';
-const PARTITION = 'mosaic-retouch'; // no "persist:" prefix: Chromium keeps nothing on disk for it
+declare const __APP_VERSION__: string;
 
-app.setName('Mosaic Retouch');
+const MODEL_FILE = 'face_detection_yunet_2026may.onnx';
+const PARTITION = 'pixlad'; // no "persist:" prefix: Chromium keeps nothing on disk for it
+
+app.setName('Pixlad');
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'mr', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: 'pixlad', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
-/** `resources/models/` next to the app: found by walking up from the bundle, or in a packaged build. */
-function modelPath(): string {
-  const packaged = join(process.resourcesPath ?? '', 'models', MODEL_FILE);
-  if (existsSync(packaged)) return packaged;
+/**
+ * A file shipped with the app: in a packaged build it is in the resources folder, from the source
+ * tree it is found by walking up from the bundle to `fromSource` (relative to the project root).
+ */
+function shippedFile(packaged: string, fromSource: string): string {
+  const inResources = join(process.resourcesPath ?? '', packaged);
+  if (existsSync(inResources)) return inResources;
   for (let dir = import.meta.dirname; ; dir = dirname(dir)) {
-    const candidate = join(dir, 'resources', 'models', MODEL_FILE);
+    const candidate = join(dir, fromSource);
     if (existsSync(candidate)) return candidate;
-    if (dirname(dir) === dir) return join(app.getAppPath(), 'resources', 'models', MODEL_FILE);
+    if (dirname(dir) === dir) return join(app.getAppPath(), fromSource);
   }
+}
+
+/** The app icon: the title bar and taskbar on Windows and Linux, the Dock when run from source. */
+const iconPath = (): string => shippedFile('icon.png', join('build', 'icon.png'));
+
+const modelPath = (): string =>
+  shippedFile(join('models', MODEL_FILE), join('resources', 'models', MODEL_FILE));
+
+/** Electron ships Chromium's licences next to its executable (in Resources on macOS). */
+function chromiumLicensesPath(): string | undefined {
+  const exe = dirname(process.execPath);
+  return [exe, join(exe, '..', 'Resources'), join(exe, '..', '..', '..')]
+    .map((dir) => join(dir, 'LICENSES.chromium.html'))
+    .find((path) => existsSync(path));
 }
 
 const session = new Session();
@@ -86,7 +110,9 @@ function createWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 600,
     backgroundColor: '#0e0e0f',
-    title: 'Mosaic Retouch',
+    title: 'Pixlad',
+    // macOS takes the icon from the app bundle and ignores this.
+    icon: iconPath(),
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       partition: PARTITION,
@@ -207,7 +233,7 @@ function registerIpc(): void {
           count === 1 && name
             ? `Remove ${name} from the session?`
             : `Remove ${count} exported photos from the session?`,
-        detail: 'Files on disk are not deleted.',
+        detail: 'The files stay on disk.',
       };
       const window = BrowserWindow.fromWebContents(event.sender);
       const result = window
@@ -216,6 +242,26 @@ function registerIpc(): void {
       return result.response === 0;
     },
   );
+  ipcMain.handle('about:info', async (): Promise<AboutInfo> => {
+    const [license, notices] = await Promise.all([
+      readFile(shippedFile('LICENSE', 'LICENSE'), 'utf8'),
+      readFile(shippedFile('THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES.txt'), 'utf8'),
+    ]);
+    return {
+      version: __APP_VERSION__,
+      license,
+      notices: parseNotices(notices),
+      hasChromiumLicenses: chromiumLicensesPath() !== undefined,
+    };
+  });
+  ipcMain.handle('about:chromium-licenses', async () => {
+    const path = chromiumLicensesPath();
+    if (!path) throw new Error('Could not find the Chromium licence file');
+    const failure = await shell.openPath(path);
+    if (failure) throw new Error(failure);
+  });
+  // A fixed URL: the page never chooses what is opened.
+  ipcMain.handle('about:source', () => shell.openExternal(SOURCE_URL));
   ipcMain.handle('settings:export-target', () => exportTarget);
   ipcMain.handle('settings:set-export-target', async (_e, target: unknown) => {
     if (!isExportTarget(target)) throw new Error('Unknown export target');
@@ -230,7 +276,7 @@ function registerIpc(): void {
 
 function registerProtocol(): void {
   const ses = electronSession.fromPartition(PARTITION);
-  ses.protocol.handle('mr', async (request) => {
+  ses.protocol.handle('pixlad', async (request) => {
     const url = new URL(request.url);
     const id = url.pathname.replace(/^\//, '');
     const photo = session.get(id);
@@ -268,6 +314,8 @@ function registerProtocol(): void {
 }
 
 app.whenReady().then(async () => {
+  // A packaged macOS app has the icon in its bundle; run from source, the Dock shows Electron's.
+  if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(iconPath());
   // macOS keeps its menu: it sits outside the window and carries Quit and Copy/Paste.
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
   exportTarget = await readExportTarget(settingsFile());

@@ -6,7 +6,7 @@ import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
 import { dropFiles, launch } from './app';
 
 it('starts empty, opens a dropped photo and shows it', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'mr-smoke-'));
+  const dir = await mkdtemp(join(tmpdir(), 'pixlad-smoke-'));
   const file = join(dir, 'one.jpg');
   await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
   const { app, page } = await launch();

@@ -43,6 +43,25 @@ export type ExportTarget = 'suffix' | 'overwrite';
 export const isExportTarget = (value: unknown): value is ExportTarget =>
   value === 'suffix' || value === 'overwrite';
 
+/** Where the source code is published, as the GPL asks for. */
+export const SOURCE_URL = 'https://github.com/filipkauffeldt/pixlad';
+
+/** One part of THIRD_PARTY_NOTICES.txt: e.g. `react 19.3.1 (MIT)` and its licence text. */
+export interface Notice {
+  title: string;
+  homepage?: string;
+  text: string;
+}
+
+export interface AboutInfo {
+  version: string;
+  /** The GPL text from LICENSE. */
+  license: string;
+  notices: Notice[];
+  /** Whether Electron's file with Chromium's licences was found, so it can be opened. */
+  hasChromiumLicenses: boolean;
+}
+
 /** The surface the preload exposes as `window.api`. */
 export interface Api {
   /** Real file-system paths of dropped files and folders. */
@@ -58,6 +77,10 @@ export interface Api {
   confirmRemoveExported(count: number, name: string | undefined): Promise<boolean>;
   exportTarget(): Promise<ExportTarget>;
   setExportTarget(target: ExportTarget): Promise<void>;
+  about(): Promise<AboutInfo>;
+  openChromiumLicenses(): Promise<void>;
+  /** Open the source code repository in the browser. */
+  openSource(): Promise<void>;
   /** Tell the main process how many photos have mosaics that are not exported (for closing). */
   setUnexported(count: number): void;
 }

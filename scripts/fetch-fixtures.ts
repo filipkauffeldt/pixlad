@@ -21,7 +21,7 @@ try {
 } catch {
   // not there yet
 }
-const response = await fetch(URL_, { headers: { 'User-Agent': 'mosaic-retouch-fixtures/0.1' } });
+const response = await fetch(URL_, { headers: { 'User-Agent': 'pixlad-fixtures/0.1' } });
 if (!response.ok) throw new Error(`${URL_}: HTTP ${response.status}`);
 const data = new Uint8Array(await response.arrayBuffer());
 if (sha(data) !== SHA256) throw new Error('checksum mismatch, refusing to use the download');

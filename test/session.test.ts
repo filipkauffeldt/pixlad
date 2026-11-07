@@ -8,7 +8,7 @@ import { encodeJpeg, syntheticPhoto } from './helpers/fixtures';
 
 let dir: string;
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'mr-session-'));
+  dir = await mkdtemp(join(tmpdir(), 'pixlad-session-'));
 });
 afterAll(async () => {
   await rm(dir, { recursive: true, force: true });

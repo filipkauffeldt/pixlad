@@ -106,24 +106,37 @@ function Settings({ exporting }: { exporting: boolean }) {
         Settings
       </button>
       {open && (
-        <fieldset className="settingsPanel" disabled={exporting} data-testid="settings-panel">
-          <legend className="label">Export</legend>
-          {EXPORT_TARGETS.map(({ target, label, note }) => (
-            <label className="radio" key={target}>
-              <input
-                type="radio"
-                name="export-target"
-                checked={app.exportTarget === target}
-                onChange={() => void actions.setExportTarget(target)}
-                data-testid={`export-target-${target}`}
-              />
-              <span>
-                {label}
-                <small>{note}</small>
-              </span>
-            </label>
-          ))}
-        </fieldset>
+        <div className="settingsPanel" data-testid="settings-panel">
+          <fieldset disabled={exporting}>
+            <legend className="label">Export</legend>
+            {EXPORT_TARGETS.map(({ target, label, note }) => (
+              <label className="radio" key={target}>
+                <input
+                  type="radio"
+                  name="export-target"
+                  checked={app.exportTarget === target}
+                  onChange={() => void actions.setExportTarget(target)}
+                  data-testid={`export-target-${target}`}
+                />
+                <span>
+                  {label}
+                  <small>{note}</small>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          <button
+            type="button"
+            className="linkButton"
+            onClick={() => {
+              setOpen(false);
+              actions.setAboutOpen(true);
+            }}
+            data-testid="open-about"
+          >
+            About Pixlad
+          </button>
+        </div>
       )}
     </div>
   );

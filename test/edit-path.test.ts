@@ -6,7 +6,7 @@ import { chooseEditPath, editPath } from '../src/main/edit-path';
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'mr-edit-path-'));
+  dir = await mkdtemp(join(tmpdir(), 'pixlad-edit-path-'));
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });

@@ -33,7 +33,7 @@ const op: MosaicOp = { blockSizeRel: BLOCK / W, areas: [{ shape: RECT }] };
 let dir: string;
 let exiftool: ExifTool;
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'mr-export-'));
+  dir = await mkdtemp(join(tmpdir(), 'pixlad-export-'));
   exiftool = new ExifTool({ maxProcs: 1 });
 });
 afterAll(async () => {

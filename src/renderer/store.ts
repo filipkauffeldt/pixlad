@@ -50,6 +50,7 @@ export interface AppState {
     { done: number; total: number; failed: string[]; finished: boolean; ok: number } | undefined;
   dragging: boolean;
   exportTarget: ExportTarget;
+  aboutOpen: boolean;
 }
 
 const initial: AppState = {
@@ -64,6 +65,7 @@ const initial: AppState = {
   batch: undefined,
   dragging: false,
   exportTarget: 'suffix',
+  aboutOpen: false,
 };
 
 let state = initial;
@@ -138,7 +140,7 @@ const offerRemoval = (ids: readonly string[]): Promise<void> => {
       }
     })
     .catch((cause: unknown) => {
-      notify([`Could not ask about removing: ${errorText(cause)}`], 'error');
+      notify([`Could not show the remove question: ${errorText(cause)}`], 'error');
     });
   return removalPrompts;
 };
@@ -148,6 +150,7 @@ const errorText = (cause: unknown): string =>
 
 export const actions = {
   setDragging: (dragging: boolean): void => set({ dragging }),
+  setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
   setTool: (tool: Tool): void => set({ tool }),
   setMode: (mode: RetouchMode): void => set({ mode }),
   dismissNotice: (id: number): void =>
@@ -332,7 +335,10 @@ export const actions = {
     try {
       await window.api.setExportTarget(exportTarget);
     } catch (cause) {
-      notify([`The setting applies now but could not be saved: ${errorText(cause)}`], 'error');
+      notify(
+        [`Could not save the setting, so it lasts until you close the app: ${errorText(cause)}`],
+        'error',
+      );
     }
   },
 

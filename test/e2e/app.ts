@@ -15,7 +15,7 @@ export interface Launched {
 export async function launch(
   options: { userData?: string; env?: Record<string, string> } = {},
 ): Promise<Launched> {
-  const userData = options.userData ?? (await mkdtemp(join(tmpdir(), 'mr-userdata-')));
+  const userData = options.userData ?? (await mkdtemp(join(tmpdir(), 'pixlad-userdata-')));
   const app = await electron.launch({
     args: [
       join(root, 'out/main/index.js'),

@@ -133,7 +133,7 @@ export function Strip() {
               onClick={() => actions.select(photo.info.id)}
             >
               <img
-                src={`mr://thumb/${photo.info.id}?v=${photo.fileVersion}`}
+                src={`pixlad://thumb/${photo.info.id}?v=${photo.fileVersion}`}
                 alt=""
                 loading="lazy"
                 draggable={false}
@@ -143,7 +143,7 @@ export function Strip() {
                 className="remove"
                 role="button"
                 aria-label={`Remove ${photo.info.name} from the session`}
-                title="Remove from the session (the file is not touched)"
+                title="Remove from the session. The file stays on disk."
                 data-testid="remove"
                 onClick={(e) => {
                   e.stopPropagation();

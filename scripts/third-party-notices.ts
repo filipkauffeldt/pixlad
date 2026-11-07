@@ -118,8 +118,14 @@ function productionPackages(): Package[] {
   );
 }
 
-const readText = (path: string): string =>
-  readFileSync(path, 'utf8').replace(/\r\n?/g, '\n').trimEnd();
+const RULE = '='.repeat(79);
+
+/** The About dialog splits the file at RULE lines, so no licence text may contain one. */
+function readText(path: string): string {
+  const text = readFileSync(path, 'utf8').replace(/\r\n?/g, '\n').trimEnd();
+  if (text.split('\n').includes(RULE)) throw new Error(`${path} contains a section rule line`);
+  return text;
+}
 
 function licenseText(pkg: Package): string {
   const override = LICENSE_OVERRIDES[pkg.name];
@@ -130,11 +136,11 @@ function licenseText(pkg: Package): string {
 }
 
 function render(): string {
-  const rule = '='.repeat(79);
+  const rule = RULE;
   const parts = [
-    'Third-party notices for Mosaic Retouch',
+    'Third-party notices for Pixlad',
     '',
-    'Mosaic Retouch is Copyright (C) 2026 Filip Kauffeldt and licensed under the GNU General',
+    'Pixlad is Copyright (C) 2026 Filip Kauffeldt and licensed under the GNU General',
     'Public License, version 3 or later (see LICENSE). It includes the third-party software',
     'below, each under its own licence.',
     '',
@@ -165,7 +171,7 @@ function render(): string {
 
 const text = render();
 if (process.argv.includes('--check')) {
-  const current = existsSync(output) ? readText(output) + '\n' : '';
+  const current = existsSync(output) ? readFileSync(output, 'utf8').replace(/\r\n?/g, '\n') : '';
   if (current !== text) {
     console.error('THIRD_PARTY_NOTICES.txt is out of date. Run `pnpm notices` and commit it.');
     process.exit(1);

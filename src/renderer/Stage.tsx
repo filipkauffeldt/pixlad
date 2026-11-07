@@ -371,7 +371,7 @@ export function Stage({
       if (inside.length === 0) {
         actions.setDetecting(false);
         // Nothing found is not an error, but the user should see it.
-        document.dispatchEvent(new CustomEvent('mr:no-faces'));
+        document.dispatchEvent(new CustomEvent('pixlad:no-faces'));
       }
       actions.addFaces(
         id,
@@ -380,7 +380,7 @@ export function Stage({
       );
     } catch (cause) {
       document.dispatchEvent(
-        new CustomEvent('mr:detect-failed', {
+        new CustomEvent('pixlad:detect-failed', {
           detail: cause instanceof Error ? cause.message : String(cause),
         }),
       );
@@ -419,7 +419,7 @@ export function Stage({
       {size.w > 0 && (
         <>
           <img
-            src={`mr://photo/${id}?v=${photo.fileVersion}`}
+            src={`pixlad://photo/${id}?v=${photo.fileVersion}`}
             alt={photo.info.name}
             draggable={false}
             style={imageStyle(0, 0, iw, ih)}

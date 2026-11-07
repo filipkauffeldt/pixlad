@@ -13,6 +13,7 @@
   "scripts": {
     "postinstall": "node scripts/fetch-model.ts",
     "fetch-model": "node scripts/fetch-model.ts",
+    "fetch-fixtures": "node scripts/fetch-fixtures.ts",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite build && electron-vite preview",

@@ -38,10 +38,8 @@ export class EmbeddedPreviewError extends Error {
   readonly findings: PreviewFinding[];
 
   constructor(path: string, findings: PreviewFinding[]) {
-    const detail = findings.map((f) => f.detail).join('; ');
-    super(
-      `The export still contains an embedded preview (${detail}), so it was not saved: ${path}`,
-    );
+    const detail = findings.map((f) => f.detail).join(', ');
+    super(`${path} was not saved because it still contains an embedded preview (${detail})`);
     this.name = 'EmbeddedPreviewError';
     this.findings = findings;
   }

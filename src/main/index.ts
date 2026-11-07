@@ -233,7 +233,7 @@ function registerIpc(): void {
           count === 1 && name
             ? `Remove ${name} from the session?`
             : `Remove ${count} exported photos from the session?`,
-        detail: 'Files on disk are not deleted.',
+        detail: 'The files stay on disk.',
       };
       const window = BrowserWindow.fromWebContents(event.sender);
       const result = window
@@ -256,7 +256,7 @@ function registerIpc(): void {
   });
   ipcMain.handle('about:chromium-licenses', async () => {
     const path = chromiumLicensesPath();
-    if (!path) throw new Error('The Chromium licence file was not found');
+    if (!path) throw new Error('Could not find the Chromium licence file');
     const failure = await shell.openPath(path);
     if (failure) throw new Error(failure);
   });

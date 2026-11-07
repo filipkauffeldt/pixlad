@@ -64,7 +64,7 @@ export function About() {
           <p>Copyright © 2026 Filip Kauffeldt</p>
           <p className="muted">
             Free software under the GNU General Public License, version 3 or later. It comes with
-            ABSOLUTELY NO WARRANTY; you may redistribute it under the terms of that licence.
+            ABSOLUTELY NO WARRANTY. You may share and change it under the terms of that licence.
           </p>
           <p className="muted">
             Source code:{' '}

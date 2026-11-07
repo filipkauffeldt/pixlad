@@ -126,10 +126,7 @@ export function parseHeader(data: Uint8Array): ParsedHeader {
       if (width === 0 || height === 0)
         throw new JpegError('unsupported', 'has no size in its header');
       if (count === 4) {
-        throw new JpegError(
-          'cmyk',
-          'is a CMYK JPEG; its colours would have to be altered to edit it',
-        );
+        throw new JpegError('cmyk', 'is a CMYK JPEG, and editing it would change its colours');
       }
       if (count !== 1 && count !== 3)
         throw new JpegError('unsupported', `has ${count} colour components`);

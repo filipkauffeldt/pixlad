@@ -140,7 +140,7 @@ const offerRemoval = (ids: readonly string[]): Promise<void> => {
       }
     })
     .catch((cause: unknown) => {
-      notify([`Could not ask about removing: ${errorText(cause)}`], 'error');
+      notify([`Could not show the remove question: ${errorText(cause)}`], 'error');
     });
   return removalPrompts;
 };
@@ -335,7 +335,10 @@ export const actions = {
     try {
       await window.api.setExportTarget(exportTarget);
     } catch (cause) {
-      notify([`The setting applies now but could not be saved: ${errorText(cause)}`], 'error');
+      notify(
+        [`Could not save the setting, so it lasts until you close the app: ${errorText(cause)}`],
+        'error',
+      );
     }
   },
 

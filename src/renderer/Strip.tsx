@@ -143,7 +143,7 @@ export function Strip() {
                 className="remove"
                 role="button"
                 aria-label={`Remove ${photo.info.name} from the session`}
-                title="Remove from the session (the file is not touched)"
+                title="Remove from the session. The file stays on disk."
                 data-testid="remove"
                 onClick={(e) => {
                   e.stopPropagation();

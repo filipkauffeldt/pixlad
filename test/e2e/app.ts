@@ -11,14 +11,18 @@ export interface Launched {
   userData: string;
 }
 
-/** Start the built app. Chromium's own files (cache, GPU) go to a throw-away user-data folder. */
+/**
+ * Start the built app, or the packaged one when `executablePath` is given. Chromium's own files
+ * (cache, GPU) go to a throw-away user-data folder.
+ */
 export async function launch(
-  options: { userData?: string; env?: Record<string, string> } = {},
+  options: { userData?: string; env?: Record<string, string>; executablePath?: string } = {},
 ): Promise<Launched> {
   const userData = options.userData ?? (await mkdtemp(join(tmpdir(), 'pixlad-userdata-')));
   const app = await electron.launch({
+    executablePath: options.executablePath,
     args: [
-      join(root, 'out/main/index.js'),
+      ...(options.executablePath ? [] : [join(root, 'out/main/index.js')]),
       `--user-data-dir=${userData}`,
       ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
     ],

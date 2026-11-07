@@ -1,0 +1,75 @@
+# Packaging for `pnpm package`. The product name is `productName` here. A rename also touches
+# `appId`, the app name and window title in src/main/index.ts, and the package.json `name`, which
+# the package file names use.
+appId: io.github.filipkauffeldt.pixlad
+productName: Pixlad
+copyright: Copyright (C) 2026 Filip Kauffeldt
+
+directories:
+  output: dist
+
+artifactName: ${name}-${version}-${os}-${arch}.${ext}
+
+# Fails the build when a file the app needs at run time would be missing from the package.
+beforePack: scripts/check-package-inputs.mjs
+
+files:
+  - out/**
+  - package.json
+  # Bundled by Vite into out/renderer, so the packages themselves are not needed at run time.
+  - '!node_modules/react/**'
+  - '!node_modules/react-dom/**'
+  - '!node_modules/@fontsource-variable/**'
+
+# onnxruntime-node loads its native library from disk, which cannot be done from inside an asar.
+asarUnpack:
+  - node_modules/onnxruntime-node/bin/**
+
+# These sit at the root of the resources folder, where src/main/index.ts looks for them.
+extraResources:
+  - from: LICENSE
+    to: LICENSE
+  - from: THIRD_PARTY_NOTICES.txt
+    to: THIRD_PARTY_NOTICES.txt
+  # iconPath() in src/main/index.ts uses it for the window icon on Windows and Linux.
+  - from: build/icon.png
+    to: icon.png
+  - from: resources/models/face_detection_yunet_2026may.onnx
+    to: models/face_detection_yunet_2026may.onnx
+
+# Only the target platform's ONNX Runtime binaries go into each package.
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+  category: public.app-category.photography
+  icon: build/icon.png
+  # Ad-hoc signing, which Apple Silicon requires. No Developer ID, so no notarization.
+  identity: '-'
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
+  files:
+    - '!node_modules/onnxruntime-node/bin/napi-v6/{linux,win32}/**'
+    - '!node_modules/onnxruntime-node/bin/napi-v6/darwin/x64/**'
+
+win:
+  target:
+    - target: nsis
+      arch: x64
+  icon: build/icon.png
+  # No certificate: the installer and the executable are unsigned.
+  files:
+    - '!node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}/**'
+    - '!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**'
+
+linux:
+  target:
+    - target: rpm
+      arch: x64
+  category: Graphics
+  icon: build/icon.png
+  maintainer: Filip Kauffeldt <https://github.com/filipkauffeldt/pixlad>
+  files:
+    - '!node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32}/**'
+    - '!node_modules/onnxruntime-node/bin/napi-v6/linux/arm64/**'

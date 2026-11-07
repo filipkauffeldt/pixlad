@@ -4,6 +4,7 @@
   "private": true,
   "description": "Drop JPEG photos, mosaic faces and areas, export JPEGs. Nothing else.",
   "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/filipkauffeldt/pixlad",
   "type": "module",
   "packageManager": "pnpm@12.15.0",
   "engines": {
@@ -24,8 +25,10 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json",
-    "test": "vitest run --exclude \"test/e2e/**\"",
-    "test:e2e": "node scripts/ensure-electron.mjs && electron-vite build && vitest run --config vitest.e2e.config.ts"
+    "test": "vitest run --exclude \"test/e2e/**\" --exclude \"test/package/**\"",
+    "test:e2e": "node scripts/ensure-electron.mjs && electron-vite build && vitest run --config vitest.e2e.config.ts",
+    "package": "electron-vite build && electron-builder",
+    "test:package": "vitest run --config vitest.package.config.ts"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -42,6 +45,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "5.2.0",
     "electron": "45.1.0",
+    "electron-builder": "26.18.0",
     "electron-vite": "6.0.0",
     "eslint": "10.13.0",
     "eslint-config-prettier": "10.1.8",

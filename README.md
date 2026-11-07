@@ -141,6 +141,58 @@ segment, because it cannot prove such a segment is free of a preview. Before ren
 into place, the app checks the written bytes against an allowlist ported from editing-experiment.
 If the check fails, it deletes the temporary file and that photo's export fails with the reason.
 
+## Packages
+
+A GitHub Actions workflow builds one package for each system below. It runs on every pull request
+and every push to `main`, and you can start it by hand from the Actions tab.
+
+| System               | Package               | Artifact name                  |
+| -------------------- | --------------------- | ------------------------------ |
+| macOS, Apple Silicon | `.dmg`                | `pixlad-macos-arm64-dmg`       |
+| Windows, x64         | NSIS installer `.exe` | `pixlad-windows-x64-installer` |
+| Fedora, x64          | `.rpm`                | `pixlad-fedora-x64-rpm`        |
+
+To download a package, open the workflow run in the repository's Actions tab. For a pull request,
+select Details on the Package check. The artifacts are listed at the bottom of the run page.
+GitHub serves each one as a zip file and asks you to sign in. The workflow creates no releases or
+tags.
+
+Each package holds the app, the face model, the licence texts and the ONNX Runtime library for its
+own system. None of them is signed with a certificate, so macOS and Windows warn you the first
+time you open the app.
+
+### macOS
+
+The app has an ad-hoc signature and no notarization, so macOS blocks it the first time.
+
+1. Open the `.dmg` and drag Pixlad to Applications.
+2. Open Pixlad from Applications. macOS says it cannot verify the app. Select Done.
+3. Open System Settings → Privacy & Security and scroll down to Security.
+4. Select Open Anyway next to the message that Pixlad was blocked. Enter your password or use
+   Touch ID.
+5. Select Open in the dialog that follows. Later starts open normally.
+
+### Windows
+
+Run the installer. SmartScreen shows "Windows protected your PC". Select More info, then Run
+anyway.
+
+### Fedora
+
+```sh
+sudo dnf install ./<file>.rpm
+```
+
+Start Pixlad from the application menu, or run `pixlad` in a terminal.
+
+### Building a package yourself
+
+Run `pnpm install` and then `pnpm package` on the system you want a package for. The package ends
+up in `dist/`. Building the rpm needs `rpmbuild`, which Fedora ships in `rpm-build` and Debian and
+Ubuntu in `rpm`. `pnpm test:package` starts the app that `pnpm package` left in `dist/`, drops a
+photo on it, exports, runs face detection and opens About. On Linux without a display, run it as
+`xvfb-run -a pnpm test:package`.
+
 ## Prerequisites
 
 - [Node.js](https://nodejs.org) 24
@@ -150,7 +202,7 @@ If the check fails, it deletes the temporary file and that photo's export fails 
 No system packages are needed. `pnpm install` downloads the face model and checks its SHA-256.
 The first `pnpm start` downloads Electron.
 
-## Install and run
+## Install and run from source
 
 **Linux**
 
@@ -208,7 +260,7 @@ a drawing, either to the Faces lasso or by flipping Add and Subtract.
 
 ## Known limits
 
-- It is a proof of concept with no packaged installer. You run it from the source tree.
+- It is a proof of concept.
 - It supports 8-bit baseline and progressive Huffman JPEGs in YCbCr or grayscale. It refuses
   CMYK and YCCK, arithmetic-coded, 12-bit, lossless and hierarchical JPEGs, and JPEGs that store
   RGB directly, with a message for each.

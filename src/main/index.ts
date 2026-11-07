@@ -45,7 +45,9 @@ protocol.registerSchemesAsPrivileged([
  */
 function shippedFile(packaged: string, fromSource: string): string {
   const inResources = join(process.resourcesPath ?? '', packaged);
-  if (existsSync(inResources)) return inResources;
+  // A packaged app looks nowhere else; a walk up from the bundle could find a copy in a source
+  // tree around it and hide a file that is missing from the package.
+  if (app.isPackaged || existsSync(inResources)) return inResources;
   for (let dir = import.meta.dirname; ; dir = dirname(dir)) {
     const candidate = join(dir, fromSource);
     if (existsSync(candidate)) return candidate;
@@ -59,7 +61,11 @@ const iconPath = (): string => shippedFile('icon.png', join('build', 'icon.png')
 const modelPath = (): string =>
   shippedFile(join('models', MODEL_FILE), join('resources', 'models', MODEL_FILE));
 
-/** Electron ships Chromium's licences next to its executable (in Resources on macOS). */
+/**
+ * Electron ships Chromium's licences next to its executable. electron-builder leaves them there on
+ * Windows and Linux and moves them into Contents/Resources on macOS, where the bundle has no other
+ * place for them.
+ */
 function chromiumLicensesPath(): string | undefined {
   const exe = dirname(process.execPath);
   return [exe, join(exe, '..', 'Resources'), join(exe, '..', '..', '..')]

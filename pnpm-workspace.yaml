@@ -1,7 +1,10 @@
 # Only these dependencies may run install scripts. esbuild unpacks a platform binary.
 # onnxruntime-node is denied: its postinstall fetches optional CUDA binaries, and the CPU
 # runtime used here ships in the package. scripts/ensure-electron.mjs fetches Electron's binary.
+# electron-winstaller (pulled in by electron-builder) is denied: its install script is only for
+# the Squirrel.Windows target, and the Windows package here is NSIS.
 allowBuilds:
+  electron-winstaller: false
   esbuild: true
   onnxruntime-node: false
   sharp: false

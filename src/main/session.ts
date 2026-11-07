@@ -100,7 +100,7 @@ export class Session {
   async add(paths: readonly string[]): Promise<AddResult> {
     const { files, notes } = await expandPaths(paths);
     const photos: PhotoInfo[] = [];
-    const refused: Refusal[] = [...notes];
+    const rejected: Array<Refusal & { path: string }> = [];
     let duplicates = 0;
     // A few at a time: headers are small, so this is fast, and the window never waits on one read.
     const queue = [...files];
@@ -121,7 +121,7 @@ export class Session {
             cause instanceof JpegError
               ? cause.message
               : `could not be read (${(cause as Error).message})`;
-          refused.push({ name: basename(path), reason });
+          rejected.push({ path, name: basename(path), reason });
         }
       }
     };
@@ -129,6 +129,11 @@ export class Session {
     // Keep the order the files were given in.
     const order = new Map(files.map((p, i) => [p, i]));
     photos.sort((a, b) => order.get(a.path)! - order.get(b.path)!);
+    rejected.sort((a, b) => order.get(a.path)! - order.get(b.path)!);
+    const refused: Refusal[] = [
+      ...notes,
+      ...rejected.map(({ name, reason }) => ({ name, reason })),
+    ];
     return { photos, refused, duplicates };
   }
 }

@@ -50,6 +50,7 @@ export interface AppState {
     { done: number; total: number; failed: string[]; finished: boolean; ok: number } | undefined;
   dragging: boolean;
   exportTarget: ExportTarget;
+  aboutOpen: boolean;
 }
 
 const initial: AppState = {
@@ -64,6 +65,7 @@ const initial: AppState = {
   batch: undefined,
   dragging: false,
   exportTarget: 'suffix',
+  aboutOpen: false,
 };
 
 let state = initial;
@@ -148,6 +150,7 @@ const errorText = (cause: unknown): string =>
 
 export const actions = {
   setDragging: (dragging: boolean): void => set({ dragging }),
+  setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
   setTool: (tool: Tool): void => set({ tool }),
   setMode: (mode: RetouchMode): void => set({ mode }),
   dismissNotice: (id: number): void =>

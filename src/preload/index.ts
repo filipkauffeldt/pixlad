@@ -16,6 +16,9 @@ const api: Api = {
   confirmRemoveExported: (count, name) => ipcRenderer.invoke('dialog:remove-exported', count, name),
   exportTarget: () => ipcRenderer.invoke('settings:export-target'),
   setExportTarget: (target) => ipcRenderer.invoke('settings:set-export-target', target),
+  about: () => ipcRenderer.invoke('about:info'),
+  openChromiumLicenses: () => ipcRenderer.invoke('about:chromium-licenses'),
+  openSource: () => ipcRenderer.invoke('about:source'),
   setUnexported: (count) => ipcRenderer.send('session:unexported', count),
 };
 

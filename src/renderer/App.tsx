@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useCallback, useEffect, useState } from 'react';
+import { About } from './About';
 import { Stage } from './Stage';
 import { Strip } from './Strip';
 import { Toolbar } from './Toolbar';
@@ -203,6 +204,7 @@ export function App() {
           ))}
         </div>
       )}
+      {app.aboutOpen && <About />}
       {app.dragging && <div className="dropOverlay">Drop JPEG photos to add them</div>}
     </div>
   );

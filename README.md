@@ -27,7 +27,9 @@ This is an AI-developed proof of concept. Expect rough edges.
    remove the exported photos from the session. A photo edited since its export is left out of
    that question, and removing never deletes a file.
 
-Face detection uses the YuNet model (below).
+Face detection uses the YuNet model (below). **Settings** holds the export target and **About**,
+which shows the copyright, the licence, the source code link and every third-party part with its
+licence text.
 
 ## Sessions
 
@@ -139,7 +141,7 @@ photo's export fails with the reason.
 
 - [Node.js](https://nodejs.org) 24
 - [pnpm](https://pnpm.io) 12 (`npm install --global pnpm@12.15.0`)
-- Git, and access to this private repository
+- Git
 
 No system packages are needed. `pnpm install` downloads the face model (MIT licence, checked against
 a SHA-256), and the first `pnpm start` downloads Electron.

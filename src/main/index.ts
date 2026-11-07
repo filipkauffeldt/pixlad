@@ -8,12 +8,16 @@ import {
   Menu,
   protocol,
   session as electronSession,
+  shell,
 } from 'electron';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   isExportTarget,
+  SOURCE_URL,
+  type AboutInfo,
   type ExportOutcome,
   type ExportTarget,
   type PreviewPatch,
@@ -21,8 +25,11 @@ import {
 import { opHasAddedArea, type MosaicOp, type Rect } from '../shared/types';
 import type { WrittenEdit } from './edit-path';
 import { Limiter, WorkerClient } from './pool';
+import { parseNotices } from './notices';
 import { Session } from './session';
 import { readExportTarget, writeExportTarget } from './settings';
+
+declare const __APP_VERSION__: string;
 
 const MODEL_FILE = 'face_detection_yunet_2026may.onnx';
 const PARTITION = 'mosaic-retouch'; // no "persist:" prefix: Chromium keeps nothing on disk for it
@@ -32,15 +39,29 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'mr', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
-/** `resources/models/` next to the app: found by walking up from the bundle, or in a packaged build. */
-function modelPath(): string {
-  const packaged = join(process.resourcesPath ?? '', 'models', MODEL_FILE);
-  if (existsSync(packaged)) return packaged;
+/**
+ * A file shipped with the app: in a packaged build it is in the resources folder, from the source
+ * tree it is found by walking up from the bundle to `fromSource` (relative to the project root).
+ */
+function shippedFile(packaged: string, fromSource: string): string {
+  const inResources = join(process.resourcesPath ?? '', packaged);
+  if (existsSync(inResources)) return inResources;
   for (let dir = import.meta.dirname; ; dir = dirname(dir)) {
-    const candidate = join(dir, 'resources', 'models', MODEL_FILE);
+    const candidate = join(dir, fromSource);
     if (existsSync(candidate)) return candidate;
-    if (dirname(dir) === dir) return join(app.getAppPath(), 'resources', 'models', MODEL_FILE);
+    if (dirname(dir) === dir) return join(app.getAppPath(), fromSource);
   }
+}
+
+const modelPath = (): string =>
+  shippedFile(join('models', MODEL_FILE), join('resources', 'models', MODEL_FILE));
+
+/** Electron ships Chromium's licences next to its executable (in Resources on macOS). */
+function chromiumLicensesPath(): string | undefined {
+  const exe = dirname(process.execPath);
+  return [exe, join(exe, '..', 'Resources'), join(exe, '..', '..', '..')]
+    .map((dir) => join(dir, 'LICENSES.chromium.html'))
+    .find((path) => existsSync(path));
 }
 
 const session = new Session();
@@ -216,6 +237,26 @@ function registerIpc(): void {
       return result.response === 0;
     },
   );
+  ipcMain.handle('about:info', async (): Promise<AboutInfo> => {
+    const [license, notices] = await Promise.all([
+      readFile(shippedFile('LICENSE', 'LICENSE'), 'utf8'),
+      readFile(shippedFile('THIRD_PARTY_NOTICES.txt', 'THIRD_PARTY_NOTICES.txt'), 'utf8'),
+    ]);
+    return {
+      version: __APP_VERSION__,
+      license,
+      notices: parseNotices(notices),
+      hasChromiumLicenses: chromiumLicensesPath() !== undefined,
+    };
+  });
+  ipcMain.handle('about:chromium-licenses', async () => {
+    const path = chromiumLicensesPath();
+    if (!path) throw new Error('The Chromium licence file was not found');
+    const failure = await shell.openPath(path);
+    if (failure) throw new Error(failure);
+  });
+  // A fixed URL: the page never chooses what is opened.
+  ipcMain.handle('about:source', () => shell.openExternal(SOURCE_URL));
   ipcMain.handle('settings:export-target', () => exportTarget);
   ipcMain.handle('settings:set-export-target', async (_e, target: unknown) => {
     if (!isExportTarget(target)) throw new Error('Unknown export target');

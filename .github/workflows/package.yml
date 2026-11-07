@@ -20,7 +20,6 @@ env:
 jobs:
   macos:
     name: macOS (arm64, dmg)
-    # macos-14 does not start for this repository ("configuration not supported"). macos-15 is also
     # Apple Silicon.
     runs-on: macos-15
     timeout-minutes: 30

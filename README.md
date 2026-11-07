@@ -138,11 +138,11 @@ photo's export fails with the reason.
 ## Prerequisites
 
 - [Node.js](https://nodejs.org) 24
-- [pnpm](https://pnpm.io) 12 (the version is in `package.json`; `corepack enable` provides it)
+- [pnpm](https://pnpm.io) 12 (`npm install --global pnpm@12.15.0`)
 - Git, and access to this private repository
 
-No system packages are needed. `pnpm install` downloads Electron and the face model (MIT licence,
-checked against a SHA-256).
+No system packages are needed. `pnpm install` downloads the face model (MIT licence, checked against
+a SHA-256), and the first `pnpm start` downloads Electron.
 
 ## Install and run
 
@@ -151,7 +151,7 @@ checked against a SHA-256).
 ```sh
 git clone https://github.com/filipkauffeldt/mosaic-retouch.git
 cd mosaic-retouch
-corepack enable
+npm install --global pnpm@12.15.0
 pnpm install
 pnpm start
 ```
@@ -161,7 +161,7 @@ pnpm start
 ```powershell
 git clone https://github.com/filipkauffeldt/mosaic-retouch.git
 cd mosaic-retouch
-corepack enable
+npm install --global pnpm@12.15.0
 pnpm install
 pnpm start
 ```

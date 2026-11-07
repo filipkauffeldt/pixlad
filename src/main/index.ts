@@ -53,6 +53,9 @@ function shippedFile(packaged: string, fromSource: string): string {
   }
 }
 
+/** The app icon: the title bar and taskbar on Windows and Linux, the Dock when run from source. */
+const iconPath = (): string => shippedFile('icon.png', join('build', 'icon.png'));
+
 const modelPath = (): string =>
   shippedFile(join('models', MODEL_FILE), join('resources', 'models', MODEL_FILE));
 
@@ -108,6 +111,8 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     backgroundColor: '#0e0e0f',
     title: 'Pixlad',
+    // macOS takes the icon from the app bundle and ignores this.
+    icon: iconPath(),
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       partition: PARTITION,
@@ -309,6 +314,8 @@ function registerProtocol(): void {
 }
 
 app.whenReady().then(async () => {
+  // A packaged macOS app has the icon in its bundle; run from source, the Dock shows Electron's.
+  if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(iconPath());
   // macOS keeps its menu: it sits outside the window and carries Quit and Copy/Paste.
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
   exportTarget = await readExportTarget(settingsFile());

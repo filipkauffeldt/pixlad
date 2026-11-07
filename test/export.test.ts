@@ -295,6 +295,68 @@ describe('the source file and the target', () => {
     expect((await readdir(dir)).some((n) => n.endsWith('.tmp'))).toBe(false);
   });
 
+  it('overwrites the source when asked: mosaic in place, same time, nothing else written', async () => {
+    const { mkdir } = await import('node:fs/promises');
+    const folder = join(dir, 'overwrite');
+    await mkdir(folder);
+    const jpeg = await encodeJpeg(syntheticPhoto(W, H));
+    const path = join(folder, 'over.JPG');
+    await writeFile(path, jpeg);
+    const old = new Date('2020-01-02T03:04:05Z');
+    await utimes(path, old, old);
+
+    const result = await exportEdit({ sourcePath: path, op, target: 'overwrite' });
+
+    expect(result.path).toBe(path);
+    expect(await readdir(folder)).toEqual(['over.JPG']);
+    const written = await readFile(path);
+    expect(Buffer.compare(written, jpeg)).not.toBe(0);
+    expect(inspectJpegPreviews(written)).toEqual([]);
+    expect(Math.abs((await stat(path)).mtimeMs - old.getTime())).toBeLessThan(2);
+    // A block well inside the rectangle was detailed and is now flat.
+    const before = await decodeRaw(jpeg);
+    const after = await decodeRaw(written);
+    const x = Math.floor(((RECT.x + RECT.w / 2) * W) / BLOCK) * BLOCK;
+    const y = Math.floor(((RECT.y + RECT.h / 2) * H) / BLOCK) * BLOCK;
+    expect(spread(before, x + 8, y + 8, 16)).toBeGreaterThan(spread(after, x + 8, y + 8, 16));
+  });
+
+  it('refuses to overwrite a read-only source and leaves it alone', async () => {
+    if (process.platform === 'win32' || process.getuid?.() === 0) return; // permissions do not apply
+    const { chmod, mkdir } = await import('node:fs/promises');
+    const folder = join(dir, 'readonly-file');
+    await mkdir(folder);
+    const jpeg = await encodeJpeg(syntheticPhoto(W, H));
+    const path = join(folder, 'locked.jpg');
+    await writeFile(path, jpeg);
+    await chmod(path, 0o444);
+    await expect(exportEdit({ sourcePath: path, op, target: 'overwrite' })).rejects.toThrow(
+      'locked.jpg: cannot overwrite a read-only file',
+    );
+    expect(Buffer.compare(await readFile(path), jpeg)).toBe(0);
+    expect(await readdir(folder)).toEqual(['locked.jpg']);
+  });
+
+  it('leaves the source as it was when overwriting fails in the folder', async () => {
+    if (process.platform === 'win32' || process.getuid?.() === 0) return; // permissions do not apply
+    const { chmod, mkdir } = await import('node:fs/promises');
+    const folder = join(dir, 'readonly-folder');
+    await mkdir(folder);
+    const jpeg = await encodeJpeg(syntheticPhoto(W, H));
+    const path = join(folder, 'a.jpg');
+    await writeFile(path, jpeg);
+    await chmod(folder, 0o555);
+    try {
+      await expect(exportEdit({ sourcePath: path, op, target: 'overwrite' })).rejects.toThrow(
+        folder,
+      );
+      expect(Buffer.compare(await readFile(path), jpeg)).toBe(0);
+      expect(await readdir(folder)).toEqual(['a.jpg']);
+    } finally {
+      await chmod(folder, 0o755);
+    }
+  });
+
   it('fails per photo, naming the folder, when the folder cannot be written', async () => {
     if (process.platform === 'win32' || process.getuid?.() === 0) return; // permissions do not apply
     const { chmod, mkdir } = await import('node:fs/promises');

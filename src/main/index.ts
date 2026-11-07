@@ -3,17 +3,24 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  Menu,
   protocol,
   session as electronSession,
 } from 'electron';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { ExportOutcome, PreviewPatch } from '../shared/ipc';
+import {
+  isExportTarget,
+  type ExportOutcome,
+  type ExportTarget,
+  type PreviewPatch,
+} from '../shared/ipc';
 import { opHasAddedArea, type MosaicOp, type Rect } from '../shared/types';
 import type { WrittenEdit } from './edit-path';
 import { Limiter, WorkerClient } from './pool';
 import { Session } from './session';
+import { readExportTarget, writeExportTarget } from './settings';
 
 const MODEL_FILE = 'face_detection_yunet_2026may.onnx';
 const PARTITION = 'mosaic-retouch'; // no "persist:" prefix: Chromium keeps nothing on disk for it
@@ -36,6 +43,7 @@ function modelPath(): string {
 
 const session = new Session();
 const written = new Map<string, WrittenEdit>(); // by source path; this run only, never saved
+let exportTarget: ExportTarget = 'suffix';
 let unexported = 0;
 let forceClose = false;
 
@@ -44,6 +52,7 @@ let exportWorker: WorkerClient;
 let thumbWorker: WorkerClient;
 const thumbLimiter = new Limiter(1);
 const thumbCache = new Map<string, Buffer>(); // small PNGs, bounded, in memory only
+const settingsFile = (): string => join(app.getPath('userData'), 'settings.json');
 const THUMB_CACHE_MAX = 400;
 
 // Everything that touches the current photo goes through one chain, so an "open" that was
@@ -149,6 +158,7 @@ function registerIpc(): void {
     if (!photo) return { ok: false, message: 'That photo is no longer in the session.' };
     if (!opHasAddedArea(op))
       return { ok: false, message: `${photo.name}: there is no mosaic to export` };
+    const target = exportTarget;
     try {
       const result = await exportWorker.run<{
         path: string;
@@ -159,20 +169,57 @@ function registerIpc(): void {
         request: {
           sourcePath: photo.path,
           op,
+          target,
           written: written.get(photo.path),
           protectedPaths: [...session.sourcePaths()],
         },
       });
-      written.set(photo.path, result.written);
+      const overwrote = target === 'overwrite';
+      if (overwrote) {
+        // The decoded pixels and the thumbnail are of the file that was just replaced.
+        thumbCache.delete(id);
+        if (openId === id) openId = undefined;
+      } else {
+        written.set(photo.path, result.written);
+      }
       return {
         ok: true,
         path: result.path,
         name: result.path.split(/[\\/]/).pop()!,
         replaced: result.replaced,
+        overwrote,
       };
     } catch (cause) {
       return { ok: false, message: cause instanceof Error ? cause.message : String(cause) };
     }
+  });
+  ipcMain.handle(
+    'dialog:remove-exported',
+    async (event, count: number, name: string | undefined): Promise<boolean> => {
+      const options = {
+        type: 'question' as const,
+        buttons: ['Remove', 'Keep'],
+        defaultId: 0,
+        cancelId: 1,
+        message:
+          count === 1 && name
+            ? `Remove ${name} from the session?`
+            : `Remove ${count} exported photos from the session?`,
+        detail: 'Files on disk are not deleted.',
+      };
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const result = window
+        ? await dialog.showMessageBox(window, options)
+        : await dialog.showMessageBox(options);
+      return result.response === 0;
+    },
+  );
+  ipcMain.handle('settings:export-target', () => exportTarget);
+  ipcMain.handle('settings:set-export-target', async (_e, target: unknown) => {
+    if (!isExportTarget(target)) throw new Error('Unknown export target');
+    // Applies at once; a failed write only means it is forgotten at the next start.
+    exportTarget = target;
+    await writeExportTarget(settingsFile(), target);
   });
   ipcMain.on('session:unexported', (_e, count: number) => {
     unexported = Number.isFinite(count) ? count : 0;
@@ -218,7 +265,10 @@ function registerProtocol(): void {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // macOS keeps its menu: it sits outside the window and carries Quit and Copy/Paste.
+  if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
+  exportTarget = await readExportTarget(settingsFile());
   const workerFile = new URL('./worker.js', import.meta.url);
   photoWorker = new WorkerClient(workerFile, modelPath());
   exportWorker = new WorkerClient(workerFile, modelPath());

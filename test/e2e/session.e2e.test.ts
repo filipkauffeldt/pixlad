@@ -11,7 +11,15 @@ import {
   syntheticPhoto,
   withSegments,
 } from '../helpers/fixtures';
-import { dialogMessages, dropFiles, launch, stubCloseDialog, type Launched } from './app';
+import {
+  dialogMessages,
+  dropFiles,
+  launch,
+  removeMessages,
+  stubCloseDialog,
+  stubRemoveDialog,
+  type Launched,
+} from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -256,7 +264,8 @@ describe('closing and exporting a batch', () => {
     await chmod(locked, 0o555);
     try {
       running = await launch();
-      const { page } = running;
+      const { app, page } = running;
+      await stubRemoveDialog(app, 0);
       await dropFiles(page, [good, bad, good2]);
       await photoReady(page);
       await page.click('[data-tool="rect"]');
@@ -281,6 +290,14 @@ describe('closing and exporting a batch', () => {
         expect.arrayContaining(['good_edit.jpg', 'good2_edit.jpg']),
       );
       expect(await readdir(locked)).toEqual(['bad.jpg']);
+      // Only the photos that made it are offered; the failed one stays to be dealt with.
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="strip"] img').length === 1,
+      );
+      expect(await removeMessages(app)).toEqual(['Remove 2 exported photos from the session?']);
+      expect((await readdir(dir)).sort()).toEqual(
+        expect.arrayContaining(['good.jpg', 'good2.jpg']),
+      );
     } finally {
       await chmod(locked, 0o755);
     }
@@ -301,6 +318,106 @@ describe('closing and exporting a batch', () => {
       timeout: 30000,
     });
     expect(await page.locator('[data-testid="area"]').count()).toBe(2);
+  });
+});
+
+describe('after an export', () => {
+  const exportOne = async (page: Page, name: string, dir: string): Promise<string> => {
+    const file = await photoFile(dir, name);
+    await dropFiles(page, [file]);
+    await photoReady(page);
+    await page.click('[data-tool="rect"]');
+    await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+    await page.waitForSelector('[data-testid="mosaic-patch"]');
+    await page.keyboard.press('Control+e');
+    return file;
+  };
+
+  it('asks about a single photo: Remove takes it out of the session, the files stay', async () => {
+    const dir = await tmp();
+    running = await launch();
+    const { app, page } = running;
+    await stubRemoveDialog(app, 0);
+    await exportOne(page, 'single.jpg', dir);
+    await page.waitForSelector('[data-testid="empty"]', { timeout: 30000 });
+    expect(await removeMessages(app)).toEqual(['Remove single.jpg from the session?']);
+    expect((await readdir(dir)).sort()).toEqual(['single.jpg', 'single_edit.jpg']);
+  });
+
+  it('asks about a single photo: Keep leaves it in the session', async () => {
+    const dir = await tmp();
+    running = await launch();
+    const { app, page } = running;
+    await exportOne(page, 'kept.jpg', dir);
+    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
+    await expect.poll(() => removeMessages(app)).toEqual(['Remove kept.jpg from the session?']);
+    expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
+  });
+
+  it('does not offer to remove a photo edited while it was exporting', async () => {
+    const dir = await tmp();
+    running = await launch();
+    const { app, page } = running;
+    await stubRemoveDialog(app, 0);
+    await exportOne(page, 'edited.jpg', dir);
+    await drawRect(page, [0.6, 0.6], [0.8, 0.8]); // drawn while the export runs
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="photo-status"]')?.textContent?.includes('Saved'),
+      undefined,
+      { timeout: 30000 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(await removeMessages(app)).toEqual([]);
+    expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
+  });
+});
+
+describe('overwriting the original', () => {
+  it('replaces the file, clears the areas, shows the file again and remembers the choice', async () => {
+    const dir = await tmp();
+    const userData = await tmp('mr-userdata-');
+    const file = await photoFile(dir, 'over.jpg');
+    const before = await readFile(file);
+
+    running = await launch({ userData });
+    const { app, page } = running;
+    await page.click('[data-testid="settings"]');
+    expect(await page.isChecked('[data-testid="export-target-suffix"]')).toBe(true);
+    await page.click('[data-testid="export-target-overwrite"]');
+    await page.keyboard.press('Escape');
+    expect(await page.locator('[data-testid="settings-panel"]').count()).toBe(0);
+
+    await dropFiles(page, [file]);
+    await photoReady(page);
+    await page.click('[data-tool="rect"]');
+    await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+    await page.waitForSelector('[data-testid="mosaic-patch"]');
+    await page.keyboard.press('Control+e');
+    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
+
+    expect(await readdir(dir)).toEqual(['over.jpg']);
+    expect(Buffer.compare(await readFile(file), before)).not.toBe(0);
+    expect(await page.locator('[data-testid="area"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="badge-mosaic"]').count()).toBe(0);
+    expect(await page.isDisabled('[data-testid="export"]')).toBe(true);
+    expect(await page.getAttribute('[data-testid="photo"]', 'src')).toContain('?v=1');
+    await photoReady(page);
+
+    await stubCloseDialog(app, 0);
+    await app.close();
+    running = undefined;
+
+    running = await launch({ userData });
+    await running.page.click('[data-testid="settings"]');
+    await running.page.waitForSelector('[data-testid="export-target-overwrite"]:checked');
+  });
+});
+
+describe('the window', () => {
+  it('has no menu bar on Windows and Linux', async () => {
+    if (process.platform === 'darwin') return; // the macOS menu is outside the window
+    running = await launch();
+    expect(await running.app.evaluate(({ Menu }) => Menu.getApplicationMenu())).toBeNull();
   });
 });
 

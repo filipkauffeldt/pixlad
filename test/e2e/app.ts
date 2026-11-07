@@ -27,6 +27,7 @@ export async function launch(
   const page = await app.firstWindow();
   await page.setViewportSize({ width: 1440, height: 900 }).catch(() => undefined);
   await page.waitForSelector('[data-testid="toolbar"]');
+  await stubDialogs(app);
   return { app, page, userData };
 }
 
@@ -44,17 +45,49 @@ export async function dropFiles(
   await cdp.detach();
 }
 
-/** Answer the close confirmation without a real dialog. */
-export async function stubCloseDialog(app: ElectronApplication, response: 0 | 1): Promise<void> {
-  await app.evaluate(({ dialog }, answer) => {
-    (globalThis as { __asked?: string[] }).__asked = [];
+interface DialogStubs {
+  /** Undefined until a test chooses, so a close with no answer shows the real dialog. */
+  close?: 0 | 1;
+  remove: 0 | 1;
+  closeAsked: string[];
+  removeAsked: string[];
+}
+
+/** Answer the app's questions without a real dialog. Removal answers Keep until a test says otherwise. */
+async function stubDialogs(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ dialog }) => {
+    const stubs: DialogStubs = { remove: 1, closeAsked: [], removeAsked: [] };
+    (globalThis as { __dialogs?: DialogStubs }).__dialogs = stubs;
+    const real = dialog.showMessageBox.bind(dialog);
     dialog.showMessageBox = (async (...args: unknown[]) => {
       const options = args[args.length - 1] as { message: string };
-      (globalThis as { __asked?: string[] }).__asked!.push(options.message);
-      return { response: answer, checkboxChecked: false };
+      if (options.message.startsWith('Remove ')) {
+        stubs.removeAsked.push(options.message);
+        return { response: stubs.remove, checkboxChecked: false };
+      }
+      if (stubs.close === undefined) return (real as (...a: unknown[]) => unknown)(...args);
+      stubs.closeAsked.push(options.message);
+      return { response: stubs.close, checkboxChecked: false };
     }) as typeof dialog.showMessageBox;
+  });
+}
+
+/** Answer the close confirmation without a real dialog. */
+export async function stubCloseDialog(app: ElectronApplication, response: 0 | 1): Promise<void> {
+  await app.evaluate((_electron, answer) => {
+    (globalThis as { __dialogs?: DialogStubs }).__dialogs!.close = answer;
+  }, response);
+}
+
+/** Answer the question after an export: 0 removes, 1 keeps. */
+export async function stubRemoveDialog(app: ElectronApplication, response: 0 | 1): Promise<void> {
+  await app.evaluate((_electron, answer) => {
+    (globalThis as { __dialogs?: DialogStubs }).__dialogs!.remove = answer;
   }, response);
 }
 
 export const dialogMessages = (app: ElectronApplication): Promise<string[]> =>
-  app.evaluate(() => (globalThis as { __asked?: string[] }).__asked ?? []);
+  app.evaluate(() => (globalThis as { __dialogs?: DialogStubs }).__dialogs!.closeAsked);
+
+export const removeMessages = (app: ElectronApplication): Promise<string[]> =>
+  app.evaluate(() => (globalThis as { __dialogs?: DialogStubs }).__dialogs!.removeAsked);

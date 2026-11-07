@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { open, readFile, rename, rm, stat, utimes } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, open, readFile, rename, rm, stat, utimes } from 'node:fs/promises';
 import { basename, dirname } from 'node:path';
+import type { ExportTarget } from '../shared/ipc';
 import { renderMosaic } from '../shared/mosaic';
 import type { MosaicOp } from '../shared/types';
 import { chooseEditPath, type WrittenEdit } from './edit-path';
@@ -15,6 +17,8 @@ import { applyPatchToCoefficients } from './jpeg/recode';
 export interface ExportRequest {
   sourcePath: string;
   op: MosaicOp;
+  /** `suffix` when left out. */
+  target?: ExportTarget;
   /** The file this session wrote for this source earlier, if any. */
   written?: WrittenEdit | undefined;
   /** Other sources of the session, never overwritten. */
@@ -42,15 +46,46 @@ export class ExportFailure extends Error {
 const sameBytes = (a: Uint8Array | undefined, b: Uint8Array | undefined): boolean =>
   a === b || (a !== undefined && b !== undefined && Buffer.compare(a, b) === 0);
 
+/** Windows refuses to replace a file that a search indexer, a virus scanner or a viewer has open. */
+async function renameInto(temp: string, path: string, name: string): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await rename(temp, path);
+      return;
+    } catch (cause) {
+      const code = (cause as NodeJS.ErrnoException).code;
+      const busy = code === 'EPERM' || code === 'EBUSY' || code === 'EACCES';
+      if (!busy || attempt >= 5) {
+        throw new ExportFailure(`${name}: cannot replace ${basename(path)} (${errorText(cause)})`, {
+          cause,
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, attempt * 100));
+    }
+  }
+}
+
 /**
- * Write `<name>_edit.jpg` next to the source: the source's coefficients with the mosaic blocks
- * re-encoded, its metadata with thumbnails and previews removed, its modification time. The
- * source is only ever read.
+ * Write the edit: the source's coefficients with the mosaic blocks re-encoded, its metadata with
+ * thumbnails and previews removed, its modification time. It goes to `<name>_edit.jpg` next to
+ * the source, whose file is then only ever read, or over the source when `target` is `overwrite`.
+ * Either way the new file is complete and verified before it takes the name, so a failure leaves
+ * the file that was there as it was.
  */
 export async function exportEdit(request: ExportRequest): Promise<ExportResult> {
   const { sourcePath, op } = request;
   const name = basename(sourcePath);
   const folder = dirname(sourcePath);
+  const overwrite = request.target === 'overwrite';
+
+  // A rename replaces a read-only file on Linux and macOS, which would ignore that protection.
+  if (overwrite) {
+    try {
+      await access(sourcePath, constants.W_OK);
+    } catch (cause) {
+      throw new ExportFailure(`${name}: cannot overwrite a read-only file`, { cause });
+    }
+  }
 
   let source: Buffer;
   let sourceStat;
@@ -79,7 +114,9 @@ export async function exportEdit(request: ExportRequest): Promise<ExportResult> 
   const scrubbed = scrubSegments(decoded.header.segments);
   const bytes = encodeCoefficients(decoded, scrubbed.segments);
 
-  const target = await chooseEditPath(sourcePath, request.written, new Set(request.protectedPaths));
+  const target = overwrite
+    ? { path: sourcePath, replace: true }
+    : await chooseEditPath(sourcePath, request.written, new Set(request.protectedPaths));
   const temp = `${target.path}.${randomUUID()}.tmp`;
   try {
     let handle;
@@ -119,7 +156,7 @@ export async function exportEdit(request: ExportRequest): Promise<ExportResult> 
       throw new ExportFailure(`${name}: the colour profile changed while writing`);
     }
 
-    await rename(temp, target.path);
+    await renameInto(temp, target.path, name);
     const info = await stat(target.path);
     return {
       path: target.path,

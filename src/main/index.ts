@@ -8,6 +8,7 @@ import {
   Menu,
   protocol,
   session as electronSession,
+  screen,
   shell,
 } from 'electron';
 import { existsSync } from 'node:fs';
@@ -29,6 +30,7 @@ import { chooseEditPath, type WrittenEdit } from './edit-path';
 import { Limiter, WorkerClient } from './pool';
 import { parseNotices } from './notices';
 import { Session } from './session';
+import { onScreen } from './window-state';
 import { readSettings, writeSettings } from './settings';
 import { createUpdateService } from './updates';
 import { UpdateService } from './update-sources';
@@ -126,9 +128,17 @@ function onPhoto<T>(id: string, job: () => Promise<T>): Promise<T> {
 }
 
 function createWindow(): BrowserWindow {
+  // The first start opens maximized. After that the window opens the way it was left.
+  const saved = onScreen(
+    settings.window,
+    screen.getAllDisplays().map((display) => display.workArea),
+  );
   const window = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    ...(saved
+      ? { x: saved.x, y: saved.y, width: saved.width, height: saved.height }
+      : { width: 1440, height: 900 }),
+    // Shown once maximized, so it never flashes at the smaller size first.
+    show: false,
     minWidth: 960,
     minHeight: 600,
     backgroundColor: '#0e0e0f',
@@ -144,6 +154,28 @@ function createWindow(): BrowserWindow {
     },
   });
   window.webContents.setVisualZoomLevelLimits(1, 1).catch(() => undefined);
+  window.once('ready-to-show', () => {
+    if (!saved || saved.maximized) window.maximize();
+    window.show();
+  });
+
+  let saveTimer: NodeJS.Timeout | undefined;
+  const saveState = (): void => {
+    clearTimeout(saveTimer);
+    if (window.isDestroyed() || window.isMinimized()) return;
+    const bounds = window.getNormalBounds();
+    void changeSettings({
+      window: { ...bounds, maximized: window.isMaximized() || window.isFullScreen() },
+    }).catch((cause: unknown) => console.warn('Could not save the window state:', cause));
+  };
+  const saveSoon = (): void => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveState, 500);
+  };
+  for (const event of ['resize', 'move', 'maximize', 'unmaximize'] as const) {
+    window.on(event as 'resize', saveSoon);
+  }
+  window.on('close', saveState);
 
   window.on('close', (event) => {
     if (forceClose || unexported === 0) return;

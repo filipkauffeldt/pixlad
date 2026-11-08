@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { readFile, writeFile } from 'node:fs/promises';
 import { DEFAULT_SETTINGS, isExportTarget, type Settings } from '../shared/ipc';
+import { isWindowState } from './window-state';
 
 /**
  * The settings, the only thing kept between runs. Each value that is missing or unreadable falls
@@ -18,7 +19,12 @@ export async function readSettings(file: string): Promise<Settings> {
     }
     return { ...DEFAULT_SETTINGS };
   }
-  let parsed: { exportTarget?: unknown; exportChosen?: unknown; checkForUpdates?: unknown } | null;
+  let parsed: {
+    exportTarget?: unknown;
+    exportChosen?: unknown;
+    checkForUpdates?: unknown;
+    window?: unknown;
+  } | null;
   try {
     parsed = JSON.parse(text) as typeof parsed;
   } catch (cause) {
@@ -39,6 +45,7 @@ export async function readSettings(file: string): Promise<Settings> {
       typeof parsed?.checkForUpdates === 'boolean'
         ? parsed.checkForUpdates
         : DEFAULT_SETTINGS.checkForUpdates,
+    ...(isWindowState(parsed?.window) ? { window: parsed.window } : {}),
   };
 }
 

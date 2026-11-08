@@ -19,9 +19,12 @@ Sessions live in memory only. Pixlad writes the exported JPGs and a small `setti
 makes no network requests except the update check against GitHub.
 
 Download a package from the [Releases page](https://github.com/filipkauffeldt/pixlad/releases)
-for macOS (Apple Silicon), Windows (x64) or Fedora (x64). No builds are signed in a way that
+for macOS (Apple Silicon), Windows (x64) or Linux (x86_64). No builds are signed in a way that
 Microsoft or Apple trusts, so macOS and Windows warn you on first launch. If you want to, you can
 always [build the app from source](#develop).
+
+On Linux, take the rpm on Fedora, RHEL and openSUSE. On other distros take the AppImage. Run
+`chmod +x` on it, then run it.
 
 ## Develop
 

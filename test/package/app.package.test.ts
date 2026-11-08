@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { dropFiles, launch, type Launched } from '../e2e/app';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { packagedExecutable } from './executable';
+import { packagedAppImage, packagedExecutable } from './executable';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -91,5 +91,17 @@ describe('the packaged app', () => {
       'Permission is hereby granted',
     );
     await about.getByRole('button', { name: 'Open Chromium licences' }).waitFor();
+  });
+
+  // The unpacked folder above proves the app. This proves the AppImage file around it starts too.
+  it.runIf(process.platform === 'linux')('starts from the AppImage', async () => {
+    running = await launch({
+      executablePath: packagedAppImage(),
+      // The runner has no FUSE, so the runtime unpacks itself and runs from there.
+      env: { APPIMAGE_EXTRACT_AND_RUN: '1' },
+    });
+    const { app } = running;
+    expect(await app.evaluate(({ app: electronApp }) => electronApp.isPackaged)).toBe(true);
+    expect(await app.evaluate(() => process.env['APPIMAGE'])).toMatch(/\.AppImage$/);
   });
 });

@@ -9,7 +9,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 20px;
+  gap: 8px 16px;
   min-height: var(--topbar-h);
   padding: 6px 12px;
   background: var(--panel);
@@ -34,7 +34,7 @@
 }
 .counts {
   color: var(--muted);
-  min-width: 150px;
+  min-width: 120px;
   display: flex;
   gap: 12px;
 }

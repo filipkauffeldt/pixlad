@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" shape-rendering="crispEdges">
+  <!--
+    Pixlad: a P of five mosaic blocks, two wide and three high. The bowl is a square of four
+    greys, dark to light; the stem below repeats the darkest. Dark blocks on a light tile, so the
+    icon stands out on the app's own dark background.
+  -->
+  <rect width="10" height="10" rx="1.8" fill="#e8e8e8" shape-rendering="geometricPrecision"/>
+  <rect x="3" y="2" width="2" height="2" fill="#0e0e0f"/>
+  <rect x="5" y="2" width="2" height="2" fill="#3a3a3d"/>
+  <rect x="3" y="4" width="2" height="2" fill="#5b5b5f"/>
+  <rect x="5" y="4" width="2" height="2" fill="#8e8e90"/>
+  <rect x="3" y="6" width="2" height="2" fill="#0e0e0f"/>
+</svg>

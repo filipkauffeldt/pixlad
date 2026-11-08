@@ -1,6 +1,6 @@
 # Packaging for `pnpm package`. The product name is `productName` here. A rename also touches
 # `appId`, the app name and window title in src/main/index.ts, and the package.json `name`, which
-# the package file names use.
+# the package file names use. `desktopName` in package.json follows the `name`.
 appId: io.github.filipkauffeldt.pixlad
 productName: Pixlad
 copyright: Copyright (C) 2026 Filip Kauffeldt
@@ -68,7 +68,13 @@ linux:
     - target: rpm
       arch: x64
   category: Graphics
-  icon: build/icon.png
+  # A folder of <size>x<size>.png files (`pnpm render-icon`). With the single 1024 px icon.png the
+  # rpm installs it as hicolor/1024x1024, which desktop environments do not look in, so the
+  # launcher shows a generic icon.
+  icon: build/icons
+  # Names the installed .desktop file and its StartupWMClass after desktopName in package.json, which
+  # is the app id Electron gives the window, so the dock groups the window under the launcher icon.
+  syncDesktopName: true
   maintainer: Filip Kauffeldt <https://github.com/filipkauffeldt/pixlad>
   files:
     - '!node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32}/**'

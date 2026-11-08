@@ -320,6 +320,7 @@ input[type='range']::-webkit-slider-thumb {
   text-decoration: underline;
 }
 .licenseText {
+  flex-shrink: 0;
   max-height: 260px;
   overflow: auto;
   margin: 0 0 8px;

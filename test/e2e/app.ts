@@ -1,5 +1,5 @@
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtemp } from 'node:fs/promises';
+import { access, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -16,9 +16,25 @@ export interface Launched {
  * (cache, GPU) go to a throw-away user-data folder.
  */
 export async function launch(
-  options: { userData?: string; env?: Record<string, string>; executablePath?: string } = {},
+  options: {
+    userData?: string;
+    env?: Record<string, string>;
+    executablePath?: string;
+    /** Start like a new install, so the first export asks how to save. */
+    firstRun?: boolean;
+  } = {},
 ): Promise<Launched> {
   const userData = options.userData ?? (await mkdtemp(join(tmpdir(), 'pixlad-userdata-')));
+  // Most tests act as a user who already chose how to save. A settings file that is already
+  // there, from an earlier launch of the same test, is left as it is.
+  const settings = join(userData, 'settings.json');
+  const exists = await access(settings).then(
+    () => true,
+    () => false,
+  );
+  if (!options.firstRun && !exists) {
+    await writeFile(settings, JSON.stringify({ exportTarget: 'suffix', exportChosen: true }));
+  }
   const app = await electron.launch({
     executablePath: options.executablePath,
     args: [

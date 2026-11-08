@@ -68,6 +68,10 @@ export interface AppState {
     { done: number; total: number; failed: string[]; finished: boolean; ok: number } | undefined;
   dragging: boolean;
   exportTarget: ExportTarget;
+  /** Whether the user has picked an export target. Until then the first export asks. */
+  exportChosen: boolean;
+  /** The first-export choice, open under the Export or the Export all button. */
+  exportChoice: { anchor: 'export' | 'all' } | undefined;
   checkForUpdates: boolean;
   aboutOpen: boolean;
   update: UpdateState;
@@ -88,6 +92,9 @@ const initial: AppState = {
   batch: undefined,
   dragging: false,
   exportTarget: 'suffix',
+  // True until the settings load, so an export started before that never asks twice.
+  exportChosen: true,
+  exportChoice: undefined,
   checkForUpdates: true,
   aboutOpen: false,
   update: { phase: 'idle' },
@@ -351,13 +358,29 @@ export const actions = {
 
   async exportCurrent(): Promise<void> {
     const id = state.currentId;
-    if (!id || currentPhoto(state)?.status === 'exporting') return;
+    const photo = currentPhoto(state);
+    if (!id || !photo || !hasMosaic(photo) || photo.status === 'exporting') return;
+    if (!state.exportChosen) {
+      set({ exportChoice: { anchor: 'export' } });
+      return;
+    }
     if (await actions.exportPhoto(id)) await offerRemoval([id]);
   },
 
+  /** Saves the choice from the first-export popover, then runs the export it was opened for. */
+  async chooseExportTarget(target: ExportTarget): Promise<void> {
+    const choice = state.exportChoice;
+    set({ exportChoice: undefined });
+    await actions.setExportTarget(target);
+    if (choice?.anchor === 'all') await actions.exportAll();
+    else await actions.exportCurrent();
+  },
+
+  cancelExportChoice: (): void => set({ exportChoice: undefined }),
+
   async loadSettings(): Promise<void> {
-    const { exportTarget, checkForUpdates } = await window.api.settings();
-    set({ exportTarget, checkForUpdates });
+    const { exportTarget, exportChosen, checkForUpdates } = await window.api.settings();
+    set({ exportTarget, exportChosen, checkForUpdates });
   },
 
   async setCheckForUpdates(checkForUpdates: boolean): Promise<void> {
@@ -373,7 +396,7 @@ export const actions = {
   },
 
   async setExportTarget(exportTarget: ExportTarget): Promise<void> {
-    set({ exportTarget });
+    set({ exportTarget, exportChosen: true });
     try {
       await window.api.setExportTarget(exportTarget);
     } catch (cause) {
@@ -465,6 +488,10 @@ export const actions = {
     if (state.batch && !state.batch.finished) return;
     const ids = state.photos.filter(hasMosaic).map((p) => p.info.id);
     if (ids.length === 0) return;
+    if (!state.exportChosen) {
+      set({ exportChoice: { anchor: 'all' } });
+      return;
+    }
     set({ batch: { done: 0, total: ids.length, failed: [], finished: false, ok: 0 } });
     const exported: string[] = [];
     for (const id of ids) {

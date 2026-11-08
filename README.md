@@ -166,8 +166,8 @@ Runtime library for its own system.
 
 A GitHub Actions workflow also builds the same packages on every pull request and every push to
 `main`, and you can start it by hand from the Actions tab. These are test builds. They have the
-version `0.0.0-dev.<run number>`, they never check for updates, and the workflow creates no
-releases or tags.
+version `0.0.0-dev.g<short commit sha>`, so each commit has its own. They never check for
+updates, and the workflow creates no releases or tags.
 
 | System               | Artifact name                  |
 | -------------------- | ------------------------------ |

@@ -14,6 +14,7 @@ const required = [
   'out/preload/index.cjs',
   'out/renderer/index.html',
   'build/icon.png',
+  'build/icons/512x512.png',
   'LICENSE',
   'THIRD_PARTY_NOTICES.txt',
   'resources/models/face_detection_yunet_2026may.onnx',

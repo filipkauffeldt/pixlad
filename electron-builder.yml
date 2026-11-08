@@ -68,7 +68,10 @@ linux:
     - target: rpm
       arch: x64
   category: Graphics
-  icon: build/icon.png
+  # A folder of <size>x<size>.png files (`pnpm render-icon`). With the single 1024 px icon.png the
+  # rpm installs it as hicolor/1024x1024, which desktop environments do not look in, so the
+  # launcher shows a generic icon.
+  icon: build/icons
   maintainer: Filip Kauffeldt <https://github.com/filipkauffeldt/pixlad>
   files:
     - '!node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32}/**'

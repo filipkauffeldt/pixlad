@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { chooseInstaller, type ReleaseAsset } from '../src/main/update-assets';
+import { chooseInstaller, chooseUpdater, type ReleaseAsset } from '../src/main/update-assets';
 import {
   describeError,
   GithubDmgSource,
@@ -68,6 +68,43 @@ describe('chooseInstaller', () => {
     expect(
       chooseInstaller([asset('pixlad-0.3.0-linux-x86_64.rpm')], 'win32', 'x64'),
     ).toBeUndefined();
+  });
+});
+
+describe('chooseUpdater', () => {
+  const mounted = {
+    APPIMAGE: '/home/anna/Apps/pixlad-0.3.0-linux-x86_64.AppImage',
+    APPDIR: '/tmp/.mount_pixladAbC123',
+  };
+  const inside = '/tmp/.mount_pixladAbC123/pixlad';
+
+  it('uses the AppImage updater for an app that runs from an AppImage', () => {
+    expect(chooseUpdater('linux', mounted, inside)).toBe('appimage');
+    // The extract-and-run mode of the runtime sets the same variables for another folder.
+    expect(
+      chooseUpdater(
+        'linux',
+        { ...mounted, APPDIR: '/tmp/appimage_extracted_1f' },
+        '/tmp/appimage_extracted_1f/pixlad',
+      ),
+    ).toBe('appimage');
+  });
+
+  it('uses the rpm updater for any other Linux install', () => {
+    expect(chooseUpdater('linux', {}, '/opt/Pixlad/pixlad')).toBe('rpm');
+    expect(chooseUpdater('linux', { APPIMAGE: '' }, '/opt/Pixlad/pixlad')).toBe('rpm');
+  });
+
+  it('ignores variables that an AppImage terminal hands to an installed app', () => {
+    expect(chooseUpdater('linux', mounted, '/opt/Pixlad/pixlad')).toBe('rpm');
+    expect(chooseUpdater('linux', { APPIMAGE: mounted.APPIMAGE }, inside)).toBe('rpm');
+    expect(chooseUpdater('linux', mounted, '/tmp/.mount_pixladAbC123-other/pixlad')).toBe('rpm');
+    expect(chooseUpdater('linux', mounted, '/tmp/.mount_pixladAbC123')).toBe('rpm');
+  });
+
+  it('uses the installer updater on Windows whatever the variables say', () => {
+    expect(chooseUpdater('win32', mounted, inside)).toBe('nsis');
+    expect(chooseUpdater('win32', {}, 'C:/Pixlad/Pixlad.exe')).toBe('nsis');
   });
 });
 

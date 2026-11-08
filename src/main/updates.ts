@@ -4,6 +4,7 @@ import { app, net, shell } from 'electron';
 import electronUpdater, { type AppUpdater } from 'electron-updater';
 import { RELEASES_OWNER, RELEASES_REPO } from '../shared/update';
 import { isPrerelease, parseVersion } from '../shared/version';
+import { chooseUpdater, type UpdaterKind } from './update-assets';
 import {
   GithubDmgSource,
   parseTestUpdates,
@@ -13,7 +14,7 @@ import {
 } from './update-sources';
 
 /**
- * Windows and Fedora: electron-updater checks GitHub, downloads the installer and installs it. It
+ * Windows and Linux: electron-updater checks GitHub, downloads the installer and installs it. It
  * never downloads by itself and never installs when the app quits, so the user decides.
  */
 class ElectronUpdaterSource implements UpdateSource {
@@ -50,11 +51,21 @@ class ElectronUpdaterSource implements UpdateSource {
   }
 }
 
+function newUpdater(kind: UpdaterKind): AppUpdater {
+  switch (kind) {
+    case 'nsis':
+      return new electronUpdater.NsisUpdater();
+    case 'appimage':
+      return new electronUpdater.AppImageUpdater();
+    case 'rpm':
+      return new electronUpdater.RpmUpdater();
+  }
+}
+
 function createUpdater(platform: NodeJS.Platform, test: TestUpdates | undefined): AppUpdater {
-  // The two classes are named here, not picked by electron-updater, because only these two kinds
-  // of package are built.
-  const updater =
-    platform === 'win32' ? new electronUpdater.NsisUpdater() : new electronUpdater.RpmUpdater();
+  // The classes are named here, not picked by electron-updater, because only these three kinds of
+  // package are built.
+  const updater = newUpdater(chooseUpdater(platform, process.env, process.execPath));
   updater.autoDownload = false;
   updater.autoInstallOnAppQuit = false;
   updater.allowPrerelease = false;

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
+import { posix } from 'node:path';
 
 /** One file of a GitHub release, as the releases API lists it. */
 export interface ReleaseAsset {
@@ -35,4 +36,28 @@ export function chooseInstaller(
       asset.name.toLowerCase().endsWith(installer.extension) &&
       cpuNames.some((cpu) => asset.name.toLowerCase().includes(cpu)),
   );
+}
+
+/** The electron-updater class that updates this install. */
+export type UpdaterKind = 'nsis' | 'appimage' | 'rpm';
+
+/**
+ * Which updater fits this install. The AppImage runtime sets APPIMAGE to the file it runs and
+ * APPDIR to the folder it mounts. Both have to be there, and the app has to run from inside that
+ * folder. A variable that an AppImage terminal passes on to an rpm install does not count,
+ * because the AppImage updater replaces the file APPIMAGE names.
+ */
+export function chooseUpdater(
+  platform: NodeJS.Platform,
+  env: Readonly<Record<string, string | undefined>>,
+  execPath: string,
+): UpdaterKind {
+  if (platform === 'win32') return 'nsis';
+  const appImage = env['APPIMAGE'];
+  const appDir = env['APPDIR'];
+  if (platform === 'linux' && appImage && appDir) {
+    const inside = posix.relative(posix.resolve(appDir), posix.resolve(execPath));
+    if (inside !== '' && !inside.startsWith('..') && !posix.isAbsolute(inside)) return 'appimage';
+  }
+  return 'rpm';
 }

@@ -1,6 +1,6 @@
 {
   "name": "pixlad",
-  "version": "0.1.0",
+  "version": "0.0.0-dev",
   "private": true,
   "description": "Drop JPEG photos, mosaic faces and areas, export JPEGs. Nothing else.",
   "desktopName": "pixlad.desktop",

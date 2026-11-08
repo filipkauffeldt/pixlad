@@ -1,7 +1,7 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 import type { Plugin } from 'vite';
-import { readFileSync } from 'node:fs';
+import { parseVersion } from './src/shared/version';
 import { resolve } from 'node:path';
 
 // Only the app's own bundle, the pixlad: photo protocol, blob: previews and data: URLs may load.
@@ -22,14 +22,18 @@ const contentSecurityPolicy: Plugin = {
   ],
 };
 
-const { version } = JSON.parse(
-  readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf8'),
-) as { version: string };
+// The version shown in About. The release and package workflows set PIXLAD_VERSION, and the same
+// value goes to electron-builder, so the installer, app.getVersion() and About agree. package.json
+// only holds a placeholder. A build without it, such as `pnpm dev`, shows "dev".
+const version = process.env['PIXLAD_VERSION'] || 'dev';
+if (version !== 'dev' && !parseVersion(version)) {
+  throw new Error(`PIXLAD_VERSION is not a version: "${version}"`);
+}
 
 export default defineConfig({
   main: {
     // Electron's app.getVersion() reads the package.json next to the entry point, which a run
-    // from out/ does not have.
+    // from out/ does not have, and which only holds a placeholder.
     define: { __APP_VERSION__: JSON.stringify(version) },
     build: {
       rollupOptions: {

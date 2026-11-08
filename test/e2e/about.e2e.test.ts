@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -25,10 +25,8 @@ describe('About', () => {
     await page.click('[data-testid="open-about"]');
     const about = page.locator('[data-testid="about"]');
     await about.waitFor();
-    const { version } = JSON.parse(
-      await readFile(join(import.meta.dirname, '..', '..', 'package.json'), 'utf8'),
-    ) as { version: string };
-    await page.getByText(`Version ${version}`).waitFor();
+    // The test build has no PIXLAD_VERSION, so it shows the fallback.
+    await page.getByText('Version dev', { exact: true }).waitFor();
     expect(await about.innerText()).toContain('Copyright © 2026 Filip Kauffeldt');
     expect(await about.innerText()).toContain('github.com/filipkauffeldt/pixlad');
 

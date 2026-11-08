@@ -18,6 +18,8 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" crossorigin />
     <style>
       /* Inter and JetBrains Mono, SIL OFL 1.1 (fonts/*-OFL.txt), from @fontsource-variable. */
@@ -285,7 +287,15 @@
       };
 
       async function detectPlatform() {
-        const forced = new URLSearchParams(location.search).get('os');
+        const ALIASES = {
+          macos: 'mac',
+          windows: 'win',
+          intelmac: 'intelMac',
+          android: 'mobile',
+          ios: 'mobile',
+        };
+        const param = new URLSearchParams(location.search).get('os')?.toLowerCase();
+        const forced = ALIASES[param] ?? param;
         if (forced && (forced in BUILDS || forced in NO_BUILD)) return forced;
 
         const ua = navigator.userAgent;

@@ -122,7 +122,7 @@ jobs:
           if-no-files-found: error
 
   linux:
-    name: Fedora (x64, rpm)
+    name: Linux (x64, rpm and AppImage)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -139,31 +139,38 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends rpm xvfb xauth
       - run: pnpm install --frozen-lockfile
-      - name: Build the rpm
+      - name: Build the rpm and the AppImage
         run: pnpm package --linux "-c.extraMetadata.version=$PIXLAD_VERSION"
       - name: Check the file names and the update file
         run: |
-          test -f "dist/pixlad-$PIXLAD_VERSION-linux-x86_64.rpm"
+          # One update file lists both packages, each with the sha512 of its file. The AppImage
+          # has its blockmap inside, and electron-builder writes none for the rpm.
           grep -qx "version: $PIXLAD_VERSION" dist/latest-linux.yml
-      - name: Smoke test the packaged app under Xvfb
+          for file in "pixlad-$PIXLAD_VERSION-linux-x86_64.rpm" "pixlad-$PIXLAD_VERSION-linux-x86_64.AppImage"; do
+            test -f "dist/$file"
+            grep -qx "  - url: $file" dist/latest-linux.yml
+            sha512=$(openssl dgst -sha512 -binary "dist/$file" | base64 -w0)
+            grep -qxF "    sha512: $sha512" dist/latest-linux.yml
+          done
+          test -x "dist/pixlad-$PIXLAD_VERSION-linux-x86_64.AppImage"
+      - name: Smoke test the unpacked app and the AppImage under Xvfb
         run: xvfb-run -a --server-args='-screen 0 1920x1080x24' pnpm test:package
       - name: Package sizes and contents
         run: |
-          ls -lh dist/*.rpm
+          ls -lh dist/*.rpm dist/*.AppImage
           rpm -qip dist/*.rpm
       - name: Upload to the draft release
         if: inputs.release-tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release-tag }}
-        run: |
-          # electron-builder writes no blockmap for an rpm, so there is none to upload.
-          gh release upload "$TAG" dist/*.rpm dist/latest-linux.yml --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$TAG" dist/*.rpm dist/*.AppImage dist/latest-linux.yml --repo "$GITHUB_REPOSITORY"
       - uses: actions/upload-artifact@v7
         if: inputs.release-tag == ''
         with:
-          name: pixlad-fedora-x64-rpm
+          name: pixlad-linux-x64-rpm-appimage
           path: |
             dist/*.rpm
+            dist/*.AppImage
             dist/latest-linux.yml
           if-no-files-found: error

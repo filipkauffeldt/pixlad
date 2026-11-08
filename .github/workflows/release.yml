@@ -122,7 +122,7 @@ jobs:
           for file in \
             "pixlad-$VERSION-mac-arm64.dmg" "pixlad-$VERSION-mac-arm64.dmg.blockmap" latest-mac.yml \
             "pixlad-$VERSION-win-x64.exe" "pixlad-$VERSION-win-x64.exe.blockmap" latest.yml \
-            "pixlad-$VERSION-linux-x86_64.rpm" latest-linux.yml; do
+            "pixlad-$VERSION-linux-x86_64.rpm" "pixlad-$VERSION-linux-x86_64.AppImage" latest-linux.yml; do
             grep -qxF "$file" assets.txt || { echo "::error::The draft has no $file."; exit 1; }
           done
       - name: Publish the release and mark it Latest

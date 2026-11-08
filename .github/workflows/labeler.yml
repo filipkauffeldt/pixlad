@@ -1,6 +1,6 @@
 name: Label
 
-# Adds the `website` label to pull requests that only change webpage/. It reads the list of
+# Adds the `website` and `internal` labels from .github/labeler.yml. It reads the list of
 # changed files and never checks out or runs the pull request's code.
 on:
   pull_request_target:

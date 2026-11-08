@@ -1,5 +1,7 @@
-# GitHub's generated release notes leave out pull requests with these labels.
+# GitHub's generated release notes leave out pull requests with these labels, so a release only
+# lists changes to the app. .github/labeler.yml sets them.
 changelog:
   exclude:
     labels:
+      - internal
       - website

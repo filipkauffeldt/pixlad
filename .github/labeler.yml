@@ -1,6 +1,27 @@
-# Labels for actions/labeler. A pull request that only changes the landing page gets `website`,
-# which keeps it out of the release notes (see release.yml).
+# Labels for actions/labeler. Release notes leave out pull requests with either label (see
+# release.yml), so a release only lists changes to the app.
+
+# Only the landing page changed.
 website:
   - all:
       - changed-files:
           - all-globs-to-all-files: 'webpage/**'
+
+# Nothing the app ships changed: docs, workflows, tests, the landing page or tooling config.
+# Every changed file has to be outside the list below, which is what goes into a package.
+internal:
+  - all:
+      - changed-files:
+          - all-globs-to-all-files:
+              - '!src/**'
+              - '!build/**'
+              - '!third_party/**'
+              - '!electron-builder.yml'
+              - '!electron.vite.config.ts'
+              - '!package.json'
+              - '!pnpm-lock.yaml'
+              - '!pnpm-workspace.yaml'
+              - '!LICENSE'
+              - '!THIRD_PARTY_NOTICES.txt'
+              - '!scripts/fetch-model.ts'
+              - '!scripts/check-package-inputs.mjs'

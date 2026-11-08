@@ -18,6 +18,12 @@ publish:
 
 artifactName: ${name}-${version}-${os}-${arch}.${ext}
 
+# The AppImage runtime. The default one needs libfuse2 on the user's system and writes --no-sandbox
+# into the launcher entry. This one carries its own FUSE support and writes no flags. Its AppRun
+# script still drops the sandbox when the system blocks user namespaces, and only then.
+toolsets:
+  appimage: 1.0.3
+
 # Fails the build when a file the app needs at run time would be missing from the package.
 beforePack: scripts/check-package-inputs.mjs
 
@@ -71,9 +77,14 @@ win:
     - '!node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}/**'
     - '!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**'
 
+# Both targets add their file to one latest-linux.yml, and each updater takes the entry with its
+# own extension. electron-builder writes the AppImage's blockmap into the file, so there is no
+# separate .blockmap, and none for the rpm.
 linux:
   target:
     - target: rpm
+      arch: x64
+    - target: AppImage
       arch: x64
   category: Graphics
   # A folder of <size>x<size>.png files (`pnpm render-icon`). With the single 1024 px icon.png the

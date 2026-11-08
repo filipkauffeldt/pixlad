@@ -37,6 +37,24 @@ export interface Notice {
   kind: 'info' | 'error';
 }
 
+/** The update the app knows about, and how far along it is. */
+export type UpdateState =
+  | { phase: 'idle' }
+  | { phase: 'available'; version: string }
+  | { phase: 'downloading'; version: string; percent: number | undefined }
+  /** Windows and Fedora: downloaded, and the app can restart into it. */
+  | { phase: 'ready'; version: string }
+  /** macOS: the disk image is in Downloads and open. */
+  | { phase: 'opened'; version: string; fileName: string }
+  | { phase: 'failed'; version: string; message: string };
+
+/** What the About dialog says about its last "Check for updates", when no update is known. */
+export type AboutCheck =
+  | { phase: 'idle' }
+  | { phase: 'checking' }
+  | { phase: 'up-to-date' }
+  | { phase: 'error'; message: string };
+
 export interface AppState {
   photos: PhotoState[];
   currentId: string | undefined;
@@ -50,7 +68,12 @@ export interface AppState {
     { done: number; total: number; failed: string[]; finished: boolean; ok: number } | undefined;
   dragging: boolean;
   exportTarget: ExportTarget;
+  checkForUpdates: boolean;
   aboutOpen: boolean;
+  update: UpdateState;
+  /** The user chose Later, so the prompt stays away until something new happens. */
+  updatePromptHidden: boolean;
+  aboutCheck: AboutCheck;
 }
 
 const initial: AppState = {
@@ -65,7 +88,11 @@ const initial: AppState = {
   batch: undefined,
   dragging: false,
   exportTarget: 'suffix',
+  checkForUpdates: true,
   aboutOpen: false,
+  update: { phase: 'idle' },
+  updatePromptHidden: false,
+  aboutCheck: { phase: 'idle' },
 };
 
 let state = initial;
@@ -120,6 +147,8 @@ const newPhoto = (info: PhotoInfo): PhotoState => ({
   status: 'idle',
   fileVersion: 0,
 });
+
+let startupCheckDone = false;
 
 let removalPrompts: Promise<void> = Promise.resolve();
 
@@ -327,7 +356,20 @@ export const actions = {
   },
 
   async loadSettings(): Promise<void> {
-    set({ exportTarget: await window.api.exportTarget() });
+    const { exportTarget, checkForUpdates } = await window.api.settings();
+    set({ exportTarget, checkForUpdates });
+  },
+
+  async setCheckForUpdates(checkForUpdates: boolean): Promise<void> {
+    set({ checkForUpdates });
+    try {
+      await window.api.setCheckForUpdates(checkForUpdates);
+    } catch (cause) {
+      notify(
+        [`Could not save the setting, so it lasts until you close the app: ${errorText(cause)}`],
+        'error',
+      );
+    }
   },
 
   async setExportTarget(exportTarget: ExportTarget): Promise<void> {
@@ -341,6 +383,82 @@ export const actions = {
       );
     }
   },
+
+  /** The quiet check when the app starts. A failure is only a console warning. */
+  async checkForUpdatesOnStart(): Promise<void> {
+    if (startupCheckDone) return;
+    startupCheckDone = true;
+    try {
+      const result = await window.api.checkForUpdatesOnStart();
+      if (result?.status === 'available') {
+        set({ update: { phase: 'available', version: result.version }, updatePromptHidden: false });
+      } else if (result?.status === 'error') {
+        console.warn(`Could not check for updates: ${result.message}`);
+      }
+    } catch (cause) {
+      console.warn(`Could not check for updates: ${errorText(cause)}`);
+    }
+  },
+
+  /** The About dialog's button. */
+  async checkForUpdates(): Promise<void> {
+    if (state.aboutCheck.phase === 'checking') return;
+    set({ aboutCheck: { phase: 'checking' } });
+    try {
+      const result = await window.api.checkForUpdates();
+      if (result.status === 'available') {
+        set({
+          aboutCheck: { phase: 'idle' },
+          update: { phase: 'available', version: result.version },
+        });
+      } else if (result.status === 'up-to-date') {
+        set({ aboutCheck: { phase: 'up-to-date' } });
+      } else {
+        set({ aboutCheck: { phase: 'error', message: result.message } });
+      }
+    } catch (cause) {
+      set({ aboutCheck: { phase: 'error', message: errorText(cause) } });
+    }
+  },
+
+  /** Download the update that was found, with progress. */
+  async startUpdate(): Promise<void> {
+    const current = state.update;
+    if (current.phase !== 'available' && current.phase !== 'failed') return;
+    const version = current.version;
+    set({
+      update: { phase: 'downloading', version, percent: undefined },
+      updatePromptHidden: false,
+    });
+    const stop = window.api.onUpdateProgress((percent) =>
+      set((s) => (s.update.phase === 'downloading' ? { update: { ...s.update, percent } } : {})),
+    );
+    try {
+      const result = await window.api.downloadUpdate();
+      if (!result.ok) {
+        set({ update: { phase: 'failed', version, message: result.message } });
+      } else if (result.next === 'restart') {
+        set({ update: { phase: 'ready', version }, updatePromptHidden: false });
+      } else {
+        set({ update: { phase: 'opened', version, fileName: result.fileName } });
+      }
+    } catch (cause) {
+      set({ update: { phase: 'failed', version, message: errorText(cause) } });
+    } finally {
+      stop();
+    }
+  },
+
+  async installUpdate(): Promise<void> {
+    if (state.update.phase !== 'ready') return;
+    try {
+      await window.api.installUpdate();
+    } catch (cause) {
+      notify([`Could not restart to update: ${errorText(cause)}`], 'error');
+    }
+  },
+
+  hideUpdatePrompt: (): void => set({ updatePromptHidden: true }),
 
   /** Every photo with a mosaic, one after the other, in the background. */
   async exportAll(): Promise<void> {

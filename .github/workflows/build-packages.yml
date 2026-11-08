@@ -1,0 +1,169 @@
+name: Build packages
+
+# Builds an installable package per OS and smoke-tests the packaged app. The Package workflow
+# calls it for pull requests and pushes to main, and the Release workflow calls it for a release.
+# Which token permissions the jobs get is up to the caller.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The version of the packages, for example 0.3.0 or 0.0.0-dev.12
+        type: string
+        required: true
+      release-tag:
+        description: When set, each job uploads its files to the draft release with this tag
+        type: string
+        required: false
+        default: ''
+
+env:
+  # No signing secrets exist. This keeps electron-builder from looking for a certificate. The
+  # macOS package is signed ad hoc by its own setting in electron-builder.yml.
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+  # Read by electron.vite.config.ts for the version About shows.
+  PIXLAD_VERSION: ${{ inputs.version }}
+
+jobs:
+  macos:
+    name: macOS (arm64, dmg)
+    # Apple Silicon.
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release-tag }}
+      # The version comes from "packageManager" in package.json.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the dmg
+        run: pnpm package --mac "-c.extraMetadata.version=$PIXLAD_VERSION"
+        env:
+          # electron-builder skips signing on pull requests unless told otherwise. The identity is
+          # "-" (ad hoc), which needs no certificate or secret.
+          CSC_FOR_PULL_REQUEST: 'true'
+      - name: Check the ad-hoc signature
+        run: |
+          app="dist/mac-arm64/Pixlad.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv "$app" 2>&1 | tee signature.txt
+          grep -q "Signature=adhoc" signature.txt
+      - name: Check the file names and the update file
+        run: |
+          test -f "dist/pixlad-$PIXLAD_VERSION-mac-arm64.dmg"
+          test -f "dist/pixlad-$PIXLAD_VERSION-mac-arm64.dmg.blockmap"
+          grep -qx "version: $PIXLAD_VERSION" dist/latest-mac.yml
+      - name: Smoke test the packaged app
+        run: pnpm test:package
+      - name: Package sizes
+        run: ls -lh dist/*.dmg
+      - name: Upload to the draft release
+        if: inputs.release-tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release-tag }}
+        run: gh release upload "$TAG" dist/*.dmg dist/*.dmg.blockmap dist/latest-mac.yml --repo "$GITHUB_REPOSITORY"
+      - uses: actions/upload-artifact@v7
+        if: inputs.release-tag == ''
+        with:
+          name: pixlad-macos-arm64-dmg
+          path: |
+            dist/*.dmg
+            dist/*.dmg.blockmap
+            dist/latest-mac.yml
+          if-no-files-found: error
+
+  windows:
+    name: Windows (x64, installer)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release-tag }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the installer
+        run: pnpm package --win "-c.extraMetadata.version=$PIXLAD_VERSION"
+      - name: Check the file names and the update file
+        run: |
+          test -f "dist/pixlad-$PIXLAD_VERSION-win-x64.exe"
+          test -f "dist/pixlad-$PIXLAD_VERSION-win-x64.exe.blockmap"
+          grep -qx "version: $PIXLAD_VERSION" dist/latest.yml
+      - name: Smoke test the packaged app
+        run: pnpm test:package
+      - name: Package sizes
+        run: ls -lh dist/*.exe
+      - name: Upload to the draft release
+        if: inputs.release-tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release-tag }}
+        run: gh release upload "$TAG" dist/*.exe dist/*.exe.blockmap dist/latest.yml --repo "$GITHUB_REPOSITORY"
+      - uses: actions/upload-artifact@v7
+        if: inputs.release-tag == ''
+        with:
+          name: pixlad-windows-x64-installer
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
+          if-no-files-found: error
+
+  linux:
+    name: Fedora (x64, rpm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release-tag }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install rpmbuild and Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rpm xvfb xauth
+      - run: pnpm install --frozen-lockfile
+      - name: Build the rpm
+        run: pnpm package --linux "-c.extraMetadata.version=$PIXLAD_VERSION"
+      - name: Check the file names and the update file
+        run: |
+          test -f "dist/pixlad-$PIXLAD_VERSION-linux-x86_64.rpm"
+          grep -qx "version: $PIXLAD_VERSION" dist/latest-linux.yml
+      - name: Smoke test the packaged app under Xvfb
+        run: xvfb-run -a --server-args='-screen 0 1920x1080x24' pnpm test:package
+      - name: Package sizes and contents
+        run: |
+          ls -lh dist/*.rpm
+          rpm -qip dist/*.rpm
+      - name: Upload to the draft release
+        if: inputs.release-tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release-tag }}
+        run: |
+          # electron-builder writes no blockmap for an rpm, so there is none to upload.
+          gh release upload "$TAG" dist/*.rpm dist/latest-linux.yml --repo "$GITHUB_REPOSITORY"
+      - uses: actions/upload-artifact@v7
+        if: inputs.release-tag == ''
+        with:
+          name: pixlad-fedora-x64-rpm
+          path: |
+            dist/*.rpm
+            dist/latest-linux.yml
+          if-no-files-found: error

@@ -22,7 +22,9 @@ export async function launch(
   const app = await electron.launch({
     executablePath: options.executablePath,
     args: [
-      ...(options.executablePath ? [] : [join(root, 'out/main/index.js')]),
+      // The project folder, as `electron .` and `pnpm start` run it, so app.getVersion() finds
+      // package.json. The folder's "main" is out/main/index.js.
+      ...(options.executablePath ? [] : [root]),
       `--user-data-dir=${userData}`,
       ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
     ],

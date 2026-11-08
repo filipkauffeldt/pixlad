@@ -3,10 +3,25 @@
 import { useEffect, useRef, useState } from 'react';
 import icon from '../../build/icon.svg';
 import { SOURCE_URL, type AboutInfo } from '../shared/ipc';
-import { actions } from './store';
+import { UpdateStatus } from './UpdateStatus';
+import { actions, useApp, type AboutCheck } from './store';
+
+function aboutCheckText(check: AboutCheck): string {
+  switch (check.phase) {
+    case 'checking':
+      return 'Checking…';
+    case 'up-to-date':
+      return 'Pixlad is up to date';
+    case 'error':
+      return `Could not check for updates: ${check.message}`;
+    case 'idle':
+      return '';
+  }
+}
 
 /** Copyright, the GPL, and every third-party part with its licence text. */
 export function About() {
+  const app = useApp();
   const [info, setInfo] = useState<AboutInfo | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [expanded, setExpanded] = useState<string | undefined>();
@@ -79,6 +94,34 @@ export function About() {
               {SOURCE_URL.replace('https://', '')}
             </button>
           </p>
+          {info?.canCheckForUpdates ? (
+            <div className="updateRow" data-testid="about-update">
+              {app.update.phase === 'idle' ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={app.aboutCheck.phase === 'checking'}
+                    onClick={() => void actions.checkForUpdates()}
+                    data-testid="about-check-updates"
+                  >
+                    Check for updates
+                  </button>
+                  <span
+                    className={app.aboutCheck.phase === 'error' ? 'errorText' : 'muted'}
+                    role="status"
+                    data-testid="about-update-result"
+                  >
+                    {aboutCheckText(app.aboutCheck)}
+                  </span>
+                </>
+              ) : (
+                <UpdateStatus update={app.update} withLater={false} />
+              )}
+            </div>
+          ) : (
+            info && <p className="muted">This build does not check for updates.</p>
+          )}
           {error && <p className="errorText">{error}</p>}
           {info && (
             <>

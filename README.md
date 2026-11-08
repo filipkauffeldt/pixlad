@@ -28,8 +28,9 @@ This is an AI-developed proof of concept. Expect rough edges.
    export started, and removing a photo never deletes its file.
 
 Face detection uses the YuNet model (see [Third-party](#third-party)). **Settings** holds the
-export target and a link to **About**. About shows the copyright, the licence, a link to the
-source code and every third-party part with its licence text.
+export target, the update check and a link to **About**. About shows the version, a button to
+check for updates, the copyright, the licence, a link to the source code and every third-party
+part with its licence text.
 
 ## Sessions
 
@@ -38,7 +39,9 @@ A session lives in memory and disappears when the app closes.
 - The app saves nothing about it. There is no library, database, recent files list, saved areas,
   sidecars or thumbnail cache. The window uses an in-memory Chromium profile, and the app never
   copies photos. It writes two kinds of file only, the exported JPEGs and `settings.json` in its
-  data folder. That file holds the export setting and nothing about the photos.
+  data folder. That file holds the export setting and the update setting, and nothing about the
+  photos. The one exception is an update you ask for, which saves the installer (see
+  [Updates](#updates)).
 - Hundreds of photos are fine. Dropping reads only each file's header, and the app decodes only
   the current photo, in one worker thread. Thumbnails come from each photo's DC coefficients when
   they scroll into view, and the app keeps a small number of recent ones in memory. The strip only
@@ -143,23 +146,38 @@ If the check fails, it deletes the temporary file and that photo's export fails 
 
 ## Packages
 
-A GitHub Actions workflow builds one package for each system below. It runs on every pull request
-and every push to `main`, and you can start it by hand from the Actions tab.
+The [Releases page](https://github.com/filipkauffeldt/pixlad/releases) is the place to download
+Pixlad. Each release has one package for each system below, and the newest one is marked Latest.
 
-| System               | Package               | Artifact name                  |
-| -------------------- | --------------------- | ------------------------------ |
-| macOS, Apple Silicon | `.dmg`                | `pixlad-macos-arm64-dmg`       |
-| Windows, x64         | NSIS installer `.exe` | `pixlad-windows-x64-installer` |
-| Fedora, x64          | `.rpm`                | `pixlad-fedora-x64-rpm`        |
+| System               | Package               | File on the Releases page           |
+| -------------------- | --------------------- | ----------------------------------- |
+| macOS, Apple Silicon | `.dmg`                | `pixlad-<version>-mac-arm64.dmg`    |
+| Windows, x64         | NSIS installer `.exe` | `pixlad-<version>-win-x64.exe`      |
+| Fedora, x64          | `.rpm`                | `pixlad-<version>-linux-x86_64.rpm` |
 
-To download a package, open the workflow run in the repository's Actions tab. For a pull request,
-select Details on the Package check. The artifacts are listed at the bottom of the run page.
-GitHub serves each one as a zip file and asks you to sign in. The workflow creates no releases or
-tags.
+The other files on a release are for the updater. They are the `latest*.yml` files and the
+`.blockmap` files.
 
-Each package holds the app, the face model, the licence texts and the ONNX Runtime library for its
-own system. None of them is signed with a certificate, so macOS and Windows warn you the first
-time you open the app.
+None of the packages is signed with a certificate, so macOS and Windows warn you the first time
+you open the app. Each package holds the app, the face model, the licence texts and the ONNX
+Runtime library for its own system.
+
+### Test builds
+
+A GitHub Actions workflow also builds the same packages on every pull request and every push to
+`main`, and you can start it by hand from the Actions tab. These are test builds. They have the
+version `0.0.0-dev.<run number>`, they never check for updates, and the workflow creates no
+releases or tags.
+
+| System               | Artifact name                  |
+| -------------------- | ------------------------------ |
+| macOS, Apple Silicon | `pixlad-macos-arm64-dmg`       |
+| Windows, x64         | `pixlad-windows-x64-installer` |
+| Fedora, x64          | `pixlad-fedora-x64-rpm`        |
+
+To download a test build, open the workflow run in the repository's Actions tab. For a pull
+request, select Details on the Package check. The artifacts are listed at the bottom of the run
+page. GitHub serves each one as a zip file and asks you to sign in.
 
 ### macOS
 
@@ -188,10 +206,69 @@ Start Pixlad from the application menu, or run `pixlad` in a terminal.
 ### Building a package yourself
 
 Run `pnpm install` and then `pnpm package` on the system you want a package for. The package ends
-up in `dist/`. Building the rpm needs `rpmbuild`, which Fedora ships in `rpm-build` and Debian and
+up in `dist/`. It has the placeholder version `0.0.0-dev` and never checks for updates. Building the rpm needs `rpmbuild`, which Fedora ships in `rpm-build` and Debian and
 Ubuntu in `rpm`. `pnpm test:package` starts the app that `pnpm package` left in `dist/`, drops a
 photo on it, exports, runs face detection and opens About. On Linux without a display, run it as
 `xvfb-run -a pnpm test:package`.
+
+## Cutting a release
+
+Releases are cut by hand from GitHub Actions.
+
+1. Open the Actions tab, select Release and select Run workflow on `main`.
+2. Choose the bump: `patch`, `minor` or `major`.
+
+The workflow works out the next version from the highest `vX.Y.Z` tag. The first release is
+`v0.1.0` whatever the bump. It then tags the current `main` commit and creates a draft release
+named `Pixlad X.Y.Z` with GitHub's generated notes. The macOS, Windows and Fedora jobs build from
+the tag. Each one uploads its installer, its blockmap and its updater file to the draft. The
+Fedora job has no blockmap, because electron-builder writes none for an rpm. When all three jobs
+pass, the workflow publishes the draft and marks it Latest.
+
+If any job fails, a last job deletes the draft and the tag, so nothing is half released. Start the
+workflow again after fixing the cause. A release that is already public is never deleted. The
+workflow runs from `main` only, and only one release runs at a time.
+
+You can also start it from a terminal:
+
+```sh
+gh workflow run release.yml -f bump=minor
+```
+
+## Versions
+
+Pixlad stays on 0.x while it is a proof of concept. A minor bump adds features and a patch bump
+fixes bugs. The version becomes 1.0.0 when the app is ready to hand out.
+
+The release tag is the only source of the version. It goes to electron-builder, so the installer
+names, `app.getVersion()` in the packaged app, the updater files and the version in About all
+match. `package.json` keeps the placeholder `0.0.0-dev`. An app run from source shows
+"Version dev" in About.
+
+## Updates
+
+On start, the app asks GitHub whether a newer release exists, as long as the setting is on and
+the app is a packaged release build. It then shows "Pixlad 0.3.0 is available." with Update and
+Later. Prereleases are never offered. The About dialog has a Check for updates button that shows
+the result in place: "Pixlad is up to date", the available version with Update, or the reason the
+check failed. A failed check at start says nothing and only writes a console warning.
+
+- On Windows, Update downloads the installer with progress. Restart to update then closes the
+  app, runs the installer and starts Pixlad again. The app uses electron-updater for this.
+- On Fedora, Update downloads the rpm with progress, and Restart to update installs it with dnf
+  and starts Pixlad again. electron-updater asks for administrator rights with `pkexec`, or with
+  `sudo` when `pkexec` is missing. The rpm is not signed, so dnf installs it without a signature
+  check.
+- On macOS, the app is not signed with a certificate, so macOS cannot install an update for it.
+  Update downloads the `.dmg` into your Downloads folder with progress and opens it. Replace
+  Pixlad in Applications as you did for the first install.
+
+**Settings → Updates → Check for updates on start** turns the check at start on or off. It is on
+by default, and the app remembers the choice in `settings.json`. Test builds from Actions and
+apps run from source never check for updates.
+
+The only network requests the app makes go to GitHub, for the release information and the
+installer. The app has no telemetry.
 
 ## Prerequisites
 
@@ -308,6 +385,7 @@ text, or if a licence is not on the GPL-compatible list in `scripts/third-party-
   in [third_party/fonts/](third_party/fonts).
 - This software is based in part on the work of the Independent JPEG Group. The progressive JPEG
   decoding follows libjpeg's algorithms ([third_party/libjpeg/](third_party/libjpeg)).
-- Electron (MIT, and Chromium's licences ship with it) and React (MIT) run in the app. Playwright,
+- Electron (MIT, and Chromium's licences ship with it), React (MIT) and electron-updater (MIT)
+  run in the app. Playwright,
   Vitest, sharp and exiftool-vendored are dev-only. The tests use sharp and exiftool-vendored as
   independent references. The lint and build tooling is dev-only too.

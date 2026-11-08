@@ -1,7 +1,9 @@
 name: Package
 
 # Builds an installable package per OS and smoke-tests the packaged app. The packages are workflow
-# artifacts only: nothing is released or tagged.
+# artifacts only: nothing is released or tagged. The builds are test builds with the prerelease
+# version 0.0.0-dev.<run number>, and they never check for updates. Releases come from the Release
+# workflow.
 on:
   pull_request:
   push:
@@ -12,97 +14,12 @@ concurrency:
   group: package-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # No signing secrets exist. This keeps electron-builder from looking for a certificate; the macOS
-  # package is signed ad hoc by its own setting in electron-builder.yml.
-  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+permissions:
+  contents: read
 
 jobs:
-  macos:
-    name: macOS (arm64, dmg)
-    # Apple Silicon.
-    runs-on: macos-15
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      # The version comes from "packageManager" in package.json.
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Build the dmg
-        run: pnpm package --mac
-        env:
-          # electron-builder skips signing on pull requests unless told otherwise. The identity is
-          # "-" (ad hoc), which needs no certificate or secret.
-          CSC_FOR_PULL_REQUEST: 'true'
-      - name: Check the ad-hoc signature
-        run: |
-          app="dist/mac-arm64/Pixlad.app"
-          codesign --verify --deep --strict --verbose=2 "$app"
-          codesign -dv "$app" 2>&1 | tee signature.txt
-          grep -q "Signature=adhoc" signature.txt
-      - name: Smoke test the packaged app
-        run: pnpm test:package
-      - name: Package sizes
-        run: ls -lh dist/*.dmg
-      - uses: actions/upload-artifact@v7
-        with:
-          name: pixlad-macos-arm64-dmg
-          path: dist/*.dmg
-          if-no-files-found: error
-
-  windows:
-    name: Windows (x64, installer)
-    runs-on: windows-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm package --win
-      - name: Smoke test the packaged app
-        run: pnpm test:package
-      - name: Package sizes
-        shell: bash
-        run: ls -lh dist/*.exe
-      - uses: actions/upload-artifact@v7
-        with:
-          name: pixlad-windows-x64-installer
-          path: dist/*.exe
-          if-no-files-found: error
-
-  linux:
-    name: Fedora (x64, rpm)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-      - name: Install rpmbuild and Xvfb
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends rpm xvfb xauth
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm package --linux
-      - name: Smoke test the packaged app under Xvfb
-        run: xvfb-run -a --server-args='-screen 0 1920x1080x24' pnpm test:package
-      - name: Package sizes and contents
-        run: |
-          ls -lh dist/*.rpm
-          rpm -qip dist/*.rpm
-      - uses: actions/upload-artifact@v7
-        with:
-          name: pixlad-fedora-x64-rpm
-          path: dist/*.rpm
-          if-no-files-found: error
+  build:
+    name: Build
+    uses: ./.github/workflows/build-packages.yml
+    with:
+      version: 0.0.0-dev.${{ github.run_number }}

@@ -22,12 +22,18 @@ const ALLOWED = new Set([
   '0BSD',
   'OFL-1.1',
   '(MIT OR CC0-1.0)',
+  // argparse (a dependency of electron-updater) ships the PSF licence for Python 2.2 and later,
+  // which its own history table marks as GPL-compatible.
+  'Python-2.0',
+  // sax (a dependency of electron-updater): a permissive licence like ISC, with no copyleft terms.
+  'BlueOak-1.0.0',
 ]);
 
 /** Packages whose npm tarball has no licence file: the text is kept in third_party/. */
 const LICENSE_OVERRIDES: Record<string, string> = {
   'onnxruntime-node': 'third_party/onnxruntime/LICENSE',
   'onnxruntime-common': 'third_party/onnxruntime/LICENSE',
+  'lazy-val': 'third_party/lazy-val/LICENSE',
 };
 
 /** Parts that are not npm production dependencies. */

@@ -78,7 +78,11 @@ describe('the packaged app', () => {
     await page.click('[data-testid="open-about"]');
     const about = page.locator('[data-testid="about"]');
     await about.waitFor();
-    await page.getByText(/^Version \d/).waitFor();
+    // About shows the version that was built in, which is the one the app reports. A local build
+    // without PIXLAD_VERSION reports the placeholder in package.json and About says "dev".
+    const reported = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
+    const version = reported === '0.0.0-dev' ? 'dev' : reported;
+    await page.getByText(`Version ${version}`, { exact: true }).waitFor();
     expect(await about.locator('[data-testid="about-notices"] li').count()).toBeGreaterThan(10);
     await page.click('[data-testid="about-gpl"]');
     expect(await about.locator('.licenseText').innerText()).toContain('GNU GENERAL PUBLIC LICENSE');

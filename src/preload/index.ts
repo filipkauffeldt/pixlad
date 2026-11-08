@@ -14,11 +14,21 @@ const api: Api = {
   detect: (id, region) => ipcRenderer.invoke('photo:detect', id, region),
   exportPhoto: (id, op) => ipcRenderer.invoke('photo:export', id, op),
   confirmRemoveExported: (count, name) => ipcRenderer.invoke('dialog:remove-exported', count, name),
-  exportTarget: () => ipcRenderer.invoke('settings:export-target'),
+  settings: () => ipcRenderer.invoke('settings:get'),
   setExportTarget: (target) => ipcRenderer.invoke('settings:set-export-target', target),
+  setCheckForUpdates: (enabled) => ipcRenderer.invoke('settings:set-check-for-updates', enabled),
   about: () => ipcRenderer.invoke('about:info'),
   openChromiumLicenses: () => ipcRenderer.invoke('about:chromium-licenses'),
   openSource: () => ipcRenderer.invoke('about:source'),
+  checkForUpdatesOnStart: () => ipcRenderer.invoke('update:check-on-start'),
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateProgress: (listener) => {
+    const handler = (_event: unknown, percent: number | undefined): void => listener(percent);
+    ipcRenderer.on('update:progress', handler);
+    return () => ipcRenderer.removeListener('update:progress', handler);
+  },
   setUnexported: (count) => ipcRenderer.send('session:unexported', count),
 };
 

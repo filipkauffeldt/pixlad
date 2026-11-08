@@ -125,6 +125,21 @@ function Settings({ exporting }: { exporting: boolean }) {
               </label>
             ))}
           </fieldset>
+          <fieldset>
+            <legend className="label">Updates</legend>
+            <label className="radio">
+              <input
+                type="checkbox"
+                checked={app.checkForUpdates}
+                onChange={(e) => void actions.setCheckForUpdates(e.target.checked)}
+                data-testid="check-for-updates"
+              />
+              <span>
+                Check for updates on start
+                <small>Asks GitHub whether a newer version exists.</small>
+              </span>
+            </label>
+          </fieldset>
           <button
             type="button"
             className="linkButton"

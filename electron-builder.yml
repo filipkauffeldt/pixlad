@@ -8,6 +8,14 @@ copyright: Copyright (C) 2026 Filip Kauffeldt
 directories:
   output: dist
 
+# Where the packaged app looks for updates, and what electron-builder writes into latest.yml. It
+# never publishes: `pnpm package` passes `--publish never` and the release workflow uploads the
+# files itself. The macOS build does not use it, because that app cannot update itself.
+publish:
+  provider: github
+  owner: filipkauffeldt
+  repo: pixlad
+
 artifactName: ${name}-${version}-${os}-${arch}.${ext}
 
 # Fails the build when a file the app needs at run time would be missing from the package.

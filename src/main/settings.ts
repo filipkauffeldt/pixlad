@@ -18,7 +18,7 @@ export async function readSettings(file: string): Promise<Settings> {
     }
     return { ...DEFAULT_SETTINGS };
   }
-  let parsed: { exportTarget?: unknown; checkForUpdates?: unknown } | null;
+  let parsed: { exportTarget?: unknown; exportChosen?: unknown; checkForUpdates?: unknown } | null;
   try {
     parsed = JSON.parse(text) as typeof parsed;
   } catch (cause) {
@@ -29,6 +29,12 @@ export async function readSettings(file: string): Promise<Settings> {
     exportTarget: isExportTarget(parsed?.exportTarget)
       ? parsed.exportTarget
       : DEFAULT_SETTINGS.exportTarget,
+    // A file from before this setting existed holds an export target only once the user picked
+    // one, so that counts as chosen.
+    exportChosen:
+      typeof parsed?.exportChosen === 'boolean'
+        ? parsed.exportChosen
+        : isExportTarget(parsed?.exportTarget),
     checkForUpdates:
       typeof parsed?.checkForUpdates === 'boolean'
         ? parsed.checkForUpdates

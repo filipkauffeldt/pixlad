@@ -18,12 +18,21 @@ afterEach(async () => {
 
 describe('the settings file', () => {
   it('gives the defaults when nothing was saved', async () => {
-    expect(await readSettings(file)).toEqual({ exportTarget: 'suffix', checkForUpdates: true });
+    expect(await readSettings(file)).toEqual({
+      exportTarget: 'suffix',
+      exportChosen: false,
+      checkForUpdates: true,
+    });
   });
 
   it('reads back what was written', async () => {
-    await writeSettings(file, { exportTarget: 'overwrite', checkForUpdates: false });
-    expect(await readSettings(file)).toEqual({ exportTarget: 'overwrite', checkForUpdates: false });
+    const saved = {
+      exportTarget: 'overwrite',
+      exportChosen: true,
+      checkForUpdates: false,
+    } as const;
+    await writeSettings(file, saved);
+    expect(await readSettings(file)).toEqual(saved);
   });
 
   it('does not hand out the shared defaults object', async () => {
@@ -34,7 +43,35 @@ describe('the settings file', () => {
 
   it('reads a file written before the update setting existed', async () => {
     await writeFile(file, '{"exportTarget":"overwrite"}');
-    expect(await readSettings(file)).toEqual({ exportTarget: 'overwrite', checkForUpdates: true });
+    expect(await readSettings(file)).toEqual({
+      exportTarget: 'overwrite',
+      exportChosen: true,
+      checkForUpdates: true,
+    });
+  });
+});
+
+describe('the first-export choice', () => {
+  it('is not made in a new install', async () => {
+    expect((await readSettings(file)).exportChosen).toBe(false);
+  });
+
+  it('counts as made when an older file already holds an export target', async () => {
+    await writeFile(file, '{"exportTarget":"suffix","checkForUpdates":true}');
+    expect((await readSettings(file)).exportChosen).toBe(true);
+  });
+
+  it('is not made when the older file has no valid export target', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    for (const content of ['{"checkForUpdates":false}', '{"exportTarget":"delete"}', 'not json']) {
+      await writeFile(file, content);
+      expect((await readSettings(file)).exportChosen).toBe(false);
+    }
+  });
+
+  it('follows the stored value when there is one', async () => {
+    await writeFile(file, '{"exportTarget":"overwrite","exportChosen":false}');
+    expect((await readSettings(file)).exportChosen).toBe(false);
   });
 });
 
@@ -61,15 +98,26 @@ describe('the update check setting', () => {
 
   it('is kept next to a damaged export target, and the other way round', async () => {
     await writeFile(file, '{"exportTarget":"delete","checkForUpdates":false}');
-    expect(await readSettings(file)).toEqual({ exportTarget: 'suffix', checkForUpdates: false });
+    expect(await readSettings(file)).toMatchObject({
+      exportTarget: 'suffix',
+      checkForUpdates: false,
+    });
     await writeFile(file, '{"exportTarget":"overwrite","checkForUpdates":"x"}');
-    expect(await readSettings(file)).toEqual({ exportTarget: 'overwrite', checkForUpdates: true });
+    expect(await readSettings(file)).toMatchObject({
+      exportTarget: 'overwrite',
+      checkForUpdates: true,
+    });
   });
 
   it('is stored as a plain boolean in settings.json', async () => {
-    await writeSettings(file, { exportTarget: 'suffix', checkForUpdates: false });
+    await writeSettings(file, {
+      exportTarget: 'suffix',
+      exportChosen: true,
+      checkForUpdates: false,
+    });
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({
       exportTarget: 'suffix',
+      exportChosen: true,
       checkForUpdates: false,
     });
   });

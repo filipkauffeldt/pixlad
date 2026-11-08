@@ -12,19 +12,20 @@ import {
 } from 'electron';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   DEFAULT_SETTINGS,
   isExportTarget,
   SOURCE_URL,
   type AboutInfo,
+  type ExportNames,
   type ExportOutcome,
   type PreviewPatch,
   type Settings,
 } from '../shared/ipc';
 import { opHasAddedArea, type MosaicOp, type Rect } from '../shared/types';
-import type { WrittenEdit } from './edit-path';
+import { chooseEditPath, type WrittenEdit } from './edit-path';
 import { Limiter, WorkerClient } from './pool';
 import { parseNotices } from './notices';
 import { Session } from './session';
@@ -285,9 +286,15 @@ function registerIpc(): void {
   // A fixed URL: the page never chooses what is opened.
   ipcMain.handle('about:source', () => shell.openExternal(SOURCE_URL));
   ipcMain.handle('settings:get', () => settings);
+  ipcMain.handle('export:names', async (_e, id: string): Promise<ExportNames> => {
+    const photo = session.get(id);
+    if (!photo) throw new Error('That photo is no longer in the session.');
+    const copy = await chooseEditPath(photo.path, written.get(photo.path), session.sourcePaths());
+    return { source: photo.name, copy: basename(copy.path) };
+  });
   ipcMain.handle('settings:set-export-target', async (_e, target: unknown) => {
     if (!isExportTarget(target)) throw new Error('Unknown export target');
-    await changeSettings({ exportTarget: target });
+    await changeSettings({ exportTarget: target, exportChosen: true });
   });
   ipcMain.handle('settings:set-check-for-updates', async (_e, enabled: unknown) => {
     if (typeof enabled !== 'boolean') throw new Error('Unknown value for the update check');

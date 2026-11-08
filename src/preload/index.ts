@@ -15,6 +15,7 @@ const api: Api = {
   exportPhoto: (id, op) => ipcRenderer.invoke('photo:export', id, op),
   confirmRemoveExported: (count, name) => ipcRenderer.invoke('dialog:remove-exported', count, name),
   settings: () => ipcRenderer.invoke('settings:get'),
+  exportNames: (id) => ipcRenderer.invoke('export:names', id),
   setExportTarget: (target) => ipcRenderer.invoke('settings:set-export-target', target),
   setCheckForUpdates: (enabled) => ipcRenderer.invoke('settings:set-check-for-updates', enabled),
   about: () => ipcRenderer.invoke('about:info'),

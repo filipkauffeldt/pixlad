@@ -1,0 +1,20 @@
+name: Label
+
+# Adds the `website` and `internal` labels from .github/labeler.yml. It reads the list of
+# changed files and never checks out or runs the pull request's code.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          sync-labels: true

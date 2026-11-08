@@ -4,14 +4,14 @@ name: Package
 # artifacts only: nothing is released or tagged. The builds are test builds with the prerelease
 # version 0.0.0-dev.g<short commit sha>, and they never check for updates. Releases come from the Release
 # workflow.
-# Changes to the landing page or to Markdown docs alone do not touch the app, so they skip this
+# Changes to the landing page or the README alone do not touch the app, so they skip this
 # workflow.
 on:
   pull_request:
-    paths-ignore: ['webpage/**', '**.md']
+    paths-ignore: ['webpage/**', 'README.md']
   push:
     branches: [main]
-    paths-ignore: ['webpage/**', '**.md']
+    paths-ignore: ['webpage/**', 'README.md']
   workflow_dispatch:
 
 concurrency:

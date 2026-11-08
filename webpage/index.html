@@ -282,6 +282,7 @@
         </a>
         <p class="meta" id="meta"></p>
         <p class="note" id="note"></p>
+        <a class="other" id="alt" hidden></a>
         <a class="other" id="other" href="https://github.com/filipkauffeldt/pixlad/releases/latest"
           >All downloads ↗</a
         >
@@ -316,6 +317,18 @@
           meta: '64-bit · .exe',
           note: () => ['Not signed. If SmartScreen warns you, click More info → Run anyway.'],
         },
+        // Any Linux but Fedora and Red Hat gets the AppImage first. It runs on most distros.
+        linux: {
+          label: 'Download for Linux',
+          suffix: '-linux-x86_64.AppImage',
+          meta: 'x86_64 · .AppImage',
+          note: (file) => [
+            'Not signed. Make it executable with ',
+            { code: `chmod +x ${file || 'pixlad-*.AppImage'}` },
+            ', then run it.',
+          ],
+          second: 'fedora',
+        },
         fedora: {
           label: 'Download for Fedora',
           suffix: '-linux-x86_64.rpm',
@@ -324,18 +337,25 @@
             'Not signed. Install with ',
             { code: `sudo dnf install ./${file || 'pixlad-*.rpm'}` },
           ],
+          second: 'linux',
         },
+      };
+
+      // The link under a build to the other Linux file.
+      const SECOND_LABEL = {
+        linux: 'Or get the AppImage for other distros ↗',
+        fedora: 'Or get the .rpm for Fedora, RHEL and openSUSE ↗',
       };
 
       // Visitors with no build get a line of text instead of the button.
       const NO_BUILD = {
-        linux: [
+        linuxArm: [
           'No build for your Linux yet.',
-          'There is an .rpm for Fedora, or you can build Pixlad from source.',
+          'The Linux builds are for x86_64, or you can build Pixlad from source.',
         ],
         intelMac: ['No build for Intel Macs yet.', 'The macOS build runs on Apple Silicon only.'],
-        mobile: ['Pixlad is a desktop app.', 'It runs on macOS, Windows and Fedora.'],
-        other: ['Pixlad runs on macOS, Windows and Fedora.', ''],
+        mobile: ['Pixlad is a desktop app.', 'It runs on macOS, Windows and Linux.'],
+        other: ['Pixlad runs on macOS, Windows and Linux.', ''],
       };
 
       async function detectPlatform() {
@@ -343,6 +363,7 @@
           macos: 'mac',
           windows: 'win',
           intelmac: 'intelMac',
+          linuxarm: 'linuxArm',
           android: 'mobile',
           ios: 'mobile',
         };
@@ -367,11 +388,11 @@
 
         if (/Macintosh|Mac OS X/.test(ua)) return arch === 'x86' ? 'intelMac' : 'mac';
         if (/Windows/.test(ua)) return 'win';
-        if (/CrOS/.test(ua)) return 'linux';
+        if (/CrOS/.test(ua)) return 'linuxArm';
         if (/Linux|X11/.test(ua)) {
-          if (arch === 'arm' || /aarch64|armv/i.test(ua)) return 'linux';
-          if (/\b(Ubuntu|Debian|Mint|Manjaro|Arch Linux)\b/i.test(ua)) return 'linux';
-          return 'fedora';
+          if (arch === 'arm' || /aarch64|armv/i.test(ua)) return 'linuxArm';
+          // Browsers rarely name the distro, so only Fedora and Red Hat get the rpm first.
+          return /\b(Fedora|Red Hat)\b/i.test(ua) ? 'fedora' : 'linux';
         }
         return 'other';
       }
@@ -388,9 +409,22 @@
         );
       }
 
+      function showSecond(key, release) {
+        const alt = document.getElementById('alt');
+        if (!key) {
+          alt.hidden = true;
+          return;
+        }
+        const asset = release?.assets?.find((a) => a.name.endsWith(BUILDS[key].suffix));
+        alt.href = asset?.browser_download_url ?? `https://github.com/${REPO}/releases/latest`;
+        alt.textContent = SECOND_LABEL[key];
+        alt.hidden = false;
+      }
+
       function showBuild(build, release) {
         const asset = release?.assets?.find((a) => a.name.endsWith(build.suffix));
         if (asset) document.getElementById('dl').href = asset.browser_download_url;
+        showSecond(build.second, release);
         document.getElementById('dl-label').textContent = build.label;
         document.getElementById('meta').textContent = release?.tag_name
           ? `${build.meta} · ${release.tag_name}`

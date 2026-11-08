@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pixlad</title>
+    <meta
+      name="description"
+      content="Pixelate every face with one selection. A desktop app for macOS, Windows and Fedora."
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e0e0f" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Pixlad" />
+    <meta property="og:description" content="Pixelate every face with one selection." />
+    <meta property="og:image" content="og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" crossorigin />
+    <style>
+      /* Inter and JetBrains Mono, SIL OFL 1.1 (fonts/*-OFL.txt), from @fontsource-variable. */
+      @font-face {
+        font-family: 'Inter Variable';
+        font-style: normal;
+        font-display: swap;
+        font-weight: 100 900;
+        src: url('fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+      }
+      @font-face {
+        font-family: 'JetBrains Mono Variable';
+        font-style: normal;
+        font-display: swap;
+        font-weight: 100 800;
+        src: url('fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations');
+      }
+
+      /* The app's own tokens (src/renderer/tokens.css). White is the only accent. */
+      :root {
+        color-scheme: dark;
+        --bg: #0e0e0f;
+        --line-strong: #2e2e31;
+        --text: #e8e8e8;
+        --muted: #8e8e90;
+        --dim: #58585b;
+        --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        --font-mono:
+          'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SFMono-Regular',
+          'Cascadia Code', Consolas, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        min-height: 100vh;
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: inherit;
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 48px 16px 24px;
+      }
+
+      .crowd {
+        width: min(560px, 100%);
+        margin-bottom: 36px;
+        -webkit-mask-image:
+          linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent),
+          linear-gradient(to top, transparent, #000 35%);
+        -webkit-mask-composite: source-in;
+        mask-image:
+          linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent),
+          linear-gradient(to top, transparent, #000 35%);
+        mask-composite: intersect;
+      }
+      .crowd svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .crowd .face {
+        cursor: pointer;
+      }
+
+      h1 {
+        font-size: clamp(30px, 6vw, 46px);
+        font-weight: 600;
+        letter-spacing: -0.03em;
+        line-height: 1.08;
+        max-width: 640px;
+        text-wrap: balance;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.5;
+        max-width: 440px;
+        margin: 14px 0 30px;
+        text-wrap: pretty;
+      }
+
+      .download {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .dl {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--text);
+        color: var(--bg);
+        font-size: 15px;
+        font-weight: 600;
+        padding: 13px 22px;
+        border-radius: 8px;
+        text-decoration: none;
+      }
+      .dl:hover {
+        background: #fff;
+      }
+      .dl:focus-visible,
+      .other:focus-visible,
+      footer a:focus-visible {
+        outline: 2px solid var(--text);
+        outline-offset: 2px;
+      }
+      .dl svg {
+        width: 16px;
+        height: 16px;
+      }
+      .none {
+        font-size: 16px;
+      }
+      .meta {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 12px;
+      }
+      .meta:empty {
+        display: none;
+      }
+      .note {
+        font-size: 12.5px;
+        color: var(--dim);
+        line-height: 1.5;
+        max-width: 420px;
+        margin-top: 16px;
+        text-wrap: pretty;
+      }
+      .note:empty {
+        display: none;
+      }
+      .note code {
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .other {
+        font-size: 13px;
+        color: var(--muted);
+        text-decoration: none;
+        border-bottom: 1px solid var(--line-strong);
+        padding-bottom: 1px;
+        margin-top: 10px;
+      }
+      .other:hover {
+        color: var(--text);
+      }
+
+      footer {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        padding: 20px 16px;
+        font-size: 12px;
+        color: var(--dim);
+      }
+      footer a {
+        text-decoration: none;
+      }
+      footer a:hover {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="crowd" id="crowd" aria-hidden="true"></div>
+      <h1>Pixelate every face with one selection.</h1>
+      <p class="sub">
+        Select an area of a crowd. Pixlad finds the faces and pixelates them. Export, and you're
+        done.
+      </p>
+      <div class="download" id="download">
+        <a class="dl" id="dl" href="https://github.com/filipkauffeldt/pixlad/releases/latest">
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M8 2v9M4 7.5 8 11.5l4-4M3 14h10" />
+          </svg>
+          <span id="dl-label">Download</span>
+        </a>
+        <p class="meta" id="meta"></p>
+        <p class="note" id="note"></p>
+        <a class="other" id="other" href="https://github.com/filipkauffeldt/pixlad/releases/latest"
+          >All downloads ↗</a
+        >
+      </div>
+    </main>
+    <footer>
+      <a href="https://github.com/filipkauffeldt/pixlad">Source on GitHub</a>
+      <span>·</span>
+      <a href="https://github.com/filipkauffeldt/pixlad/blob/main/LICENSE">GPL-3.0</a>
+    </footer>
+
+    <script>
+      'use strict';
+
+      /* ---------- Download ---------- */
+
+      const REPO = 'filipkauffeldt/pixlad';
+
+      // One entry per release file. `suffix` matches the asset name electron-builder writes.
+      const BUILDS = {
+        mac: {
+          label: 'Download for macOS',
+          suffix: '-mac-arm64.dmg',
+          meta: 'Apple Silicon · .dmg',
+          note: () => [
+            'Not signed by Apple. On first launch, open System Settings → Privacy & Security → Open Anyway.',
+          ],
+        },
+        win: {
+          label: 'Download for Windows',
+          suffix: '-win-x64.exe',
+          meta: '64-bit · .exe',
+          note: () => ['Not signed. If SmartScreen warns you, click More info → Run anyway.'],
+        },
+        fedora: {
+          label: 'Download for Fedora',
+          suffix: '-linux-x86_64.rpm',
+          meta: 'x86_64 · .rpm',
+          note: (file) => [
+            'Not signed. Install with ',
+            { code: `sudo dnf install ./${file || 'pixlad-*.rpm'}` },
+          ],
+        },
+      };
+
+      // Visitors with no build get a line of text instead of the button.
+      const NO_BUILD = {
+        linux: [
+          'No build for your Linux yet.',
+          'There is an .rpm for Fedora, or you can build Pixlad from source.',
+        ],
+        intelMac: ['No build for Intel Macs yet.', 'The macOS build runs on Apple Silicon only.'],
+        mobile: ['Pixlad is a desktop app.', 'It runs on macOS, Windows and Fedora.'],
+        other: ['Pixlad runs on macOS, Windows and Fedora.', ''],
+      };
+
+      async function detectPlatform() {
+        const forced = new URLSearchParams(location.search).get('os');
+        if (forced && (forced in BUILDS || forced in NO_BUILD)) return forced;
+
+        const ua = navigator.userAgent;
+        // iPadOS reports itself as a Mac, so touch points tell them apart.
+        if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return 'mobile';
+        if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return 'mobile';
+
+        // Only Chromium exposes the CPU architecture. Safari and Firefox fall through to the
+        // default, which is the Apple Silicon build on a Mac.
+        let arch = '';
+        try {
+          const data = await navigator.userAgentData?.getHighEntropyValues(['architecture']);
+          arch = data?.architecture ?? '';
+        } catch {
+          /* not available */
+        }
+
+        if (/Macintosh|Mac OS X/.test(ua)) return arch === 'x86' ? 'intelMac' : 'mac';
+        if (/Windows/.test(ua)) return 'win';
+        if (/CrOS/.test(ua)) return 'linux';
+        if (/Linux|X11/.test(ua)) {
+          if (arch === 'arm' || /aarch64|armv/i.test(ua)) return 'linux';
+          if (/\b(Ubuntu|Debian|Mint|Manjaro|Arch Linux)\b/i.test(ua)) return 'linux';
+          return 'fedora';
+        }
+        return 'other';
+      }
+
+      function setNote(parts) {
+        const note = document.getElementById('note');
+        note.replaceChildren(
+          ...parts.map((part) => {
+            if (typeof part === 'string') return document.createTextNode(part);
+            const code = document.createElement('code');
+            code.textContent = part.code;
+            return code;
+          }),
+        );
+      }
+
+      function showBuild(build, release) {
+        const asset = release?.assets?.find((a) => a.name.endsWith(build.suffix));
+        if (asset) document.getElementById('dl').href = asset.browser_download_url;
+        document.getElementById('dl-label').textContent = build.label;
+        document.getElementById('meta').textContent = release?.tag_name
+          ? `${build.meta} · ${release.tag_name}`
+          : build.meta;
+        setNote(build.note(asset?.name));
+        document.getElementById('other').textContent = 'Other platforms ↗';
+      }
+
+      function showNoBuild([text, note]) {
+        const line = document.createElement('p');
+        line.className = 'none';
+        line.textContent = text;
+        document.getElementById('dl').replaceWith(line);
+        setNote(note ? [note] : []);
+      }
+
+      async function latestRelease() {
+        try {
+          const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+            headers: { Accept: 'application/vnd.github+json' },
+          });
+          return res.ok ? await res.json() : null;
+        } catch {
+          return null;
+        }
+      }
+
+      (async () => {
+        const platform = await detectPlatform();
+        const build = BUILDS[platform];
+        if (!build) {
+          showNoBuild(NO_BUILD[platform]);
+          return;
+        }
+        // Without the API the button keeps its link to the releases page.
+        showBuild(build, null);
+        showBuild(build, await latestRelease());
+      })();
+
+      /* ---------- Crowd ---------- */
+
+      // A crowd drawn in the app's greys. A selection is dragged over it once, the faces inside
+      // get a mosaic and an outline like the app's face areas, and one face starts switched off.
+      // Clicking a face switches it on or off.
+
+      function rng(seed) {
+        let s = seed;
+        return () => (s = (s * 9301 + 49297) % 233280) / 233280;
+      }
+
+      const W = 520;
+      const H = 150;
+      const ROWS = [
+        { y: 42, r: 11, gap: 34 },
+        { y: 70, r: 14, gap: 44 },
+        { y: 104, r: 18, gap: 58 },
+      ];
+      const SELECTION = { x: 150, y: 46, w: 230, h: 84 };
+      // Body, skin and hair for each row, back to front.
+      const SHADE = [
+        { body: '#161617', skin: '#232325', hair: '#18181a' },
+        { body: '#1b1b1d', skin: '#2c2c2f', hair: '#1c1c1e' },
+        { body: '#222225', skin: '#3a3a3d', hair: '#242427' },
+      ];
+
+      function makePeople() {
+        const r = rng(11);
+        const out = [];
+        ROWS.forEach((row, ri) => {
+          const n = Math.round(W / row.gap) + 1;
+          for (let i = 0; i < n; i++) {
+            const x = i * row.gap + (ri % 2 ? row.gap / 2 : 0) + (r() - 0.5) * row.gap * 0.35;
+            const radius = row.r * (0.88 + r() * 0.24);
+            const y = row.y + (r() - 0.5) * row.r * 0.5;
+            out.push({ x, y, r: radius, row: ri, hair: r(), seed: Math.floor(r() * 1e6) });
+          }
+        });
+        return out;
+      }
+
+      // The padded square around a head, like the app's face box.
+      function faceBox(p) {
+        const side = p.r * 2.5;
+        return { x: p.x - side / 2, y: p.y - side / 2 - p.r * 0.05, w: side, h: side };
+      }
+
+      function mosaic(p) {
+        const b = faceBox(p);
+        const n = 5;
+        const size = b.w / n;
+        const r = rng(p.seed);
+        let out = '';
+        for (let j = 0; j < n; j++) {
+          for (let i = 0; i < n; i++) {
+            const dx = (i + 0.5) / n - 0.5;
+            const dy = (j + 0.5) / n - 0.5;
+            // Hair along the top, face in the middle, background in the corners.
+            let v = Math.hypot(dx, dy * 1.1) < 0.34 ? (j === 0 ? 70 : dy > 0.1 ? 94 : 108) : 40;
+            v += (r() - 0.5) * 22 + (p.row - 2) * 14;
+            v = Math.round(Math.max(22, Math.min(150, v)));
+            out +=
+              `<rect x="${(b.x + i * size).toFixed(1)}" y="${(b.y + j * size).toFixed(1)}" ` +
+              `width="${(size + 0.4).toFixed(1)}" height="${(size + 0.4).toFixed(1)}" ` +
+              `fill="rgb(${v},${v},${v + 2})"/>`;
+          }
+        }
+        return out;
+      }
+
+      function head(p) {
+        const c = SHADE[p.row];
+        const top = p.y - p.r * (0.15 + p.hair * 0.2);
+        return (
+          `<circle cx="${p.x}" cy="${p.y}" r="${p.r}" fill="${c.skin}"/>` +
+          `<path d="M${p.x - p.r},${p.y} A${p.r},${p.r} 0 0 1 ${p.x + p.r},${p.y} ` +
+          `Q${p.x},${top} ${p.x - p.r},${p.y} Z" fill="${c.hair}"/>`
+        );
+      }
+
+      function body(p) {
+        const { x, y, r } = p;
+        return (
+          `<path d="M${x - r * 2.1},${H + 4} C${x - r * 2.1},${y + r * 1.4} ${x - r * 0.9},${y + r * 1.15} ` +
+          `${x},${y + r * 1.15} C${x + r * 0.9},${y + r * 1.15} ${x + r * 2.1},${y + r * 1.4} ` +
+          `${x + r * 2.1},${H + 4} Z" fill="${SHADE[p.row].body}"/>`
+        );
+      }
+
+      const people = makePeople();
+      const order = [...people.keys()].sort((a, b) => people[a].row - people[b].row);
+      const found = people
+        .map((_, i) => i)
+        .filter((i) => {
+          const p = people[i];
+          const s = SELECTION;
+          return p.row >= 1 && p.x > s.x && p.x < s.x + s.w && p.y > s.y && p.y < s.y + s.h;
+        });
+      // The front-row face nearest the middle of the selection starts switched off.
+      const middle = SELECTION.x + SELECTION.w / 2;
+      const off = new Set(
+        found
+          .filter((i) => people[i].row === 2)
+          .sort((a, b) => Math.abs(people[a].x - middle) - Math.abs(people[b].x - middle))
+          .slice(0, 1),
+      );
+
+      // `drag` is the selection being drawn, or null once the faces are found.
+      function draw(drag) {
+        let shapes = '';
+        let boxes = '';
+        for (const i of order) {
+          const p = people[i];
+          const isFound = !drag && found.includes(i);
+          const on = isFound && !off.has(i);
+          shapes += body(p) + (on ? mosaic(p) : head(p));
+          if (isFound) {
+            const b = faceBox(p);
+            const style = on
+              ? 'fill="rgba(255,255,255,.05)" stroke="#e8e8e8"'
+              : 'fill="rgba(0,0,0,0)" stroke="#8e8e90" stroke-dasharray="3 3"';
+            boxes += `<rect class="face" data-i="${i}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" ${style} stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+          }
+        }
+        if (drag && drag.w > 0) {
+          boxes += `<rect x="${drag.x}" y="${drag.y}" width="${drag.w}" height="${drag.h}" fill="rgba(255,255,255,.08)" stroke="#e8e8e8" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>`;
+        }
+        crowd.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${shapes}${boxes}</svg>`;
+      }
+
+      const crowd = document.getElementById('crowd');
+      crowd.addEventListener('click', (e) => {
+        const face = e.target.closest('.face');
+        if (!face) return;
+        const i = Number(face.dataset.i);
+        if (off.has(i)) off.delete(i);
+        else off.add(i);
+        draw(null);
+      });
+
+      // Plays once: a short pause, the drag, then the found faces.
+      function play() {
+        const WAIT = 500;
+        const DRAG = 1100;
+        const ease = (t) => 1 - Math.pow(1 - t, 3);
+        let start = 0;
+        const step = (now) => {
+          start ||= now;
+          const t = (now - start - WAIT) / DRAG;
+          if (t >= 1) return draw(null);
+          const k = ease(Math.max(0, t));
+          draw({ ...SELECTION, w: SELECTION.w * k, h: SELECTION.h * Math.min(1, k * 1.4) });
+          requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }
+
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) draw(null);
+      else play();
+    </script>
+  </body>
+</html>

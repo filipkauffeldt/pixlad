@@ -51,6 +51,17 @@ export interface Settings {
   exportChosen: boolean;
   /** Whether the app looks for a newer release when it starts. */
   checkForUpdates: boolean;
+  /** How the window was left, to open it the same way. Missing before the first close. */
+  window?: WindowState;
+}
+
+/** The window's size and place when not maximized, and whether it was maximized. */
+export interface WindowState {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  maximized: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

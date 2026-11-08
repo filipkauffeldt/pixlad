@@ -2,7 +2,7 @@ name: Package
 
 # Builds an installable package per OS and smoke-tests the packaged app. The packages are workflow
 # artifacts only: nothing is released or tagged. The builds are test builds with the prerelease
-# version 0.0.0-dev.<run number>, and they never check for updates. Releases come from the Release
+# version 0.0.0-dev.g<short commit sha>, and they never check for updates. Releases come from the Release
 # workflow.
 on:
   pull_request:
@@ -18,8 +18,21 @@ permissions:
   contents: read
 
 jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      # The g keeps the last part from being all digits, which semver only allows without a
+      # leading zero. Actions has no function to cut the sha, so the shell does it.
+      - id: version
+        run: echo "version=0.0.0-dev.g${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build
+    needs: version
     uses: ./.github/workflows/build-packages.yml
     with:
-      version: 0.0.0-dev.${{ github.run_number }}
+      version: ${{ needs.version.outputs.version }}

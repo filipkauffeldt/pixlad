@@ -31,3 +31,13 @@ export function packagedExecutable(): string {
   }
   return path;
 }
+
+/** The AppImage that electron-builder leaves in dist/ on Linux. */
+export function packagedAppImage(): string {
+  const names = existsSync(dist) ? readdirSync(dist) : [];
+  const name = names.find((file) => file.endsWith('.AppImage'));
+  if (!name) {
+    throw new Error(`No AppImage in ${dist} (found: ${names.join(', ')}). Run "pnpm package".`);
+  }
+  return join(dist, name);
+}

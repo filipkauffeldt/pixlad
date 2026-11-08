@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
 import type { ExportTarget } from '../shared/ipc';
+import { ExportChoice } from './ExportChoice';
 import { countAreas } from './retouch';
 import {
   actions,
@@ -67,12 +68,12 @@ function NumberField({
 }
 
 const EXPORT_TARGETS: Array<{ target: ExportTarget; label: string; note: string }> = [
-  { target: 'suffix', label: 'Add _edit to the file name', note: 'The original stays as it is.' },
   {
-    target: 'overwrite',
-    label: 'Overwrite the original',
-    note: 'The mosaic replaces the original file. This cannot be undone.',
+    target: 'suffix',
+    label: 'New copy',
+    note: 'Saves a copy with _edit in its name. The original stays as it is.',
   },
+  { target: 'overwrite', label: 'Replace original', note: 'Cannot be undone.' },
 ];
 
 function Settings({ exporting }: { exporting: boolean }) {
@@ -270,30 +271,36 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       >
         Undo
       </button>
-      <button
-        type="button"
-        className="btn primary"
-        onClick={() => void actions.exportCurrent()}
-        disabled={!photo || !hasMosaic(photo) || photo.status === 'exporting'}
-        title={
-          app.exportTarget === 'overwrite'
-            ? 'Save the mosaic over the original file (Ctrl/⌘+E)'
-            : 'Save this photo with the mosaic next to the original as _edit (Ctrl/⌘+E)'
-        }
-        data-testid="export"
-      >
-        Export
-      </button>
-      <button
-        type="button"
-        className="btn"
-        onClick={() => void actions.exportAll()}
-        disabled={!anyMosaic || exporting}
-        title="Export every photo that has a mosaic"
-        data-testid="export-all"
-      >
-        Export all
-      </button>
+      <span className="anchor">
+        <button
+          type="button"
+          className="btn primary"
+          onClick={() => void actions.exportCurrent()}
+          disabled={!photo || !hasMosaic(photo) || photo.status === 'exporting'}
+          title={
+            app.exportTarget === 'overwrite'
+              ? 'Replace the original file with the mosaic (Ctrl/⌘+E)'
+              : 'Save a new copy with _edit next to the original (Ctrl/⌘+E)'
+          }
+          data-testid="export"
+        >
+          Export
+        </button>
+        {app.exportChoice?.anchor === 'export' && <ExportChoice anchor="export" />}
+      </span>
+      <span className="anchor">
+        <button
+          type="button"
+          className="btn"
+          onClick={() => void actions.exportAll()}
+          disabled={!anyMosaic || exporting}
+          title="Export every photo that has a mosaic"
+          data-testid="export-all"
+        >
+          Export all
+        </button>
+        {app.exportChoice?.anchor === 'all' && <ExportChoice anchor="all" />}
+      </span>
       <Settings exporting={exporting} />
     </div>
   );

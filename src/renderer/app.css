@@ -162,6 +162,69 @@ input[type='range']::-webkit-slider-thumb {
   color: var(--text);
 }
 
+/* First-export choice, under the Export or Export all button */
+.anchor {
+  position: relative;
+  display: inline-flex;
+}
+.exportChoice {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 26;
+  width: 260px;
+  padding: 12px 14px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+}
+.exportChoice::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  right: 24px;
+  width: 8px;
+  height: 8px;
+  background: var(--raised);
+  border-left: 1px solid var(--line-strong);
+  border-top: 1px solid var(--line-strong);
+  transform: rotate(45deg);
+}
+.exportChoice h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.exportChoice .radio {
+  margin-bottom: 6px;
+}
+.exportResult {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-strong);
+  color: var(--muted);
+}
+.exportResult .fileName {
+  color: var(--text);
+  word-break: break-all;
+}
+.exportResult .warn {
+  color: var(--error);
+}
+.exportChoiceFoot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.exportChoiceFoot .hint {
+  color: var(--dim);
+}
+
 /* About */
 .modalScrim {
   position: fixed;

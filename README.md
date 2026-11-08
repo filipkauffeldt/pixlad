@@ -58,9 +58,11 @@ A session lives in memory and disappears when the app closes.
 
 ## Where exports go
 
-**Settings → Export** has two choices, and the app remembers the choice between runs.
+There are two choices. The first export asks which one to use, in a small popover under the
+Export button that shows the file name it will write or replace. The app remembers the answer
+between runs, and **Settings → Export** changes it later.
 
-**Add `_edit` to the file name** is the default. The export goes next to the source as
+**New copy** is the default. The export goes next to the source as
 `<source name>_edit.jpg`, and the extension keeps its case, so `_DSC1234.JPG` becomes
 `_DSC1234_edit.JPG`. There is no export folder to choose.
 
@@ -74,7 +76,7 @@ A session lives in memory and disappears when the app closes.
   into place. If the folder is read-only, that photo fails with a message naming the folder, and
   nothing is written anywhere else.
 
-**Overwrite the original** replaces the source file with the export. You cannot undo this.
+**Replace original** replaces the source file with the export. You cannot undo this.
 
 - The app writes and checks the new file first, then renames it over the source. A failed export
   leaves the source as it was. The app refuses to overwrite a read-only file.

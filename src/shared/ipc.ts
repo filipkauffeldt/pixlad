@@ -47,11 +47,25 @@ export const isExportTarget = (value: unknown): value is ExportTarget =>
 /** What the app keeps between runs. */
 export interface Settings {
   exportTarget: ExportTarget;
+  /** Whether the user has picked an export target, so the first export stops asking. */
+  exportChosen: boolean;
   /** Whether the app looks for a newer release when it starts. */
   checkForUpdates: boolean;
 }
 
-export const DEFAULT_SETTINGS: Settings = { exportTarget: 'suffix', checkForUpdates: true };
+export const DEFAULT_SETTINGS: Settings = {
+  exportTarget: 'suffix',
+  exportChosen: false,
+  checkForUpdates: true,
+};
+
+/** The file names an export of one photo would touch, for the first-export choice. */
+export interface ExportNames {
+  /** The photo's own file name, which Replace original overwrites. */
+  source: string;
+  /** The name a new copy gets, such as `_DSC1234_edit.JPG` or `_DSC1234_edit-2.JPG`. */
+  copy: string;
+}
 
 /** Where the source code is published, as the GPL asks for. */
 export const SOURCE_URL = 'https://github.com/filipkauffeldt/pixlad';
@@ -88,7 +102,9 @@ export interface Api {
   /** Ask whether to take exported photos out of the session. `name` is given for a single photo. */
   confirmRemoveExported(count: number, name: string | undefined): Promise<boolean>;
   settings(): Promise<Settings>;
+  /** Also records that the user has chosen, so the first-export choice does not show again. */
   setExportTarget(target: ExportTarget): Promise<void>;
+  exportNames(id: string): Promise<ExportNames>;
   setCheckForUpdates(enabled: boolean): Promise<void>;
   about(): Promise<AboutInfo>;
   openChromiumLicenses(): Promise<void>;

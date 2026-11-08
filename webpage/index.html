@@ -100,6 +100,13 @@
       .crowd .face {
         cursor: pointer;
       }
+      /* Quick clicks on faces must not select the headline or zoom on a phone. */
+      .crowd {
+        -webkit-user-select: none;
+        user-select: none;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
 
       h1 {
         font-size: clamp(30px, 6vw, 46px);
@@ -509,6 +516,10 @@
       }
 
       const crowd = document.getElementById('crowd');
+      // A double click would otherwise select the nearest text, which is the headline.
+      crowd.addEventListener('mousedown', (e) => {
+        if (e.detail > 1) e.preventDefault();
+      });
       crowd.addEventListener('click', (e) => {
         const face = e.target.closest('.face');
         if (!face) return;

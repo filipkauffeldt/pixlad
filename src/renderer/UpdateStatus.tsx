@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-import { actions, type UpdateState } from './store';
+import { actions, useApp, type UpdateState } from './store';
 
 /**
  * What the app says about an update and the buttons that go with it. The prompt under the
@@ -14,6 +14,17 @@ export function UpdateStatus({
   /** The prompt can be put off. The About dialog has nothing to put off. */
   withLater: boolean;
 }) {
+  const hasNotes = (useApp().updateNotes?.length ?? 0) > 0;
+  const notes = hasNotes && (
+    <button
+      type="button"
+      className="btn"
+      onClick={() => actions.setNotesOpen(true)}
+      data-testid="update-notes"
+    >
+      What's new
+    </button>
+  );
   const later = withLater && (
     <button
       type="button"
@@ -37,6 +48,7 @@ export function UpdateStatus({
           >
             Update
           </button>
+          {notes}
           {later}
         </>
       );
@@ -64,6 +76,7 @@ export function UpdateStatus({
           >
             Restart to update
           </button>
+          {notes}
           {later}
         </>
       );

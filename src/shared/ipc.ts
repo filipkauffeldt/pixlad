@@ -126,6 +126,8 @@ export interface Api {
   downloadUpdate(): Promise<UpdateDownload>;
   /** Quits and installs the downloaded update, after asking if mosaics are not exported. */
   installUpdate(): Promise<void>;
+  /** Open the release page of a version in the browser. */
+  openReleaseNotes(version: string): Promise<void>;
   /** Percent of the download, or undefined when the size is not known. Returns an unsubscribe. */
   onUpdateProgress(listener: (percent: number | undefined) => void): () => void;
   /** Open the source code repository in the browser. */

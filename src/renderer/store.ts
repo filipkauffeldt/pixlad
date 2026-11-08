@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { defaultBlockPx } from '../shared/block-size';
 import type { ExportTarget, PhotoInfo } from '../shared/ipc';
+import type { ReleaseNote } from '../shared/update';
 import { opHasAddedArea, type Rect, type Shape } from '../shared/types';
 import {
   opFromAreas,
@@ -77,6 +78,9 @@ export interface AppState {
   update: UpdateState;
   /** The user chose Later, so the prompt stays away until something new happens. */
   updatePromptHidden: boolean;
+  /** What changed in the update, when GitHub has a list to show. */
+  updateNotes: ReleaseNote[] | undefined;
+  notesOpen: boolean;
   aboutCheck: AboutCheck;
 }
 
@@ -99,6 +103,8 @@ const initial: AppState = {
   aboutOpen: false,
   update: { phase: 'idle' },
   updatePromptHidden: false,
+  updateNotes: undefined,
+  notesOpen: false,
   aboutCheck: { phase: 'idle' },
 };
 
@@ -414,7 +420,11 @@ export const actions = {
     try {
       const result = await window.api.checkForUpdatesOnStart();
       if (result?.status === 'available') {
-        set({ update: { phase: 'available', version: result.version }, updatePromptHidden: false });
+        set({
+          update: { phase: 'available', version: result.version },
+          updateNotes: result.notes,
+          updatePromptHidden: false,
+        });
       } else if (result?.status === 'error') {
         console.warn(`Could not check for updates: ${result.message}`);
       }
@@ -433,6 +443,7 @@ export const actions = {
         set({
           aboutCheck: { phase: 'idle' },
           update: { phase: 'available', version: result.version },
+          updateNotes: result.notes,
         });
       } else if (result.status === 'up-to-date') {
         set({ aboutCheck: { phase: 'up-to-date' } });
@@ -482,6 +493,9 @@ export const actions = {
   },
 
   hideUpdatePrompt: (): void => set({ updatePromptHidden: true }),
+
+  setNotesOpen: (notesOpen: boolean): void =>
+    set(notesOpen ? { notesOpen, aboutOpen: false } : { notesOpen }),
 
   /** Every photo with a mosaic, one after the other, in the background. */
   async exportAll(): Promise<void> {

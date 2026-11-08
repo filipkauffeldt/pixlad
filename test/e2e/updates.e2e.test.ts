@@ -13,10 +13,13 @@ let base: string;
 /** What the fake GitHub does: the latest version it offers, or an error status. */
 let latest: { version: string } | { status: number };
 let requests: string[];
+/** Whether the fake GitHub has a release body to show. */
+let notes: boolean;
 
 beforeEach(async () => {
   latest = { version: '0.3.0' };
   requests = [];
+  notes = true;
   server = createServer((req, res) => {
     // electron-updater adds a cache-busting query.
     const url = new URL(req.url ?? '/', 'http://localhost').pathname;
@@ -41,6 +44,13 @@ beforeEach(async () => {
               size: 10,
             },
           ],
+        }),
+      );
+    } else if (notes && url === `/releases/tags/v${version}`) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          body: "## What's Changed\n* Remember the window size by @anna in https://github.com/filipkauffeldt/pixlad/pull/18\n* Offer the AppImage in #17",
         }),
       );
     } else if (/^\/latest(-mac|-linux)?\.yml$/.test(url)) {
@@ -101,9 +111,36 @@ describe.each(['darwin', 'linux'] as const)('updates, as seen on %s', (platform)
     expect(await prompt.locator('[data-testid="update-text"]').innerText()).toBe(
       'Pixlad 0.3.0 is available.',
     );
-    expect(await prompt.getByRole('button').allInnerTexts()).toEqual(['Update', 'Later']);
+    expect(await prompt.getByRole('button').allInnerTexts()).toEqual([
+      'Update',
+      "What's new",
+      'Later',
+    ]);
     await page.click('[data-testid="update-later"]');
     await prompt.waitFor({ state: 'detached' });
+  });
+
+  it('lists what changed in a dialog that closes without hiding the prompt', async () => {
+    const { page } = await start(platform);
+    await page.click('[data-testid="update-notes"]');
+    const dialog = page.locator('[data-testid="release-notes"]');
+    await dialog.waitFor();
+    expect(await dialog.getByRole('heading').innerText()).toBe("What's new in Pixlad 0.3.0");
+    expect(await dialog.locator('li').allInnerTexts()).toEqual([
+      'Remember the window size\n#18',
+      'Offer the AppImage\n#17',
+    ]);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    expect(await page.locator('[data-testid="update-prompt"]').count()).toBe(1);
+  });
+
+  it("shows no What's new button when the release has no notes", async () => {
+    notes = false;
+    const { page } = await start(platform);
+    const prompt = page.locator('[data-testid="update-prompt"]');
+    await prompt.waitFor();
+    expect(await prompt.getByRole('button').allInnerTexts()).toEqual(['Update', 'Later']);
   });
 
   it('shows no prompt when the app is up to date, and About says so', async () => {
@@ -168,7 +205,7 @@ describe.each(['darwin', 'linux'] as const)('updates, as seen on %s', (platform)
     await page.click('[data-testid="about-check-updates"]');
     const row = page.locator('[data-testid="about-update"]');
     await row.getByText('Pixlad 0.3.0 is available.', { exact: true }).waitFor();
-    expect(await row.getByRole('button').allInnerTexts()).toEqual(['Update']);
+    expect(await row.getByRole('button').allInnerTexts()).toEqual(['Update', "What's new"]);
     expect(requests.length).toBeGreaterThan(0);
   });
 });

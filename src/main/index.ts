@@ -26,6 +26,7 @@ import {
   type Settings,
 } from '../shared/ipc';
 import { opHasAddedArea, type MosaicOp, type Rect } from '../shared/types';
+import { parseVersion } from '../shared/version';
 import { chooseEditPath, type WrittenEdit } from './edit-path';
 import { Limiter, WorkerClient } from './pool';
 import { parseNotices } from './notices';
@@ -317,6 +318,10 @@ function registerIpc(): void {
   });
   // A fixed URL: the page never chooses what is opened.
   ipcMain.handle('about:source', () => shell.openExternal(SOURCE_URL));
+  ipcMain.handle('update:open-notes', (_e, version: unknown) => {
+    if (typeof version !== 'string' || !parseVersion(version)) throw new Error('Unknown version');
+    return shell.openExternal(`${SOURCE_URL}/releases/tag/v${version}`);
+  });
   ipcMain.handle('settings:get', () => settings);
   ipcMain.handle('export:names', async (_e, id: string): Promise<ExportNames> => {
     const photo = session.get(id);

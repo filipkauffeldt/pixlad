@@ -15,19 +15,20 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
+  DEFAULT_SETTINGS,
   isExportTarget,
   SOURCE_URL,
   type AboutInfo,
   type ExportOutcome,
-  type ExportTarget,
   type PreviewPatch,
+  type Settings,
 } from '../shared/ipc';
 import { opHasAddedArea, type MosaicOp, type Rect } from '../shared/types';
 import type { WrittenEdit } from './edit-path';
 import { Limiter, WorkerClient } from './pool';
 import { parseNotices } from './notices';
 import { Session } from './session';
-import { readExportTarget, writeExportTarget } from './settings';
+import { readSettings, writeSettings } from './settings';
 
 declare const __APP_VERSION__: string;
 
@@ -75,7 +76,7 @@ function chromiumLicensesPath(): string | undefined {
 
 const session = new Session();
 const written = new Map<string, WrittenEdit>(); // by source path; this run only, never saved
-let exportTarget: ExportTarget = 'suffix';
+let settings: Settings = { ...DEFAULT_SETTINGS };
 let unexported = 0;
 let forceClose = false;
 
@@ -86,6 +87,17 @@ const thumbLimiter = new Limiter(1);
 const thumbCache = new Map<string, Buffer>(); // small PNGs, bounded, in memory only
 const settingsFile = (): string => join(app.getPath('userData'), 'settings.json');
 const THUMB_CACHE_MAX = 400;
+
+let settingsWrites: Promise<unknown> = Promise.resolve();
+
+/** Applies at once. A failed write only means the change is forgotten at the next start. */
+function changeSettings(change: Partial<Settings>): Promise<void> {
+  settings = { ...settings, ...change };
+  const snapshot = settings;
+  const write = settingsWrites.then(() => writeSettings(settingsFile(), snapshot));
+  settingsWrites = write.catch(() => undefined);
+  return write;
+}
 
 // Everything that touches the current photo goes through one chain, so an "open" that was
 // superseded by a later one is skipped instead of decoding a photo nobody is looking at.
@@ -192,7 +204,7 @@ function registerIpc(): void {
     if (!photo) return { ok: false, message: 'That photo is no longer in the session.' };
     if (!opHasAddedArea(op))
       return { ok: false, message: `${photo.name}: there is no mosaic to export` };
-    const target = exportTarget;
+    const target = settings.exportTarget;
     try {
       const result = await exportWorker.run<{
         path: string;
@@ -268,12 +280,14 @@ function registerIpc(): void {
   });
   // A fixed URL: the page never chooses what is opened.
   ipcMain.handle('about:source', () => shell.openExternal(SOURCE_URL));
-  ipcMain.handle('settings:export-target', () => exportTarget);
+  ipcMain.handle('settings:get', () => settings);
   ipcMain.handle('settings:set-export-target', async (_e, target: unknown) => {
     if (!isExportTarget(target)) throw new Error('Unknown export target');
-    // Applies at once; a failed write only means it is forgotten at the next start.
-    exportTarget = target;
-    await writeExportTarget(settingsFile(), target);
+    await changeSettings({ exportTarget: target });
+  });
+  ipcMain.handle('settings:set-check-for-updates', async (_e, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') throw new Error('Unknown value for the update check');
+    await changeSettings({ checkForUpdates: enabled });
   });
   ipcMain.on('session:unexported', (_e, count: number) => {
     unexported = Number.isFinite(count) ? count : 0;
@@ -324,7 +338,7 @@ app.whenReady().then(async () => {
   if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(iconPath());
   // macOS keeps its menu: it sits outside the window and carries Quit and Copy/Paste.
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
-  exportTarget = await readExportTarget(settingsFile());
+  settings = await readSettings(settingsFile());
   const workerFile = new URL('./worker.js', import.meta.url);
   photoWorker = new WorkerClient(workerFile, modelPath());
   exportWorker = new WorkerClient(workerFile, modelPath());

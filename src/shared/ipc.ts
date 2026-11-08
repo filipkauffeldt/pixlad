@@ -43,6 +43,15 @@ export type ExportTarget = 'suffix' | 'overwrite';
 export const isExportTarget = (value: unknown): value is ExportTarget =>
   value === 'suffix' || value === 'overwrite';
 
+/** What the app keeps between runs. */
+export interface Settings {
+  exportTarget: ExportTarget;
+  /** Whether the app looks for a newer release when it starts. */
+  checkForUpdates: boolean;
+}
+
+export const DEFAULT_SETTINGS: Settings = { exportTarget: 'suffix', checkForUpdates: true };
+
 /** Where the source code is published, as the GPL asks for. */
 export const SOURCE_URL = 'https://github.com/filipkauffeldt/pixlad';
 
@@ -75,8 +84,9 @@ export interface Api {
   exportPhoto(id: string, op: MosaicOp): Promise<ExportOutcome>;
   /** Ask whether to take exported photos out of the session. `name` is given for a single photo. */
   confirmRemoveExported(count: number, name: string | undefined): Promise<boolean>;
-  exportTarget(): Promise<ExportTarget>;
+  settings(): Promise<Settings>;
   setExportTarget(target: ExportTarget): Promise<void>;
+  setCheckForUpdates(enabled: boolean): Promise<void>;
   about(): Promise<AboutInfo>;
   openChromiumLicenses(): Promise<void>;
   /** Open the source code repository in the browser. */

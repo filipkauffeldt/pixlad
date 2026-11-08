@@ -50,6 +50,7 @@ export interface AppState {
     { done: number; total: number; failed: string[]; finished: boolean; ok: number } | undefined;
   dragging: boolean;
   exportTarget: ExportTarget;
+  checkForUpdates: boolean;
   aboutOpen: boolean;
 }
 
@@ -65,6 +66,7 @@ const initial: AppState = {
   batch: undefined,
   dragging: false,
   exportTarget: 'suffix',
+  checkForUpdates: true,
   aboutOpen: false,
 };
 
@@ -327,7 +329,20 @@ export const actions = {
   },
 
   async loadSettings(): Promise<void> {
-    set({ exportTarget: await window.api.exportTarget() });
+    const { exportTarget, checkForUpdates } = await window.api.settings();
+    set({ exportTarget, checkForUpdates });
+  },
+
+  async setCheckForUpdates(checkForUpdates: boolean): Promise<void> {
+    set({ checkForUpdates });
+    try {
+      await window.api.setCheckForUpdates(checkForUpdates);
+    } catch (cause) {
+      notify(
+        [`Could not save the setting, so it lasts until you close the app: ${errorText(cause)}`],
+        'error',
+      );
+    }
   },
 
   async setExportTarget(exportTarget: ExportTarget): Promise<void> {

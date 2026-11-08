@@ -1,9 +1,12 @@
 name: CI
 
+# Changes to the landing page alone do not touch the app, so they skip this workflow.
 on:
   pull_request:
+    paths-ignore: ['webpage/**']
   push:
     branches: [main]
+    paths-ignore: ['webpage/**']
 
 concurrency:
   group: ci-${{ github.ref }}

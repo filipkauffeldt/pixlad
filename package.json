@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Drop JPEG photos, mosaic faces and areas, export JPEGs. Nothing else.",
+  "desktopName": "pixlad.desktop",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/filipkauffeldt/pixlad",
   "type": "module",

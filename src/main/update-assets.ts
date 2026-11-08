@@ -14,7 +14,7 @@ const INSTALLERS: Partial<
 > = {
   darwin: { extension: '.dmg', cpus: { arm64: ['arm64'] } },
   win32: { extension: '.exe', cpus: { x64: ['x64'] } },
-  linux: { extension: '.rpm', cpus: { x64: ['x64', 'x86_64'] } },
+  linux: { extension: '.rpm', cpus: { x64: ['x86_64'] } },
 };
 
 /**

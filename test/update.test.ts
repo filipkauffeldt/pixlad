@@ -22,8 +22,8 @@ const RELEASE_FILES = [
   'latest-linux.yml',
   'latest-mac.yml',
   'latest.yml',
-  'pixlad-0.3.0-linux-x64.rpm',
-  'pixlad-0.3.0-linux-x64.rpm.blockmap',
+  'pixlad-0.3.0-linux-x86_64.rpm',
+  'pixlad-0.3.0-linux-x86_64.rpm.blockmap',
   'pixlad-0.3.0-mac-arm64.dmg',
   'pixlad-0.3.0-mac-arm64.dmg.blockmap',
   'pixlad-0.3.0-win-x64.exe',
@@ -34,7 +34,7 @@ describe('chooseInstaller', () => {
   it.each([
     ['darwin', 'arm64', 'pixlad-0.3.0-mac-arm64.dmg'],
     ['win32', 'x64', 'pixlad-0.3.0-win-x64.exe'],
-    ['linux', 'x64', 'pixlad-0.3.0-linux-x64.rpm'],
+    ['linux', 'x64', 'pixlad-0.3.0-linux-x86_64.rpm'],
   ] as const)('picks the installer for %s %s', (platform, arch, name) => {
     expect(chooseInstaller(RELEASE_FILES, platform, arch)?.name).toBe(name);
   });
@@ -65,7 +65,9 @@ describe('chooseInstaller', () => {
 
   it('takes the installer of its own system from a release that has no other', () => {
     expect(chooseInstaller([asset('pixlad-0.3.0-win-x64.exe')], 'linux', 'x64')).toBeUndefined();
-    expect(chooseInstaller([asset('pixlad-0.3.0-linux-x64.rpm')], 'win32', 'x64')).toBeUndefined();
+    expect(
+      chooseInstaller([asset('pixlad-0.3.0-linux-x86_64.rpm')], 'win32', 'x64'),
+    ).toBeUndefined();
   });
 });
 

@@ -49,10 +49,10 @@ beforeEach(async () => {
         [
           `version: ${version}`,
           'files:',
-          `  - url: pixlad-${version}-linux-x64.rpm`,
+          `  - url: pixlad-${version}-linux-x86_64.rpm`,
           `    sha512: ${'a'.repeat(86)}==`,
           '    size: 10',
-          `path: pixlad-${version}-linux-x64.rpm`,
+          `path: pixlad-${version}-linux-x86_64.rpm`,
           `sha512: ${'a'.repeat(86)}==`,
           `releaseDate: '2026-01-01T00:00:00.000Z'`,
           '',

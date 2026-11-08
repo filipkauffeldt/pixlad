@@ -1,0 +1,161 @@
+name: Release
+
+# Cuts a release by hand: Actions, Release, Run workflow, and a choice of patch, minor or major.
+# It tags the current main commit, builds the packages from that tag, and publishes a GitHub
+# release with generated notes. If any job fails, the draft release and the tag go away again.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to raise
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+        required: true
+
+# One release at a time. A second run waits for the first.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Tag and draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      tag-pushed: ${{ steps.tag.outputs.pushed }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUMP: ${{ inputs.bump }}
+    steps:
+      - name: Refuse any ref but main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Releases are cut from main only. This run is on $GITHUB_REF."
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Check that main has not moved on
+        run: |
+          head=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::error::main is at $head but this run is for $GITHUB_SHA. Run the workflow again."
+            exit 1
+          fi
+      - name: Work out the version
+        id: version
+        run: |
+          git fetch --force --tags origin
+          version=$(node scripts/next-version.ts "$BUMP")
+          tag="v$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+            echo "::error::The tag $tag already exists."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing $version as $tag from $GITHUB_SHA"
+      - name: Tag the main commit
+        id: tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+      - name: Create the draft release
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$TAG" --draft --verify-tag --generate-notes \
+            --title "Pixlad $VERSION" --repo "$GITHUB_REPOSITORY"
+      # The final cleanup job needs this job's outputs. This step covers a failure in this job
+      # itself, and removes only what this run created.
+      - name: Remove what this run created
+        if: failure() && steps.tag.outputs.pushed == 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release delete "$TAG" --yes --repo "$GITHUB_REPOSITORY" || true
+          git push origin ":refs/tags/$TAG"
+
+  build:
+    name: Build
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-packages.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      release-tag: ${{ needs.prepare.outputs.tag }}
+
+  publish:
+    name: Publish
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Check that the draft has every file
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > assets.txt
+          cat assets.txt
+          for file in \
+            "pixlad-$VERSION-mac-arm64.dmg" "pixlad-$VERSION-mac-arm64.dmg.blockmap" latest-mac.yml \
+            "pixlad-$VERSION-win-x64.exe" "pixlad-$VERSION-win-x64.exe.blockmap" latest.yml \
+            "pixlad-$VERSION-linux-x86_64.rpm" latest-linux.yml; do
+            grep -qxF "$file" assets.txt || { echo "::error::The draft has no $file."; exit 1; }
+          done
+      - name: Publish the release and mark it Latest
+        run: gh release edit "$TAG" --draft=false --latest --repo "$GITHUB_REPOSITORY"
+
+  cleanup:
+    name: Remove the draft and the tag
+    needs: [prepare, build, publish]
+    # Runs when any job failed or the run was cancelled, and only for what this run created.
+    if: ${{ always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      TAG_PUSHED: ${{ needs.prepare.outputs.tag-pushed }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Delete the draft release and the tag
+        run: |
+          if [ "$TAG_PUSHED" != "true" ]; then
+            echo "This run pushed no tag, so there is nothing to remove."
+            exit 0
+          fi
+          # A release that is already public stays. This run only removes its own draft.
+          draft=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo "none")
+          if [ "$draft" = "false" ]; then
+            echo "::warning::$TAG is already published, so it is left as it is."
+            exit 0
+          fi
+          if [ "$draft" = "true" ]; then
+            gh release delete "$TAG" --yes --repo "$GITHUB_REPOSITORY"
+          fi
+          git push origin ":refs/tags/$TAG" || true

@@ -80,9 +80,23 @@
         padding: 48px 16px 24px;
       }
 
+      .lockup {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: clamp(24px, 4vw, 30px);
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        margin-bottom: 40px;
+      }
+      .lockup svg {
+        width: 1.35em;
+        height: 1.35em;
+      }
+
       .crowd {
         width: min(560px, 100%);
-        margin-bottom: 36px;
+        margin-bottom: 28px;
         -webkit-mask-image:
           linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent),
           linear-gradient(to top, transparent, #000 35%);
@@ -99,6 +113,19 @@
       }
       .crowd .face {
         cursor: pointer;
+      }
+      /* Keeps the page on one screen on short laptop displays. */
+      @media (max-height: 780px) {
+        main {
+          padding-top: 24px;
+        }
+        .lockup {
+          margin-bottom: 24px;
+        }
+        .crowd {
+          width: min(480px, 100%);
+          margin-bottom: 20px;
+        }
       }
       /* Quick clicks on faces must not select the headline or zoom on a phone. */
       .crowd {
@@ -214,6 +241,23 @@
   </head>
   <body>
     <main>
+      <div class="lockup">
+        <svg viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true">
+          <rect
+            width="10"
+            height="10"
+            rx="1.8"
+            fill="#e8e8e8"
+            shape-rendering="geometricPrecision"
+          />
+          <rect x="3" y="2" width="2" height="2" fill="#0e0e0f" />
+          <rect x="5" y="2" width="2" height="2" fill="#3a3a3d" />
+          <rect x="3" y="4" width="2" height="2" fill="#5b5b5f" />
+          <rect x="5" y="4" width="2" height="2" fill="#8e8e90" />
+          <rect x="3" y="6" width="2" height="2" fill="#0e0e0f" />
+        </svg>
+        Pixlad
+      </div>
       <div class="crowd" id="crowd" aria-hidden="true"></div>
       <h1>Pixelate every face with one selection.</h1>
       <p class="sub">

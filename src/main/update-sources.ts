@@ -2,7 +2,12 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { mkdir, open, rename, rm, stat } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
-import type { UpdateCheck, UpdateDownload } from '../shared/update';
+import {
+  parseReleaseNotes,
+  type ReleaseNote,
+  type UpdateCheck,
+  type UpdateDownload,
+} from '../shared/update';
 import { isNewerRelease, isPrerelease, parseVersion } from '../shared/version';
 import { chooseInstaller, type ReleaseAsset } from './update-assets';
 
@@ -34,7 +39,10 @@ export class UpdateService {
   private pending: Promise<UpdateCheck> | undefined;
   private found = false;
 
-  constructor(private readonly source: UpdateSource | undefined) {}
+  constructor(
+    private readonly source: UpdateSource | undefined,
+    private readonly notes?: (version: string) => Promise<ReleaseNote[] | undefined>,
+  ) {}
 
   /** Whether this build can look for updates at all. */
   get enabled(): boolean {
@@ -48,9 +56,11 @@ export class UpdateService {
     }
     this.pending ??= source
       .check()
-      .then<UpdateCheck>((version) => {
+      .then<UpdateCheck>(async (version) => {
         this.found = version !== undefined;
-        return version === undefined ? { status: 'up-to-date' } : { status: 'available', version };
+        if (version === undefined) return { status: 'up-to-date' };
+        const notes = await this.notes?.(version).catch(() => undefined);
+        return { status: 'available', version, notes };
       })
       .catch<UpdateCheck>((cause: unknown) => {
         this.found = false;
@@ -96,6 +106,23 @@ function isLatestRelease(value: unknown): value is LatestRelease {
       (asset) => typeof asset?.name === 'string' && typeof asset.browser_download_url === 'string',
     )
   );
+}
+
+/** The change list of a release, or undefined when GitHub has none to show. */
+export async function fetchReleaseNotes(
+  apiUrl: string,
+  version: string,
+  fetchFn: typeof fetch,
+): Promise<ReleaseNote[] | undefined> {
+  const response = await fetchFn(`${apiUrl}/releases/tags/v${version}`, {
+    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Pixlad' },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) return undefined;
+  const release = (await response.json()) as { body?: unknown };
+  if (typeof release.body !== 'string') return undefined;
+  const notes = parseReleaseNotes(release.body);
+  return notes.length > 0 ? notes : undefined;
 }
 
 export interface GithubDmgOptions {

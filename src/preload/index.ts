@@ -25,6 +25,7 @@ const api: Api = {
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
+  openReleaseNotes: (version) => ipcRenderer.invoke('update:open-notes', version),
   onUpdateProgress: (listener) => {
     const handler = (_event: unknown, percent: number | undefined): void => listener(percent);
     ipcRenderer.on('update:progress', handler);

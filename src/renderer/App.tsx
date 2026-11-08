@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useCallback, useEffect, useState } from 'react';
 import { About } from './About';
+import { ReleaseNotes } from './ReleaseNotes';
 import { Stage } from './Stage';
 import { Strip } from './Strip';
 import { Toolbar } from './Toolbar';
@@ -228,6 +229,7 @@ export function App() {
         </div>
       )}
       {app.aboutOpen && <About />}
+      {app.notesOpen && app.update.phase !== 'idle' && <ReleaseNotes />}
       {app.dragging && <div className="dropOverlay">Drop JPEG photos to add them</div>}
     </div>
   );

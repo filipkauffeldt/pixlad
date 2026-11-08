@@ -539,3 +539,26 @@ input[type='range']::-webkit-slider-thumb {
   border: 0;
   color: var(--muted);
 }
+
+/* Updates */
+.notice.update .lines {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.notice.update .dot {
+  margin-top: 9px;
+}
+.updateRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 4px;
+}
+.updateProgress {
+  width: 120px;
+  height: 4px;
+  accent-color: var(--text);
+}

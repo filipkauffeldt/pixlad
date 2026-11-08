@@ -92,7 +92,8 @@ export function createUpdateService(): UpdateService {
       new GithubDmgSource({
         apiUrl,
         currentVersion,
-        arch: process.arch,
+        // A test on another system gets the one build that exists for a Mac.
+        arch: test ? 'arm64' : process.arch,
         fetch: net.fetch.bind(net) as typeof fetch,
         downloadsDir: app.getPath('downloads'),
         openPath: (path) => shell.openPath(path),

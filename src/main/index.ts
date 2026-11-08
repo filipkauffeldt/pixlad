@@ -30,7 +30,7 @@ import { parseNotices } from './notices';
 import { Session } from './session';
 import { readSettings, writeSettings } from './settings';
 import { createUpdateService } from './updates';
-import type { UpdateService } from './update-sources';
+import { UpdateService } from './update-sources';
 
 declare const __APP_VERSION__: string;
 
@@ -371,7 +371,13 @@ app.whenReady().then(async () => {
   // macOS keeps its menu: it sits outside the window and carries Quit and Copy/Paste.
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
   settings = await readSettings(settingsFile());
-  updates = createUpdateService();
+  try {
+    updates = createUpdateService();
+  } catch (cause) {
+    // Updates are optional: a failure here must never keep the window from opening.
+    console.warn('Could not set up update checks:', cause);
+    updates = new UpdateService(undefined);
+  }
   const workerFile = new URL('./worker.js', import.meta.url);
   photoWorker = new WorkerClient(workerFile, modelPath());
   exportWorker = new WorkerClient(workerFile, modelPath());

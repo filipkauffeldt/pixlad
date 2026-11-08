@@ -5,6 +5,7 @@ import { About } from './About';
 import { Stage } from './Stage';
 import { Strip } from './Strip';
 import { Toolbar } from './Toolbar';
+import { UpdateStatus } from './UpdateStatus';
 import { actions, currentPhoto, useApp } from './store';
 
 const isMac = navigator.platform.toLowerCase().includes('mac');
@@ -16,9 +17,13 @@ export function App() {
   const onZoom = useCallback((percent: number | undefined) => setZoom(percent), []);
 
   useEffect(() => {
-    actions.loadSettings().catch((cause: unknown) => {
-      actions.notice([`Could not load the settings: ${String(cause)}`], 'error');
-    });
+    actions
+      .loadSettings()
+      .catch((cause: unknown) => {
+        actions.notice([`Could not load the settings: ${String(cause)}`], 'error');
+      })
+      // The main process checks the setting itself, so a failed load does not stop the check.
+      .finally(() => void actions.checkForUpdatesOnStart());
   }, []);
 
   // Drag and drop anywhere on the window.
@@ -135,6 +140,24 @@ export function App() {
           </button>
         </div>
       ))}
+      {app.update.phase !== 'idle' && !app.updatePromptHidden && !app.aboutOpen && (
+        <div className="notice update" role="status" data-testid="update-prompt">
+          <span className="dot ok" />
+          <div className="lines">
+            <UpdateStatus update={app.update} withLater />
+          </div>
+          {app.update.phase === 'opened' && (
+            <button
+              type="button"
+              className="close"
+              aria-label="Dismiss"
+              onClick={actions.hideUpdatePrompt}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
       <div className="stageWrap">
         {photo ? (
           <Stage key={`${photo.info.id}-${photo.fileVersion}`} photo={photo} onZoom={onZoom} />

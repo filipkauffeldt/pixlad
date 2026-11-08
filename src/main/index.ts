@@ -29,6 +29,8 @@ import { Limiter, WorkerClient } from './pool';
 import { parseNotices } from './notices';
 import { Session } from './session';
 import { readSettings, writeSettings } from './settings';
+import { createUpdateService } from './updates';
+import type { UpdateService } from './update-sources';
 
 declare const __APP_VERSION__: string;
 
@@ -79,6 +81,7 @@ const written = new Map<string, WrittenEdit>(); // by source path; this run only
 let settings: Settings = { ...DEFAULT_SETTINGS };
 let unexported = 0;
 let forceClose = false;
+let updates: UpdateService;
 
 let photoWorker: WorkerClient;
 let exportWorker: WorkerClient;
@@ -270,6 +273,7 @@ function registerIpc(): void {
       license,
       notices: parseNotices(notices),
       hasChromiumLicenses: chromiumLicensesPath() !== undefined,
+      canCheckForUpdates: updates.enabled,
     };
   });
   ipcMain.handle('about:chromium-licenses', async () => {
@@ -288,6 +292,34 @@ function registerIpc(): void {
   ipcMain.handle('settings:set-check-for-updates', async (_e, enabled: unknown) => {
     if (typeof enabled !== 'boolean') throw new Error('Unknown value for the update check');
     await changeSettings({ checkForUpdates: enabled });
+  });
+  ipcMain.handle('update:check-on-start', () =>
+    settings.checkForUpdates && updates.enabled ? updates.check() : undefined,
+  );
+  ipcMain.handle('update:check', () => updates.check());
+  ipcMain.handle('update:download', (event) =>
+    updates.download((percent) => {
+      if (!event.sender.isDestroyed()) event.sender.send('update:progress', percent);
+    }),
+  );
+  ipcMain.handle('update:install', async (event) => {
+    if (unexported > 0) {
+      const options = {
+        type: 'question' as const,
+        buttons: ['Restart anyway', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        message: `${unexported} ${unexported === 1 ? 'photo has' : 'photos have'} unexported mosaics. Restart anyway?`,
+      };
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const result = window
+        ? await dialog.showMessageBox(window, options)
+        : await dialog.showMessageBox(options);
+      if (result.response !== 0) return;
+    }
+    // The close question was just answered.
+    forceClose = true;
+    updates.install();
   });
   ipcMain.on('session:unexported', (_e, count: number) => {
     unexported = Number.isFinite(count) ? count : 0;
@@ -339,6 +371,7 @@ app.whenReady().then(async () => {
   // macOS keeps its menu: it sits outside the window and carries Quit and Copy/Paste.
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
   settings = await readSettings(settingsFile());
+  updates = createUpdateService();
   const workerFile = new URL('./worker.js', import.meta.url);
   photoWorker = new WorkerClient(workerFile, modelPath());
   exportWorker = new WorkerClient(workerFile, modelPath());

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
+import type { UpdateCheck, UpdateDownload } from './update';
 import type { FaceDetection, MosaicOp, Rect } from './types';
 
 /** What the renderer knows about a photo in the session. Never the pixels. */
@@ -69,6 +70,8 @@ export interface AboutInfo {
   notices: Notice[];
   /** Whether Electron's file with Chromium's licences was found, so it can be opened. */
   hasChromiumLicenses: boolean;
+  /** Whether this build looks for updates. A source run and the prerelease builds do not. */
+  canCheckForUpdates: boolean;
 }
 
 /** The surface the preload exposes as `window.api`. */
@@ -89,6 +92,15 @@ export interface Api {
   setCheckForUpdates(enabled: boolean): Promise<void>;
   about(): Promise<AboutInfo>;
   openChromiumLicenses(): Promise<void>;
+  /** The check at start: undefined when the setting is off or this build does not check. */
+  checkForUpdatesOnStart(): Promise<UpdateCheck | undefined>;
+  checkForUpdates(): Promise<UpdateCheck>;
+  /** Downloads what the last check found. Progress arrives through `onUpdateProgress`. */
+  downloadUpdate(): Promise<UpdateDownload>;
+  /** Quits and installs the downloaded update, after asking if mosaics are not exported. */
+  installUpdate(): Promise<void>;
+  /** Percent of the download, or undefined when the size is not known. Returns an unsubscribe. */
+  onUpdateProgress(listener: (percent: number | undefined) => void): () => void;
   /** Open the source code repository in the browser. */
   openSource(): Promise<void>;
   /** Tell the main process how many photos have mosaics that are not exported (for closing). */

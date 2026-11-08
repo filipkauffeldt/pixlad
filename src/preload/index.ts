@@ -20,6 +20,15 @@ const api: Api = {
   about: () => ipcRenderer.invoke('about:info'),
   openChromiumLicenses: () => ipcRenderer.invoke('about:chromium-licenses'),
   openSource: () => ipcRenderer.invoke('about:source'),
+  checkForUpdatesOnStart: () => ipcRenderer.invoke('update:check-on-start'),
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateProgress: (listener) => {
+    const handler = (_event: unknown, percent: number | undefined): void => listener(percent);
+    ipcRenderer.on('update:progress', handler);
+    return () => ipcRenderer.removeListener('update:progress', handler);
+  },
   setUnexported: (count) => ipcRenderer.send('session:unexported', count),
 };
 

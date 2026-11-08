@@ -303,6 +303,11 @@ export const actions = {
     });
   },
 
+  reset(): void {
+    const id = state.currentId;
+    if (id) editAreas(id, (areas) => (areas.length === 0 ? areas : []));
+  },
+
   setBlockPx(px: number): void {
     const id = state.currentId;
     if (id) updatePhoto(id, (p) => (p.blockPx === px ? p : { ...p, blockPx: px, rev: p.rev + 1 }));

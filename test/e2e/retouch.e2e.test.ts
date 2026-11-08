@@ -105,6 +105,13 @@ describe('drawing with the real mouse', () => {
     expect(await areas(page)).toBe(3);
     await page.keyboard.press('Control+z');
     expect(await areas(page)).toBe(2);
+
+    // Reset clears every area, and Undo brings them back.
+    await page.click('[data-testid="reset"]');
+    expect(await areas(page)).toBe(0);
+    await expect(page.locator('[data-testid="reset"]').isDisabled()).resolves.toBe(true);
+    await page.keyboard.press('Control+z');
+    expect(await areas(page)).toBe(2);
   });
 
   it('finds faces, subtract removes them, and a click toggles one', async () => {

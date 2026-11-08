@@ -271,6 +271,16 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       >
         Undo
       </button>
+      <button
+        type="button"
+        className="btn"
+        onClick={actions.reset}
+        disabled={!photo || photo.areas.length === 0}
+        title="Clear every area and face on this photo (Undo brings them back)"
+        data-testid="reset"
+      >
+        Reset
+      </button>
       <span className="anchor">
         <button
           type="button"

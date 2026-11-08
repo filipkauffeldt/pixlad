@@ -136,7 +136,7 @@ function Settings({ exporting }: { exporting: boolean }) {
               />
               <span>
                 Check for updates on start
-                <small>Asks GitHub whether a newer version exists. Nothing else is sent.</small>
+                <small>Asks GitHub whether a newer version exists.</small>
               </span>
             </label>
           </fieldset>

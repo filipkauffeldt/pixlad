@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { mkdir, open, rename, rm, stat } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
-import { Readable } from 'node:stream';
 import type { UpdateCheck, UpdateDownload } from '../shared/update';
 import { isNewerRelease, isPrerelease, parseVersion } from '../shared/version';
 import { chooseInstaller, type ReleaseAsset } from './update-assets';
@@ -160,16 +159,19 @@ export class GithubDmgSource implements UpdateSource {
       let received = 0;
       let shown = -1;
       onProgress(total > 0 ? 0 : undefined);
-      for await (const chunk of Readable.fromWeb(response.body as never) as AsyncIterable<Buffer>) {
-        await file.write(chunk);
-        received += chunk.length;
+      const reader = response.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        await file.write(value);
+        received += value.length;
         const percent = total > 0 ? Math.min(100, Math.floor((received * 100) / total)) : undefined;
         if (percent !== undefined && percent !== shown) {
           shown = percent;
           onProgress(percent);
         }
       }
-      if (total > 0 && received !== total) {
+      if (total > 0 && received < total) {
         throw new Error(`the download stopped after ${received} of ${total} bytes`);
       }
       await file.close();

@@ -1,0 +1,5 @@
+# GitHub's generated release notes leave out pull requests with these labels.
+changelog:
+  exclude:
+    labels:
+      - website

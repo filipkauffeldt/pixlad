@@ -1,0 +1,6 @@
+# Labels for actions/labeler. A pull request that only changes the landing page gets `website`,
+# which keeps it out of the release notes (see release.yml).
+website:
+  - all:
+      - changed-files:
+          - all-globs-to-all-files: 'webpage/**'

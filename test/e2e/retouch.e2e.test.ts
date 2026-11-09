@@ -53,6 +53,23 @@ async function open(page: Page, paths: string[]): Promise<void> {
 const areas = (page: Page): Promise<number> => page.locator('[data-testid="area"]').count();
 
 describe('drawing with the real mouse', () => {
+  it('starts a drag in the margin around the picture', async () => {
+    const dir = await tmp();
+    const file = join(dir, 'p.jpg');
+    await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
+    running = await launch();
+    const { page } = running;
+    await open(page, [file]);
+    await page.click('[data-tool="rect"]');
+    const b = await photoBox(page);
+    // The photo is height-bound in this window, so there is room to the left of it.
+    await page.mouse.move(b.x - 32, b.y + 0.3 * b.h);
+    await page.mouse.down();
+    await page.mouse.move(b.x + 0.3 * b.w, b.y + 0.5 * b.h, { steps: 5 });
+    await page.mouse.up();
+    expect(await areas(page)).toBe(1);
+  });
+
   it('puts a rectangle under the pointer, clips from the margin, toggles, undoes', async () => {
     const dir = await tmp();
     const file = join(dir, 'p.jpg');

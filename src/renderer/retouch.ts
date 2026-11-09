@@ -156,7 +156,7 @@ export const areaBounds = (area: RetouchArea, facePadding: number): Rect =>
   shapeBounds(areaShape(area, facePadding));
 
 /** The strip around the picture where a drag may start, in CSS pixels. */
-export const HIT_MARGIN = 24;
+export const HIT_MARGIN = 40;
 
 export const clampToPicture = (p: { x: number; y: number }): { x: number; y: number } => ({
   x: clamp(p.x, 0, 1),

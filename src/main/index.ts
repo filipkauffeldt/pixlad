@@ -432,6 +432,15 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => app.quit());
+// A quit can land between a settings change and its write. Hold the quit until the write queue
+// is empty, so the last change is saved and the file is never left half written.
+let quitting = false;
+app.on('before-quit', (event) => {
+  if (quitting) return;
+  event.preventDefault();
+  quitting = true;
+  void settingsWrites.finally(() => app.quit());
+});
 app.on('will-quit', () => {
   void photoWorker?.terminate();
   void exportWorker?.terminate();

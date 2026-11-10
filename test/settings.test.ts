@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -33,6 +33,14 @@ describe('the settings file', () => {
     } as const;
     await writeSettings(file, saved);
     expect(await readSettings(file)).toEqual(saved);
+  });
+
+  it('replaces an earlier file and leaves no other file behind', async () => {
+    await writeSettings(file, { ...DEFAULT_SETTINGS });
+    const saved = { ...DEFAULT_SETTINGS, checkForUpdates: false };
+    await writeSettings(file, saved);
+    expect(await readSettings(file)).toEqual(saved);
+    expect(await readdir(dir)).toEqual(['settings.json']);
   });
 
   it('does not hand out the shared defaults object', async () => {

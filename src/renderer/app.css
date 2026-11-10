@@ -412,6 +412,52 @@ input[type='range']::-webkit-slider-thumb {
   border-top: 1px solid var(--line);
 }
 
+/* Replace original confirmation */
+.modal.confirm {
+  width: min(310px, 100%);
+}
+.confirmTitle {
+  margin: 0;
+  padding: 12px 14px 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.confirmBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 14px 12px;
+}
+.confirmBody p {
+  margin: 0;
+}
+.confirmFiles {
+  padding: 5px 8px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  word-break: break-all;
+}
+.confirmFiles div + div {
+  margin-top: 2px;
+}
+.confirmFoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--line);
+}
+/* Both buttons are the same size, and focus is a border so neither looks taller. */
+.confirmFoot .btn {
+  width: 92px;
+  padding: 0;
+  white-space: nowrap;
+}
+.confirmFoot .btn:focus {
+  outline: 0;
+  border-color: var(--text);
+}
+
 /* Notices */
 .notice {
   display: flex;

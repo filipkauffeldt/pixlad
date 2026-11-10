@@ -76,6 +76,10 @@ export interface AppState {
   exportChosen: boolean;
   /** The first-export choice, open under the Export or the Export all button. */
   exportChoice: { anchor: 'export' | 'all' } | undefined;
+  /** The Replace original confirmation, open for one photo or for every photo with a mosaic. */
+  overwriteConfirm: { anchor: 'export' | 'all' } | undefined;
+  /** False once the user ticked "Don't ask again this session". Never saved, so a restart asks. */
+  overwriteAsk: boolean;
   checkForUpdates: boolean;
   aboutOpen: boolean;
   update: UpdateState;
@@ -103,6 +107,8 @@ const initial: AppState = {
   // True until the settings load, so an export started before that never asks twice.
   exportChosen: true,
   exportChoice: undefined,
+  overwriteConfirm: undefined,
+  overwriteAsk: true,
   checkForUpdates: true,
   aboutOpen: false,
   update: { phase: 'idle' },
@@ -139,6 +145,10 @@ export const currentPhoto = (s: AppState): PhotoState | undefined =>
 
 const updatePhoto = (id: string, fn: (p: PhotoState) => PhotoState): void =>
   set((s) => ({ photos: s.photos.map((p) => (p.info.id === id ? fn(p) : p)) }));
+
+/** Replace original asks before it writes over a file, unless it was just confirmed or silenced. */
+const needsOverwriteConfirm = (confirmed: boolean): boolean =>
+  !confirmed && state.exportTarget === 'overwrite' && state.overwriteAsk;
 
 /** An edit to the areas: remembered for Undo, bumps the revision. */
 const editAreas = (id: string, fn: (areas: RetouchArea[]) => RetouchArea[]): void =>
@@ -372,7 +382,7 @@ export const actions = {
     return result.ok;
   },
 
-  async exportCurrent(): Promise<void> {
+  async exportCurrent(confirmed = false): Promise<void> {
     const id = state.currentId;
     const photo = currentPhoto(state);
     if (!id || !photo || !hasMosaic(photo) || photo.status === 'exporting') return;
@@ -380,19 +390,36 @@ export const actions = {
       set({ exportChoice: { anchor: 'export' } });
       return;
     }
+    if (needsOverwriteConfirm(confirmed)) {
+      set({ overwriteConfirm: { anchor: 'export' } });
+      return;
+    }
     if (await actions.exportPhoto(id)) await offerRemoval([id]);
   },
 
-  /** Saves the choice from the first-export popover, then runs the export it was opened for. */
+  /**
+   * Saves the choice from the first-export popover, then runs the export it was opened for. The
+   * popover already said that Replace original cannot be undone, so it does not ask again.
+   */
   async chooseExportTarget(target: ExportTarget): Promise<void> {
     const choice = state.exportChoice;
     set({ exportChoice: undefined });
     await actions.setExportTarget(target);
-    if (choice?.anchor === 'all') await actions.exportAll();
-    else await actions.exportCurrent();
+    if (choice?.anchor === 'all') await actions.exportAll(true);
+    else await actions.exportCurrent(true);
   },
 
   cancelExportChoice: (): void => set({ exportChoice: undefined }),
+
+  /** Runs the export the Replace original confirmation was opened for. */
+  async confirmOverwrite(dontAskAgain: boolean): Promise<void> {
+    const confirm = state.overwriteConfirm;
+    set({ overwriteConfirm: undefined, ...(dontAskAgain ? { overwriteAsk: false } : {}) });
+    if (confirm?.anchor === 'all') await actions.exportAll(true);
+    else if (confirm) await actions.exportCurrent(true);
+  },
+
+  cancelOverwrite: (): void => set({ overwriteConfirm: undefined }),
 
   async loadSettings(): Promise<void> {
     const { exportTarget, exportChosen, checkForUpdates } = await window.api.settings();
@@ -508,12 +535,16 @@ export const actions = {
     set(notesOpen ? { notesOpen, aboutOpen: false } : { notesOpen }),
 
   /** Every photo with a mosaic, one after the other, in the background. */
-  async exportAll(): Promise<void> {
+  async exportAll(confirmed = false): Promise<void> {
     if (state.batch && !state.batch.finished) return;
     const ids = state.photos.filter(hasMosaic).map((p) => p.info.id);
     if (ids.length === 0) return;
     if (!state.exportChosen) {
       set({ exportChoice: { anchor: 'all' } });
+      return;
+    }
+    if (needsOverwriteConfirm(confirmed)) {
+      set({ overwriteConfirm: { anchor: 'all' } });
       return;
     }
     set({ batch: { done: 0, total: ids.length, failed: [], finished: false, ok: 0 } });

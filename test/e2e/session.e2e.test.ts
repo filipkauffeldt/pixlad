@@ -401,6 +401,7 @@ describe('overwriting the original', () => {
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.keyboard.press('Control+e');
+    await page.click('[data-testid="overwrite-confirm-replace"]');
     await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
 
     expect(await readdir(dir)).toEqual(['over.jpg']);

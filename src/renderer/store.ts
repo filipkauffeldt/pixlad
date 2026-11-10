@@ -161,8 +161,25 @@ const editAreas = (id: string, fn: (areas: RetouchArea[]) => RetouchArea[]): voi
     return { ...p, areas, undo: [...p.undo.slice(-49), p.areas], rev: p.rev + 1 };
   });
 
-const notify = (lines: string[], kind: Notice['kind'] = 'info'): void =>
-  set((s) => ({ notices: [...s.notices, { id: ++noticeId, lines, kind }] }));
+const INFO_NOTICE_MS = 8000;
+let infoNoticeTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Errors stay until dismissed. An info notice replaces the previous one and clears itself after a
+ * few seconds, so repeating the same action never stacks a pile of identical messages.
+ */
+const notify = (lines: string[], kind: Notice['kind'] = 'info'): void => {
+  const id = ++noticeId;
+  if (kind !== 'info') {
+    set((s) => ({ notices: [...s.notices, { id, lines, kind }] }));
+    return;
+  }
+  clearTimeout(infoNoticeTimer);
+  set((s) => ({
+    notices: [...s.notices.filter((n) => n.kind !== 'info'), { id, lines, kind }],
+  }));
+  infoNoticeTimer = setTimeout(() => actions.dismissNotice(id), INFO_NOTICE_MS);
+};
 const toast = (lines: string[]): void =>
   set((s) => ({ toasts: [...s.toasts, { id: ++noticeId, lines, kind: 'error' }] }));
 

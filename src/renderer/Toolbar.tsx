@@ -58,7 +58,13 @@ function TargetMenu() {
         data-testid="target"
         onClick={() => setOpen(!open)}
       >
-        {current.label}
+        <span className="dropdownLabel">
+          {TARGETS.map(({ target, label }) => (
+            <span key={target} data-current={target === app.target ? '' : undefined}>
+              {label}
+            </span>
+          ))}
+        </span>
         <svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true">
           <path d="M1 3l4 4 4-4" />
         </svg>

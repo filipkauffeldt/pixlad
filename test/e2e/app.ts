@@ -77,23 +77,17 @@ export async function dropFiles(
 interface DialogStubs {
   /** Undefined until a test chooses, so a close with no answer shows the real dialog. */
   close?: 0 | 1;
-  remove: 0 | 1;
   closeAsked: string[];
-  removeAsked: string[];
 }
 
-/** Answer the app's questions without a real dialog. Removal answers Keep until a test says otherwise. */
+/** Answer the close and restart questions without a real dialog, once a test chooses. */
 async function stubDialogs(app: ElectronApplication): Promise<void> {
   await app.evaluate(({ dialog }) => {
-    const stubs: DialogStubs = { remove: 1, closeAsked: [], removeAsked: [] };
+    const stubs: DialogStubs = { closeAsked: [] };
     (globalThis as { __dialogs?: DialogStubs }).__dialogs = stubs;
     const real = dialog.showMessageBox.bind(dialog);
     dialog.showMessageBox = (async (...args: unknown[]) => {
       const options = args[args.length - 1] as { message: string };
-      if (options.message.startsWith('Remove ')) {
-        stubs.removeAsked.push(options.message);
-        return { response: stubs.remove, checkboxChecked: false };
-      }
       if (stubs.close === undefined) return (real as (...a: unknown[]) => unknown)(...args);
       stubs.closeAsked.push(options.message);
       return { response: stubs.close, checkboxChecked: false };
@@ -108,15 +102,13 @@ export async function stubCloseDialog(app: ElectronApplication, response: 0 | 1)
   }, response);
 }
 
-/** Answer the question after an export: 0 removes, 1 keeps. */
-export async function stubRemoveDialog(app: ElectronApplication, response: 0 | 1): Promise<void> {
-  await app.evaluate((_electron, answer) => {
-    (globalThis as { __dialogs?: DialogStubs }).__dialogs!.remove = answer;
-  }, response);
-}
-
 export const dialogMessages = (app: ElectronApplication): Promise<string[]> =>
   app.evaluate(() => (globalThis as { __dialogs?: DialogStubs }).__dialogs!.closeAsked);
 
-export const removeMessages = (app: ElectronApplication): Promise<string[]> =>
-  app.evaluate(() => (globalThis as { __dialogs?: DialogStubs }).__dialogs!.removeAsked);
+/** The question after an export, as the app shows it. */
+export const removeQuestion = (page: Page): Promise<string> =>
+  page.locator('[data-testid="remove-exported"] h2').innerText();
+
+/** Answer the question after an export. */
+export const answerRemove = (page: Page, answer: 'remove' | 'keep'): Promise<void> =>
+  page.click(`[data-testid="remove-exported-${answer}"]`);

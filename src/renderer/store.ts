@@ -85,6 +85,8 @@ export interface AppState {
   updateNotes: ReleaseNote[] | undefined;
   notesOpen: boolean;
   aboutCheck: AboutCheck;
+  /** The question after an export: take these photos out of the session? */
+  removeQuestion: { count: number; name: string | undefined } | undefined;
 }
 
 const initial: AppState = {
@@ -110,6 +112,7 @@ const initial: AppState = {
   updateNotes: undefined,
   notesOpen: false,
   aboutCheck: { phase: 'idle' },
+  removeQuestion: undefined,
 };
 
 let state = initial;
@@ -168,6 +171,18 @@ const newPhoto = (info: PhotoInfo): PhotoState => ({
 let startupCheckDone = false;
 
 let removalPrompts: Promise<void> = Promise.resolve();
+let answerRemoveQuestion: ((remove: boolean) => void) | undefined;
+
+/** Show the remove question and wait for the answer. */
+const askRemove = (count: number, name: string | undefined): Promise<boolean> =>
+  new Promise((resolve) => {
+    answerRemoveQuestion = (remove) => {
+      answerRemoveQuestion = undefined;
+      set({ removeQuestion: undefined });
+      resolve(remove);
+    };
+    set({ removeQuestion: { count, name } });
+  });
 
 /**
  * Ask whether to take these exported photos out of the session. One question at a time, and a
@@ -181,12 +196,12 @@ const offerRemoval = (ids: readonly string[]): Promise<void> => {
       const offered = removable();
       if (offered.length === 0) return;
       const name = offered.length === 1 ? offered[0]!.info.name : undefined;
-      if (await window.api.confirmRemoveExported(offered.length, name)) {
+      if (await askRemove(offered.length, name)) {
         for (const photo of removable()) actions.remove(photo.info.id);
       }
     })
     .catch((cause: unknown) => {
-      notify([`Could not show the remove question: ${errorText(cause)}`], 'error');
+      notify([`Could not remove the exported photos: ${errorText(cause)}`], 'error');
     });
   return removalPrompts;
 };
@@ -199,6 +214,8 @@ export const actions = {
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
   setTarget: (target: Target): void => set({ target }),
   setOutline: (outline: Outline): void => set({ outline }),
+  /** The answer to the remove question: true takes the photos out of the session. */
+  answerRemove: (remove: boolean): void => answerRemoveQuestion?.(remove),
   setMode: (mode: RetouchMode): void => set({ mode }),
   dismissNotice: (id: number): void =>
     set((s) => ({

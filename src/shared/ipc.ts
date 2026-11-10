@@ -110,8 +110,6 @@ export interface Api {
   preview(id: string, op: MosaicOp): Promise<PreviewPatch | null>;
   detect(id: string, region: Rect): Promise<FaceDetection[]>;
   exportPhoto(id: string, op: MosaicOp): Promise<ExportOutcome>;
-  /** Ask whether to take exported photos out of the session. `name` is given for a single photo. */
-  confirmRemoveExported(count: number, name: string | undefined): Promise<boolean>;
   settings(): Promise<Settings>;
   /** Also records that the user has chosen, so the first-export choice does not show again. */
   setExportTarget(target: ExportTarget): Promise<void>;

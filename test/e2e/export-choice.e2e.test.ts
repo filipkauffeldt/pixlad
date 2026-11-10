@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { dropFiles, launch, stubCloseDialog, type Launched, pickTool } from './app';
+import { answerRemove, dropFiles, launch, pickTool, stubCloseDialog, type Launched } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -74,6 +74,7 @@ describe('the first export', () => {
     await page.click('[data-testid="export-choice-suffix"]');
     await page.keyboard.press('Enter');
     await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30_000 });
+    await answerRemove(page, 'keep');
     expect((await readdir(dir)).sort()).toEqual(['_DSC1234.JPG', '_DSC1234_edit.JPG']);
     const saved = JSON.parse(await readFile(join(userData, 'settings.json'), 'utf8')) as object;
     expect(saved).toMatchObject({ exportTarget: 'suffix', exportChosen: true });

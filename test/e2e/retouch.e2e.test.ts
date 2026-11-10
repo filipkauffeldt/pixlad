@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { dropFiles, launch, stubCloseDialog, type Launched, pickTool } from './app';
+import { answerRemove, dropFiles, launch, pickTool, stubCloseDialog, type Launched } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -215,6 +215,7 @@ describe('drawing with the real mouse', () => {
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.keyboard.press('Control+e');
     await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
+    await answerRemove(page, 'keep');
     expect((await readdir(dir)).sort()).toEqual(['_DSC1234.JPG', '_DSC1234_edit.JPG']);
     expect(Buffer.compare(await readFile(file), bytes)).toBe(0);
     // Exporting the same photo again replaces this session's own file.

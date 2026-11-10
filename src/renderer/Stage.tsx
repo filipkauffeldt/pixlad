@@ -163,7 +163,7 @@ export function Stage({
     [],
   );
 
-  // ---- keyboard: Z, Ctrl +/-, Space. Matched by what the key prints, never by position.
+  // ---- keyboard: Z, Ctrl +/-, Ctrl+0, Space. Matched by what the key prints, never by position.
   useEffect(() => {
     const editing = (target: EventTarget | null): boolean =>
       target instanceof HTMLInputElement && target.type !== 'range';
@@ -188,6 +188,9 @@ export function Stage({
       } else if (primary && event.key === '-') {
         event.preventDefault();
         setView(zoomBy(now, ctx, centre, 1 / ZOOM_STEP));
+      } else if (primary && event.key === '0') {
+        event.preventDefault();
+        setView(FIT_VIEW);
       } else if (!primary && event.key === ' ' && !editing(event.target)) {
         if (!(event.target instanceof HTMLButtonElement)) event.preventDefault();
         setPanHeld(true);

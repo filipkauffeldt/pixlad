@@ -12,12 +12,12 @@ import {
   withSegments,
 } from '../helpers/fixtures';
 import {
+  answerRemove,
   dialogMessages,
   dropFiles,
   launch,
-  removeMessages,
+  removeQuestion,
   stubCloseDialog,
-  stubRemoveDialog,
   type Launched,
   pickTool,
 } from './app';
@@ -272,8 +272,7 @@ describe('closing and exporting a batch', () => {
     await chmod(locked, 0o555);
     try {
       running = await launch();
-      const { app, page } = running;
-      await stubRemoveDialog(app, 0);
+      const { page } = running;
       await dropFiles(page, [good, bad, good2]);
       await photoReady(page);
       await pickTool(page, 'rect');
@@ -299,10 +298,12 @@ describe('closing and exporting a batch', () => {
       );
       expect(await readdir(locked)).toEqual(['bad.jpg']);
       // Only the photos that made it are offered; the failed one stays to be dealt with.
+      await page.waitForSelector('[data-testid="remove-exported"]');
+      expect(await removeQuestion(page)).toBe('Remove 2 exported photos from the session?');
+      await answerRemove(page, 'remove');
       await page.waitForFunction(
         () => document.querySelectorAll('[data-testid="strip"] img').length === 1,
       );
-      expect(await removeMessages(app)).toEqual(['Remove 2 exported photos from the session?']);
       expect((await readdir(dir)).sort()).toEqual(
         expect.arrayContaining(['good.jpg', 'good2.jpg']),
       );
@@ -344,29 +345,45 @@ describe('after an export', () => {
   it('asks about a single photo: Remove takes it out of the session, the files stay', async () => {
     const dir = await tmp();
     running = await launch();
-    const { app, page } = running;
-    await stubRemoveDialog(app, 0);
+    const { page } = running;
     await exportOne(page, 'single.jpg', dir);
-    await page.waitForSelector('[data-testid="empty"]', { timeout: 30000 });
-    expect(await removeMessages(app)).toEqual(['Remove single.jpg from the session?']);
+    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    expect(await removeQuestion(page)).toBe('Remove single.jpg from the session?');
+    await answerRemove(page, 'remove');
+    await page.waitForSelector('[data-testid="empty"]');
     expect((await readdir(dir)).sort()).toEqual(['single.jpg', 'single_edit.jpg']);
   });
 
   it('asks about a single photo: Keep leaves it in the session', async () => {
     const dir = await tmp();
     running = await launch();
-    const { app, page } = running;
+    const { page } = running;
     await exportOne(page, 'kept.jpg', dir);
-    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
-    await expect.poll(() => removeMessages(app)).toEqual(['Remove kept.jpg from the session?']);
+    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    expect(await removeQuestion(page)).toBe('Remove kept.jpg from the session?');
+    await answerRemove(page, 'keep');
+    await page.waitForSelector('[data-testid="remove-exported"]', { state: 'detached' });
+    await page.waitForSelector('[data-testid="badge-exported"]');
+    expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
+  });
+
+  it('Escape keeps the photo, and Delete does not remove anything while the question is open', async () => {
+    const dir = await tmp();
+    running = await launch();
+    const { page } = running;
+    await exportOne(page, 'escaped.jpg', dir);
+    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    await page.keyboard.press('Delete');
+    expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-testid="remove-exported"]', { state: 'detached' });
     expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
   });
 
   it('does not offer to remove a photo edited while it was exporting', async () => {
     const dir = await tmp();
     running = await launch();
-    const { app, page } = running;
-    await stubRemoveDialog(app, 0);
+    const { page } = running;
     await exportOne(page, 'edited.jpg', dir);
     await drawRect(page, [0.6, 0.6], [0.8, 0.8]); // drawn while the export runs
     await page.waitForFunction(
@@ -375,7 +392,7 @@ describe('after an export', () => {
       { timeout: 30000 },
     );
     await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(await removeMessages(app)).toEqual([]);
+    expect(await page.locator('[data-testid="remove-exported"]').count()).toBe(0);
     expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
   });
 });
@@ -401,6 +418,7 @@ describe('overwriting the original', () => {
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.keyboard.press('Control+e');
+    await page.click('[data-testid="overwrite-confirm-replace"]');
     await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
 
     expect(await readdir(dir)).toEqual(['over.jpg']);

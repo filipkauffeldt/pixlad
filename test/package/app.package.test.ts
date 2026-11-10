@@ -3,7 +3,7 @@ import { mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { dropFiles, launch, type Launched, pickTool } from '../e2e/app';
+import { answerRemove, dropFiles, launch, type Launched, pickTool } from '../e2e/app';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
 import { packagedAppImage, packagedExecutable } from './executable';
 
@@ -62,6 +62,7 @@ describe('the packaged app', () => {
     await page.waitForSelector('[data-testid="mosaic-patch"]', { timeout: 30_000 });
     await page.keyboard.press('ControlOrMeta+e');
     await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 60_000 });
+    await answerRemove(page, 'keep');
     expect((await readdir(dir)).sort()).toEqual(['photo.jpg', 'photo_edit.jpg']);
 
     // Faces on a plain area: the model and onnxruntime load, and nothing is found.

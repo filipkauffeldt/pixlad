@@ -76,6 +76,10 @@ export interface AppState {
   exportChosen: boolean;
   /** The first-export choice, open under the Export or the Export all button. */
   exportChoice: { anchor: 'export' | 'all' } | undefined;
+  /** The Replace original confirmation, open for one photo or for every photo with a mosaic. */
+  overwriteConfirm: { anchor: 'export' | 'all' } | undefined;
+  /** False once the user ticked "Don't ask again this session". Never saved, so a restart asks. */
+  overwriteAsk: boolean;
   checkForUpdates: boolean;
   aboutOpen: boolean;
   update: UpdateState;
@@ -85,6 +89,8 @@ export interface AppState {
   updateNotes: ReleaseNote[] | undefined;
   notesOpen: boolean;
   aboutCheck: AboutCheck;
+  /** The question after an export: take these photos out of the session? */
+  removeQuestion: { count: number; name: string | undefined } | undefined;
 }
 
 const initial: AppState = {
@@ -103,6 +109,8 @@ const initial: AppState = {
   // True until the settings load, so an export started before that never asks twice.
   exportChosen: true,
   exportChoice: undefined,
+  overwriteConfirm: undefined,
+  overwriteAsk: true,
   checkForUpdates: true,
   aboutOpen: false,
   update: { phase: 'idle' },
@@ -110,6 +118,7 @@ const initial: AppState = {
   updateNotes: undefined,
   notesOpen: false,
   aboutCheck: { phase: 'idle' },
+  removeQuestion: undefined,
 };
 
 let state = initial;
@@ -140,6 +149,10 @@ export const currentPhoto = (s: AppState): PhotoState | undefined =>
 const updatePhoto = (id: string, fn: (p: PhotoState) => PhotoState): void =>
   set((s) => ({ photos: s.photos.map((p) => (p.info.id === id ? fn(p) : p)) }));
 
+/** Replace original asks before it writes over a file, unless it was just confirmed or silenced. */
+const needsOverwriteConfirm = (confirmed: boolean): boolean =>
+  !confirmed && state.exportTarget === 'overwrite' && state.overwriteAsk;
+
 /** An edit to the areas: remembered for Undo, bumps the revision. */
 const editAreas = (id: string, fn: (areas: RetouchArea[]) => RetouchArea[]): void =>
   updatePhoto(id, (p) => {
@@ -168,6 +181,18 @@ const newPhoto = (info: PhotoInfo): PhotoState => ({
 let startupCheckDone = false;
 
 let removalPrompts: Promise<void> = Promise.resolve();
+let answerRemoveQuestion: ((remove: boolean) => void) | undefined;
+
+/** Show the remove question and wait for the answer. */
+const askRemove = (count: number, name: string | undefined): Promise<boolean> =>
+  new Promise((resolve) => {
+    answerRemoveQuestion = (remove) => {
+      answerRemoveQuestion = undefined;
+      set({ removeQuestion: undefined });
+      resolve(remove);
+    };
+    set({ removeQuestion: { count, name } });
+  });
 
 /**
  * Ask whether to take these exported photos out of the session. One question at a time, and a
@@ -181,12 +206,12 @@ const offerRemoval = (ids: readonly string[]): Promise<void> => {
       const offered = removable();
       if (offered.length === 0) return;
       const name = offered.length === 1 ? offered[0]!.info.name : undefined;
-      if (await window.api.confirmRemoveExported(offered.length, name)) {
+      if (await askRemove(offered.length, name)) {
         for (const photo of removable()) actions.remove(photo.info.id);
       }
     })
     .catch((cause: unknown) => {
-      notify([`Could not show the remove question: ${errorText(cause)}`], 'error');
+      notify([`Could not remove the exported photos: ${errorText(cause)}`], 'error');
     });
   return removalPrompts;
 };
@@ -199,6 +224,8 @@ export const actions = {
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
   setTarget: (target: Target): void => set({ target }),
   setOutline: (outline: Outline): void => set({ outline }),
+  /** The answer to the remove question: true takes the photos out of the session. */
+  answerRemove: (remove: boolean): void => answerRemoveQuestion?.(remove),
   setMode: (mode: RetouchMode): void => set({ mode }),
   dismissNotice: (id: number): void =>
     set((s) => ({
@@ -372,7 +399,7 @@ export const actions = {
     return result.ok;
   },
 
-  async exportCurrent(): Promise<void> {
+  async exportCurrent(confirmed = false): Promise<void> {
     const id = state.currentId;
     const photo = currentPhoto(state);
     if (!id || !photo || !hasMosaic(photo) || photo.status === 'exporting') return;
@@ -380,19 +407,36 @@ export const actions = {
       set({ exportChoice: { anchor: 'export' } });
       return;
     }
+    if (needsOverwriteConfirm(confirmed)) {
+      set({ overwriteConfirm: { anchor: 'export' } });
+      return;
+    }
     if (await actions.exportPhoto(id)) await offerRemoval([id]);
   },
 
-  /** Saves the choice from the first-export popover, then runs the export it was opened for. */
+  /**
+   * Saves the choice from the first-export popover, then runs the export it was opened for. The
+   * popover already said that Replace original cannot be undone, so it does not ask again.
+   */
   async chooseExportTarget(target: ExportTarget): Promise<void> {
     const choice = state.exportChoice;
     set({ exportChoice: undefined });
     await actions.setExportTarget(target);
-    if (choice?.anchor === 'all') await actions.exportAll();
-    else await actions.exportCurrent();
+    if (choice?.anchor === 'all') await actions.exportAll(true);
+    else await actions.exportCurrent(true);
   },
 
   cancelExportChoice: (): void => set({ exportChoice: undefined }),
+
+  /** Runs the export the Replace original confirmation was opened for. */
+  async confirmOverwrite(dontAskAgain: boolean): Promise<void> {
+    const confirm = state.overwriteConfirm;
+    set({ overwriteConfirm: undefined, ...(dontAskAgain ? { overwriteAsk: false } : {}) });
+    if (confirm?.anchor === 'all') await actions.exportAll(true);
+    else if (confirm) await actions.exportCurrent(true);
+  },
+
+  cancelOverwrite: (): void => set({ overwriteConfirm: undefined }),
 
   async loadSettings(): Promise<void> {
     const { exportTarget, exportChosen, checkForUpdates } = await window.api.settings();
@@ -508,12 +552,16 @@ export const actions = {
     set(notesOpen ? { notesOpen, aboutOpen: false } : { notesOpen }),
 
   /** Every photo with a mosaic, one after the other, in the background. */
-  async exportAll(): Promise<void> {
+  async exportAll(confirmed = false): Promise<void> {
     if (state.batch && !state.batch.finished) return;
     const ids = state.photos.filter(hasMosaic).map((p) => p.info.id);
     if (ids.length === 0) return;
     if (!state.exportChosen) {
       set({ exportChoice: { anchor: 'all' } });
+      return;
+    }
+    if (needsOverwriteConfirm(confirmed)) {
+      set({ overwriteConfirm: { anchor: 'all' } });
       return;
     }
     set({ batch: { done: 0, total: ids.length, failed: [], finished: false, ok: 0 } });

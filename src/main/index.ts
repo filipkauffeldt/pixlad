@@ -276,27 +276,6 @@ function registerIpc(): void {
       return { ok: false, message: cause instanceof Error ? cause.message : String(cause) };
     }
   });
-  ipcMain.handle(
-    'dialog:remove-exported',
-    async (event, count: number, name: string | undefined): Promise<boolean> => {
-      const options = {
-        type: 'question' as const,
-        buttons: ['Remove', 'Keep'],
-        defaultId: 0,
-        cancelId: 1,
-        message:
-          count === 1 && name
-            ? `Remove ${name} from the session?`
-            : `Remove ${count} exported photos from the session?`,
-        detail: 'The files stay on disk.',
-      };
-      const window = BrowserWindow.fromWebContents(event.sender);
-      const result = window
-        ? await dialog.showMessageBox(window, options)
-        : await dialog.showMessageBox(options);
-      return result.response === 0;
-    },
-  );
   ipcMain.handle('about:info', async (): Promise<AboutInfo> => {
     const [license, notices] = await Promise.all([
       readFile(shippedFile('LICENSE', 'LICENSE'), 'utf8'),

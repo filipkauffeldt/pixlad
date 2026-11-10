@@ -403,6 +403,17 @@ input[type='range']::-webkit-slider-thumb {
   gap: 12px;
   padding: 6px 0;
 }
+.modal.confirm {
+  width: min(420px, 100%);
+}
+.modal.confirm h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+.modalFooter.end {
+  justify-content: flex-end;
+}
 .modalFooter {
   display: flex;
   justify-content: space-between;

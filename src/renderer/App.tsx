@@ -5,6 +5,7 @@ import { About } from './About';
 import { OverwriteConfirm } from './OverwriteConfirm';
 import { ReleaseNotes } from './ReleaseNotes';
 import { isMac } from './flips';
+import { RemoveExported } from './RemoveExported';
 import { Stage } from './Stage';
 import { Strip } from './Strip';
 import { Toolbar } from './Toolbar';
@@ -231,6 +232,7 @@ export function App() {
       {app.aboutOpen && <About />}
       {app.overwriteConfirm && <OverwriteConfirm anchor={app.overwriteConfirm.anchor} />}
       {app.notesOpen && app.update.phase !== 'idle' && <ReleaseNotes />}
+      {app.removeQuestion && <RemoveExported question={app.removeQuestion} />}
       {app.dragging && <div className="dropOverlay">Drop JPEG photos to add them</div>}
     </div>
   );

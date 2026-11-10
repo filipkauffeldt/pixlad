@@ -53,6 +53,13 @@ export async function launch(
   return { app, page, userData };
 }
 
+/** Choose what a drag does: faces, or a drawn area as a rectangle or a lasso. */
+export async function pickTool(page: Page, tool: 'faces' | 'rect' | 'lasso'): Promise<void> {
+  await page.click('[data-testid="target"]');
+  await page.click(`[data-target="${tool === 'faces' ? 'faces' : 'area'}"]`);
+  await page.click(`[data-outline="${tool === 'lasso' ? 'lasso' : 'rect'}"]`);
+}
+
 /** A real file drop onto the window, through Chromium's drag-and-drop (CDP), not a synthetic event. */
 export async function dropFiles(
   page: Page,

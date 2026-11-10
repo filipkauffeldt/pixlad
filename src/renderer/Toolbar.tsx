@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
 import type { ExportTarget } from '../shared/ipc';
 import { ExportChoice } from './ExportChoice';
-import { countAreas } from './retouch';
+import { isMac, useFlips } from './flips';
+import { countAreas, withFlips, type Outline } from './retouch';
 import {
   actions,
   hasMosaic,
@@ -12,14 +13,80 @@ import {
   unexportedCount,
   useApp,
   type PhotoState,
-  type Tool,
+  type Target,
 } from './store';
 
-const TOOLS: Array<{ tool: Tool; label: string; title: string }> = [
-  { tool: 'faces', label: 'Faces', title: 'Drag around faces to find them (hold Alt for a lasso)' },
-  { tool: 'rect', label: 'Rectangle', title: 'Drag a rectangle to pixelate' },
-  { tool: 'lasso', label: 'Lasso', title: 'Draw a freehand outline to pixelate' },
+const TARGETS: Array<{ target: Target; label: string; title: string }> = [
+  { target: 'faces', label: 'Faces', title: 'Drag around faces to find them' },
+  { target: 'area', label: 'Area', title: 'Drag to draw an area to pixelate' },
 ];
+const OUTLINES: Array<{ outline: Outline; label: string; title: string }> = [
+  { outline: 'rect', label: 'Rectangle', title: 'Drag a rectangle (hold Alt for a lasso)' },
+  { outline: 'lasso', label: 'Lasso', title: 'Draw a freehand outline (hold Alt for a rectangle)' },
+];
+const FLIP_KEY = isMac ? '⌘' : 'Ctrl';
+
+/** Picks what a drag acts on. */
+function TargetMenu() {
+  const app = useApp();
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+  const current = TARGETS.find((t) => t.target === app.target)!;
+  return (
+    <div className="targetMenu" ref={root}>
+      <button
+        type="button"
+        className="btn dropdown"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={current.title}
+        data-testid="target"
+        onClick={() => setOpen(!open)}
+      >
+        {current.label}
+        <svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true">
+          <path d="M1 3l4 4 4-4" />
+        </svg>
+      </button>
+      {open && (
+        <div className="menu" role="menu">
+          {TARGETS.map(({ target, label, title }) => (
+            <button
+              key={target}
+              type="button"
+              role="menuitemradio"
+              aria-checked={app.target === target}
+              className="menuItem"
+              title={title}
+              data-target={target}
+              onClick={() => {
+                actions.setTarget(target);
+                setOpen(false);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** A typed value next to a slider: keeps a draft until Enter or blur, then clamps. */
 function NumberField({
@@ -160,6 +227,8 @@ function Settings({ exporting }: { exporting: boolean }) {
 
 export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
   const app = useApp();
+  const flips = useFlips();
+  const active = withFlips(app, flips);
   const counts = photo ? countAreas(photo.areas) : undefined;
   const longEdge = photo ? longEdgeOf(photo) : 1;
   const px = photo
@@ -171,15 +240,17 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
   return (
     <div className="toolbar" data-testid="toolbar">
       <div className="group" role="group" aria-label="Tool">
-        {TOOLS.map(({ tool, label, title }) => (
+        <TargetMenu />
+        {OUTLINES.map(({ outline, label, title }) => (
           <button
-            key={tool}
+            key={outline}
             type="button"
             className="tab"
-            aria-pressed={app.tool === tool}
+            aria-pressed={active.outline === outline}
+            data-flipped={flips.outline && active.outline === outline ? '' : undefined}
             title={title}
-            data-tool={tool}
-            onClick={() => actions.setTool(tool)}
+            data-outline={outline}
+            onClick={() => actions.setOutline(outline)}
           >
             {label}
           </button>
@@ -191,11 +262,12 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
             key={mode}
             type="button"
             className="tab"
-            aria-pressed={app.mode === mode}
+            aria-pressed={active.mode === mode}
+            data-flipped={flips.mode && active.mode === mode ? '' : undefined}
             title={
               mode === 'add'
-                ? 'New areas and faces add mosaic'
-                : 'New areas and faces take mosaic away (hold Alt while drawing to flip the mode)'
+                ? `New areas and faces add mosaic (hold ${FLIP_KEY} to subtract)`
+                : `New areas and faces take mosaic away (hold ${FLIP_KEY} to add)`
             }
             data-mode={mode}
             onClick={() => actions.setMode(mode)}

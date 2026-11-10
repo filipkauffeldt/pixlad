@@ -10,10 +10,12 @@ import {
   withDetectedFaces,
   withoutFacesInside,
   type RetouchArea,
+  type Outline,
   type RetouchMode,
 } from './retouch';
 
-export type Tool = 'faces' | 'rect' | 'lasso';
+/** What a drag acts on: faces found inside it, or the drawn area itself. */
+export type Target = 'faces' | 'area';
 export type ExportStatus = 'idle' | 'exporting' | 'exported' | 'failed';
 
 export interface PhotoState {
@@ -59,7 +61,8 @@ export type AboutCheck =
 export interface AppState {
   photos: PhotoState[];
   currentId: string | undefined;
-  tool: Tool;
+  target: Target;
+  outline: Outline;
   mode: RetouchMode;
   detecting: boolean;
   adding: boolean;
@@ -87,7 +90,8 @@ export interface AppState {
 const initial: AppState = {
   photos: [],
   currentId: undefined,
-  tool: 'faces',
+  target: 'faces',
+  outline: 'rect',
   mode: 'add',
   detecting: false,
   adding: false,
@@ -193,7 +197,8 @@ const errorText = (cause: unknown): string =>
 export const actions = {
   setDragging: (dragging: boolean): void => set({ dragging }),
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
-  setTool: (tool: Tool): void => set({ tool }),
+  setTarget: (target: Target): void => set({ target }),
+  setOutline: (outline: Outline): void => set({ outline }),
   setMode: (mode: RetouchMode): void => set({ mode }),
   dismissNotice: (id: number): void =>
     set((s) => ({

@@ -19,6 +19,7 @@ import {
   stubCloseDialog,
   stubRemoveDialog,
   type Launched,
+  pickTool,
 } from './app';
 
 let running: Launched | undefined;
@@ -215,7 +216,7 @@ describe('closing and exporting a batch', () => {
     const { app, page } = running;
     await dropFiles(page, files);
     await photoReady(page);
-    await page.click('[data-tool="rect"]');
+    await pickTool(page, 'rect');
     for (let i = 0; i < 3; i++) {
       await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
       if (i < 2) {
@@ -268,7 +269,7 @@ describe('closing and exporting a batch', () => {
       await stubRemoveDialog(app, 0);
       await dropFiles(page, [good, bad, good2]);
       await photoReady(page);
-      await page.click('[data-tool="rect"]');
+      await pickTool(page, 'rect');
       for (let i = 0; i < 3; i++) {
         await drawRect(page, [0.3, 0.3], [0.6, 0.6]);
         if (i < 2) {
@@ -310,7 +311,7 @@ describe('closing and exporting a batch', () => {
     const { page } = running;
     await dropFiles(page, [file]);
     await photoReady(page);
-    await page.click('[data-tool="rect"]');
+    await pickTool(page, 'rect');
     await drawRect(page, [0.2, 0.2], [0.4, 0.4]);
     await page.click('[data-testid="export-all"]');
     await drawRect(page, [0.6, 0.6], [0.8, 0.8]); // drawn while the export runs
@@ -326,7 +327,7 @@ describe('after an export', () => {
     const file = await photoFile(dir, name);
     await dropFiles(page, [file]);
     await photoReady(page);
-    await page.click('[data-tool="rect"]');
+    await pickTool(page, 'rect');
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.keyboard.press('Control+e');
@@ -389,7 +390,7 @@ describe('overwriting the original', () => {
 
     await dropFiles(page, [file]);
     await photoReady(page);
-    await page.click('[data-tool="rect"]');
+    await pickTool(page, 'rect');
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.keyboard.press('Control+e');
@@ -435,7 +436,7 @@ describe('nothing survives the session', () => {
     let { page } = running;
     await dropFiles(page, [file]);
     await photoReady(page);
-    await page.click('[data-tool="rect"]');
+    await pickTool(page, 'rect');
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     await page.keyboard.press('Control+e');
     await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
@@ -490,7 +491,7 @@ describe('colour on screen', () => {
     const { page } = running;
     await dropFiles(page, [file]);
     await photoReady(page);
-    await page.click('[data-tool="rect"]');
+    await pickTool(page, 'rect');
     await drawRect(page, [0.3, 0.3], [0.7, 0.7]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.waitForFunction(() => {

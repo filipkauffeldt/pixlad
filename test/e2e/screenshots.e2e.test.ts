@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, expect, it } from 'vitest';
 import { encodeJpeg, type Rgb } from '../helpers/fixtures';
-import { dropFiles, launch, stubCloseDialog, type Launched } from './app';
+import { dropFiles, launch, stubCloseDialog, type Launched, pickTool } from './app';
 
 const out = process.env['SCREENSHOT_DIR'];
 let running: Launched | undefined;
@@ -95,12 +95,12 @@ it.skipIf(!out)(
       const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
       return !!img && img.complete && img.naturalWidth > 0;
     });
-    await page.click('[data-tool="rect"]');
+    await pickTool(page, 'rect');
     await drag(page, [
       [0.12, 0.3],
       [0.32, 0.62],
     ]); // the first face
-    await page.click('[data-tool="lasso"]');
+    await pickTool(page, 'lasso');
     await drag(page, [
       [0.34, 0.3],
       [0.5, 0.32],
@@ -108,7 +108,7 @@ it.skipIf(!out)(
       [0.4, 0.64],
       [0.33, 0.55],
     ]); // the second, freehand
-    await page.click('[data-tool="rect"]');
+    await pickTool(page, 'rect');
     await drag(page, [
       [0.55, 0.32],
       [0.7, 0.62],

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { dropFiles, launch, stubCloseDialog, type Launched } from './app';
+import { dropFiles, launch, stubCloseDialog, type Launched, pickTool } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -23,7 +23,7 @@ async function photo(dir: string, name: string): Promise<string> {
 
 async function drawRect(page: Page): Promise<void> {
   const box = (await page.locator('[data-testid="photo"]').boundingBox())!;
-  await page.click('[data-tool="rect"]');
+  await pickTool(page, 'rect');
   await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5, { steps: 6 });

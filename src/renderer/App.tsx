@@ -3,13 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { About } from './About';
 import { ReleaseNotes } from './ReleaseNotes';
+import { isMac } from './flips';
 import { Stage } from './Stage';
 import { Strip } from './Strip';
 import { Toolbar } from './Toolbar';
 import { UpdateStatus } from './UpdateStatus';
 import { actions, currentPhoto, useApp } from './store';
-
-const isMac = navigator.platform.toLowerCase().includes('mac');
 
 export function App() {
   const app = useApp();

@@ -134,22 +134,40 @@ export function withoutFacesInside(areas: readonly RetouchArea[], region: Shape)
   return areas.filter((a) => !(a.face && pointInPolygon(centre(a.face.box), outline)));
 }
 
+export type Outline = 'rect' | 'lasso';
+
+/** Which temporary flips are held: Alt swaps rectangle and lasso, Ctrl (⌘ on a Mac) add and subtract. */
+export interface Flips {
+  outline: boolean;
+  mode: boolean;
+}
+
 /**
- * Whether Alt is held as a modifier for one drawing. AltGr (Ctrl+Alt on Windows/Linux, or the
- * AltGraph modifier) types characters on a Swedish keyboard and must never count.
+ * The flips a pointer or key event holds. AltGr (Ctrl+Alt on Windows/Linux, or the AltGraph
+ * modifier) types characters on a Swedish keyboard and must never count.
  */
-export function altHeld(event: {
-  altKey: boolean;
-  ctrlKey: boolean;
-  metaKey: boolean;
-  getModifierState?: (key: 'AltGraph') => boolean;
-}): boolean {
-  return (
-    event.altKey &&
-    !event.ctrlKey &&
-    !event.metaKey &&
-    event.getModifierState?.('AltGraph') !== true
-  );
+export function flipsHeld(
+  event: {
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    getModifierState?: (key: 'AltGraph') => boolean;
+  },
+  isMac: boolean,
+): Flips {
+  if (event.getModifierState?.('AltGraph') === true) return { outline: false, mode: false };
+  return { outline: event.altKey, mode: isMac ? event.metaKey : event.ctrlKey };
+}
+
+/** The outline and mode a drag would use: the chosen ones, with any held flips applied. */
+export function withFlips(
+  chosen: { outline: Outline; mode: RetouchMode },
+  flips: Flips,
+): { outline: Outline; mode: RetouchMode } {
+  return {
+    outline: flips.outline ? (chosen.outline === 'rect' ? 'lasso' : 'rect') : chosen.outline,
+    mode: flips.mode ? (chosen.mode === 'add' ? 'subtract' : 'add') : chosen.mode,
+  };
 }
 
 export const areaBounds = (area: RetouchArea, facePadding: number): Rect =>

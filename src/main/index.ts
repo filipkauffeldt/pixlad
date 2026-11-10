@@ -432,16 +432,20 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => app.quit());
-// A quit can land between a settings change and its write. Hold the quit until the write queue
-// is empty, so the last change is saved and the file is never left half written.
-let quitting = false;
-app.on('before-quit', (event) => {
-  if (quitting) return;
-  event.preventDefault();
-  quitting = true;
-  void settingsWrites.finally(() => app.quit());
-});
-app.on('will-quit', () => {
+// A quit can land between a settings change and its write, and closing the window saves its
+// size on the way out. Hold the quit until the write queue is empty, so the last change is saved.
+// This waits in will-quit, not before-quit: only by then are the windows closed and their writes
+// queued.
+let settingsSaved = false;
+app.on('will-quit', (event) => {
+  if (!settingsSaved) {
+    event.preventDefault();
+    void settingsWrites.finally(() => {
+      settingsSaved = true;
+      app.quit();
+    });
+    return;
+  }
   void photoWorker?.terminate();
   void exportWorker?.terminate();
   void thumbWorker?.terminate();

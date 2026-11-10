@@ -29,10 +29,12 @@ describe('the window', () => {
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]!.setBounds({ x: 80, y: 70, width: 1000, height: 650 }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    const written = JSON.parse(await readFile(join(userData, 'settings.json'), 'utf8')) as {
-      window: { width: number; height: number; maximized: boolean };
-    };
-    expect(written.window).toMatchObject({ width: 1000, height: 650, maximized: false });
+    // The size is saved a moment after the last resize.
+    const written = async (): Promise<unknown> =>
+      (JSON.parse(await readFile(join(userData, 'settings.json'), 'utf8')) as { window: unknown })
+        .window;
+    await expect
+      .poll(written, { timeout: 10_000 })
+      .toMatchObject({ width: 1000, height: 650, maximized: false });
   });
 });

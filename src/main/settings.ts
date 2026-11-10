@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import { DEFAULT_SETTINGS, isExportTarget, type Settings } from '../shared/ipc';
 import { isWindowState } from './window-state';
 
@@ -49,6 +49,9 @@ export async function readSettings(file: string): Promise<Settings> {
   };
 }
 
+/** Written next to the file and renamed over it, so a crash or kill mid-write keeps the old file. */
 export async function writeSettings(file: string, settings: Settings): Promise<void> {
-  await writeFile(file, JSON.stringify(settings));
+  const partial = `${file}.partial`;
+  await writeFile(partial, JSON.stringify(settings));
+  await rename(partial, file);
 }

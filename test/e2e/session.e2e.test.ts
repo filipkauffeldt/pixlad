@@ -151,7 +151,7 @@ describe('opening', () => {
 });
 
 describe('zoom and pan', () => {
-  it('toggles Fit and 100% on Z, snaps 100% to the device pixel grid, zooms with Ctrl, and pans', async () => {
+  it('toggles Fit and 100% on Z, returns to Fit on Ctrl+0, snaps 100% to the device pixel grid, zooms with Ctrl, and pans', async () => {
     const dir = await tmp();
     const file = await photoFile(dir, 'z.jpg', 2400, 1600);
     running = await launch();
@@ -187,10 +187,17 @@ describe('zoom and pan', () => {
     expect(Math.round((await box(page)).x - x1)).toBe(-60);
     expect(await page.locator('[data-testid="area"]').count()).toBe(0); // Space-drag draws nothing
 
-    // Ctrl + plus zooms in, Ctrl + minus back out, Z returns to Fit
+    // Ctrl + plus zooms in, Ctrl + 0 returns to Fit; Z brings back 100%, Ctrl + minus zooms out
     await page.keyboard.press('Control+=');
     expect((await box(page)).w).toBeGreaterThan(2400);
+    await page.keyboard.press('Control+0');
+    expect(await stage.getAttribute('data-fit')).toBe('true');
+    expect((await box(page)).w).toBeLessThan(2400);
+    await page.keyboard.press('z');
+    expect((await box(page)).w).toBe(2400);
     await page.keyboard.press('Control+-');
+    expect((await box(page)).w).toBeLessThan(2400);
+    expect(await stage.getAttribute('data-fit')).toBe('false');
     await page.keyboard.press('z');
     expect(await stage.getAttribute('data-fit')).toBe('true');
     // Ctrl + wheel

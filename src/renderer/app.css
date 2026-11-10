@@ -92,6 +92,19 @@
   gap: 6px;
   padding: 0 8px 0 10px;
 }
+/* Every label sits in one grid cell and only the current one shows, so the button keeps the
+   width of the longest and the toolbar does not shift when the target changes. */
+.dropdownLabel {
+  display: grid;
+}
+.dropdownLabel > span {
+  grid-area: 1 / 1;
+  text-align: left;
+  visibility: hidden;
+}
+.dropdownLabel > span[data-current] {
+  visibility: visible;
+}
 .dropdown svg {
   fill: none;
   stroke: var(--muted);

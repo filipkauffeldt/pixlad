@@ -7,6 +7,7 @@ import { ReleaseNotes } from './ReleaseNotes';
 import { isMac } from './flips';
 import { RemoveExported } from './RemoveExported';
 import { RemovePhoto } from './RemovePhoto';
+import { Shortcuts } from './Shortcuts';
 import { Stage } from './Stage';
 import { Strip } from './Strip';
 import { Toolbar } from './Toolbar';
@@ -93,6 +94,9 @@ export function App() {
       } else if (!primary && event.key === 'ArrowRight') {
         event.preventDefault();
         actions.step(1);
+      } else if (!primary && event.key === '?') {
+        event.preventDefault();
+        actions.setShortcutsOpen(true);
       } else if (!primary && event.key === 'Delete') {
         event.preventDefault();
         if (app.currentId) actions.remove(app.currentId);
@@ -231,6 +235,7 @@ export function App() {
       )}
       {app.removePhotoQuestion && <RemovePhoto question={app.removePhotoQuestion} />}
       {app.aboutOpen && <About />}
+      {app.shortcutsOpen && <Shortcuts />}
       {app.overwriteConfirm && <OverwriteConfirm anchor={app.overwriteConfirm.anchor} />}
       {app.notesOpen && app.update.phase !== 'idle' && <ReleaseNotes />}
       {app.removeQuestion && <RemoveExported question={app.removeQuestion} />}

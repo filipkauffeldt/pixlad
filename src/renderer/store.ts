@@ -93,6 +93,7 @@ export interface AppState {
   overwriteAsk: boolean;
   checkForUpdates: boolean;
   aboutOpen: boolean;
+  shortcutsOpen: boolean;
   update: UpdateState;
   /** The user chose Later, so the prompt stays away until something new happens. */
   updatePromptHidden: boolean;
@@ -127,6 +128,7 @@ const initial: AppState = {
   overwriteAsk: true,
   checkForUpdates: true,
   aboutOpen: false,
+  shortcutsOpen: false,
   update: { phase: 'idle' },
   updatePromptHidden: false,
   updateNotes: undefined,
@@ -274,6 +276,7 @@ const removeNow = (id: string): void => {
 export const actions = {
   setDragging: (dragging: boolean): void => set({ dragging }),
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
+  setShortcutsOpen: (shortcutsOpen: boolean): void => set({ shortcutsOpen }),
   setTarget: (target: Target): void => set({ target }),
   setOutline: (outline: Outline): void => set({ outline }),
   /** The answer to the remove question: true takes the photos out of the session. */

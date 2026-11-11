@@ -231,3 +231,71 @@ describe('holding B to peek at the original', () => {
     await page.keyboard.up('Control');
   });
 });
+
+describe('the shortcuts sheet', () => {
+  async function twoPhotos(): Promise<Page> {
+    running = await launch();
+    const { page } = running;
+    const dir = await tmp();
+    const files = [join(dir, 'a.jpg'), join(dir, 'b.jpg')];
+    for (const file of files) await writeFile(file, await encodeJpeg(syntheticPhoto(800, 600)));
+    await dropFiles(page, files);
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-testid="thumb"]').length === 2,
+    );
+    return page;
+  }
+  const sheet = (page: Page) => page.locator('[data-testid="shortcuts"]');
+  const current = (page: Page): Promise<string | null> =>
+    page.locator('[data-testid="thumb"][aria-current="true"]').getAttribute('data-name');
+
+  it('opens with ?, lists the shortcuts, and closes on Escape', async () => {
+    const page = await twoPhotos();
+    await page.keyboard.press('?');
+    await sheet(page).waitFor();
+    const text = await sheet(page).innerText();
+    for (const part of ['Undo', 'Export the photo', 'Toggle Fit and 100%', 'Hold and drag to pan'])
+      expect(text).toContain(part);
+    // Only this platform's modifier
+    expect(text).toContain('Ctrl');
+    expect(text).not.toContain('⌘');
+    await page.keyboard.press('Escape');
+    await sheet(page).waitFor({ state: 'detached' });
+  });
+
+  it('opens from Settings and closes on a click outside, not inside', async () => {
+    const page = await twoPhotos();
+    await page.click('[data-testid="settings"]');
+    await page.click('[data-testid="open-shortcuts"]');
+    await sheet(page).waitFor();
+    expect(await page.locator('[data-testid="settings-panel"]').count()).toBe(0);
+    await sheet(page).click({ position: { x: 20, y: 60 } });
+    expect(await sheet(page).count()).toBe(1);
+    await page.mouse.click(5, 5);
+    await sheet(page).waitFor({ state: 'detached' });
+  });
+
+  it('does not open while typing in a field', async () => {
+    const page = await twoPhotos();
+    await page.locator('input[aria-label="Block size in px"]').focus();
+    await page.keyboard.press('?');
+    expect(await sheet(page).count()).toBe(0);
+  });
+
+  it('keeps the app shortcuts quiet while it is open', async () => {
+    const page = await twoPhotos();
+    expect(await current(page)).toBe('a.jpg');
+    await page.keyboard.press('?');
+    await sheet(page).waitFor();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Delete');
+    await page.keyboard.press('z');
+    await page.keyboard.press('Control+e');
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(2);
+    await page.keyboard.press('Escape');
+    await sheet(page).waitFor({ state: 'detached' });
+    expect(await current(page)).toBe('a.jpg');
+    await page.keyboard.press('ArrowRight');
+    expect(await current(page)).toBe('b.jpg');
+  });
+});

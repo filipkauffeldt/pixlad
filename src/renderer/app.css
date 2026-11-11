@@ -436,6 +436,39 @@ input[type='range']::-webkit-slider-thumb {
   border-top: 1px solid var(--line);
 }
 
+/* Keyboard shortcuts: the About modal's frame, with a list of keys and what they do. */
+.modal.shortcuts {
+  width: min(480px, 100%);
+}
+.shortcutList {
+  margin: 0;
+}
+.shortcutRow {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  align-items: baseline;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+.shortcutRow dt,
+.shortcutRow dd {
+  margin: 0;
+}
+.shortcutRow dd {
+  color: var(--muted);
+}
+.shortcutRow kbd {
+  padding: 1px 6px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  font-size: var(--fs-mono);
+}
+.shortcutRow .plus {
+  margin: 0 4px;
+  color: var(--dim);
+}
+
 /* Replace original confirmation */
 .modal.confirm {
   width: min(310px, 100%);

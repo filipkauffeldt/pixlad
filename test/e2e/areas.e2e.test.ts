@@ -33,11 +33,11 @@ async function drawRect(page: Page, from: [number, number], to: [number, number]
 }
 
 /** One photo open with two rectangles: A at x 0.1–0.3 and B at x 0.5–0.7, B drawn last. */
-async function openWithTwoAreas(): Promise<Page> {
+async function openWithTwoAreas(firstRun = false): Promise<Page> {
   const dir = await mkdtemp(join(tmpdir(), 'pixlad-e2e-'));
   const file = join(dir, 'p.jpg');
   await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
-  running = await launch();
+  running = await launch({ firstRun });
   const { page } = running;
   await dropFiles(page, [file]);
   await page.waitForFunction(() => {
@@ -147,5 +147,46 @@ describe('removing an area', () => {
     await page.locator('[data-testid="remove-photo-remove"]').click();
     await page.waitForSelector('[data-testid="empty"]');
     await expect(page.locator('[data-testid="photo"]').count()).resolves.toBe(0);
+  });
+
+  it('leaves areas alone while a dialog is open over a resting pointer', async () => {
+    // A new install: Ctrl+E opens the "how to save" choice, with the pointer still on an area.
+    const page = await openWithTwoAreas(true);
+    await page.mouse.move(...(await at(page, 0.2, 0.45)));
+    expect(await hoveredCount(page)).toBe(1);
+
+    await page.keyboard.press('Control+e');
+    await page.waitForSelector('[data-testid="export-choice"]');
+    expect(await hoveredCount(page)).toBe(0);
+    expect(await cursor(page)).toBe('crosshair');
+    await page.keyboard.press('Delete');
+    await page.keyboard.press('Backspace');
+    expect(await areaCount(page)).toBe(2);
+
+    // Closed again, the pointer is still on the area and it can be removed.
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-testid="export-choice"]', { state: 'detached' });
+    expect(await hoveredCount(page)).toBe(1);
+    await page.keyboard.press('Delete');
+    expect(await areaCount(page)).toBe(1);
+  });
+
+  it('leaves areas alone under the shortcuts sheet', async () => {
+    const page = await openWithTwoAreas();
+    await page.mouse.move(...(await at(page, 0.2, 0.45)));
+    expect(await hoveredCount(page)).toBe(1);
+
+    await page.keyboard.press('?');
+    await page.waitForSelector('[data-testid="shortcuts"]');
+    expect(await hoveredCount(page)).toBe(0);
+    await page.keyboard.press('Delete');
+    await page.keyboard.press('Backspace');
+    expect(await areaCount(page)).toBe(2);
+
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-testid="shortcuts"]', { state: 'detached' });
+    // The sheet covered the stage, so the pointer has to move for the hover to come back.
+    await page.mouse.move(...(await at(page, 0.21, 0.45)));
+    expect(await hoveredCount(page)).toBe(1);
   });
 });

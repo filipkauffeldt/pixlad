@@ -116,9 +116,21 @@ export function Stage({
   const pw = iw * layout.scale;
   const ph = ih * layout.scale;
 
-  // The topmost area under the pointer: what a click would switch. None while drawing or panning.
+  // A dialog or popover is open: the photo behind it takes no hover, right-click or Delete. The
+  // pointer can rest on an area while one opens, and no pointerleave follows until it moves.
+  const dialogOpen =
+    app.aboutOpen ||
+    app.notesOpen ||
+    app.removeQuestion !== undefined ||
+    app.overwriteConfirm !== undefined ||
+    app.exportChoice !== undefined ||
+    app.shortcutsOpen ||
+    app.removePhotoQuestion !== undefined;
+
+  // The topmost area under the pointer: what a click would switch. None while drawing, panning,
+  // peeking at the bare photo, or with a dialog open.
   let hovered = -1;
-  if (hoverAt && !dragging && !panHeld && !panning) {
+  if (hoverAt && !dragging && !panHeld && !panning && !peek && !dialogOpen) {
     const unit = { x: (hoverAt.x - layout.offset.x) / pw, y: (hoverAt.y - layout.offset.y) / ph };
     if (isOnPicture(unit)) hovered = areaIndexAt(photo.areas, unit, photo.facePadding);
   }
@@ -347,7 +359,7 @@ export function Stage({
   // Right-click removes the topmost area under the pointer.
   const onContextMenu = (event: React.MouseEvent): void => {
     event.preventDefault();
-    if (panHeld || drag.current) return;
+    if (panHeld || drag.current || peek || dialogOpen) return;
     const unit = toUnit(event);
     if (!isOnPicture(unit)) return;
     const index = areaIndexAt(photo.areas, unit, photo.facePadding);

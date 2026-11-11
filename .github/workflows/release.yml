@@ -19,9 +19,10 @@ on:
         type: boolean
         default: false
 
-# One release at a time. A second run waits for the first.
+# One release at a time. A second run waits for the first. A dry run gets its own group so it
+# neither holds up a release nor replaces a release that is already waiting.
 concurrency:
-  group: release
+  group: ${{ inputs.dry_run && 'release-dry-run' || 'release' }}
   cancel-in-progress: false
 
 permissions:
@@ -37,10 +38,12 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
+      files: ${{ steps.version.outputs.files }}
       tag-pushed: ${{ steps.tag.outputs.pushed }}
     env:
       GH_TOKEN: ${{ github.token }}
       BUMP: ${{ inputs.bump }}
+      DRY_RUN: ${{ inputs.dry_run }}
     steps:
       - name: Refuse any ref but main
         run: |
@@ -71,14 +74,24 @@ jobs:
             echo "::error::The tag $tag already exists."
             exit 1
           fi
+          files="pixlad-$version-mac-arm64.dmg pixlad-$version-mac-arm64.dmg.blockmap latest-mac.yml"
+          files="$files pixlad-$version-win-x64.exe pixlad-$version-win-x64.exe.blockmap latest.yml"
+          files="$files pixlad-$version-linux-x86_64.rpm"
+          files="$files pixlad-$version-linux-x86_64.AppImage latest-linux.yml"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Releasing $version as $tag from $GITHUB_SHA"
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Would release $version as $tag from $GITHUB_SHA."
+          else
+            echo "Releasing $version as $tag from $GITHUB_SHA."
+          fi
       - name: Show what the release would include
         if: ${{ inputs.dry_run }}
         env:
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
+          FILES: ${{ steps.version.outputs.files }}
         run: |
           # The same notes GitHub would put in the draft release. The tag does not have to exist
           # for this; target_commitish picks the commits and previous_tag_name is worked out from
@@ -95,10 +108,10 @@ jobs:
             echo
             echo "### Files"
             echo
-            echo "- \`pixlad-$VERSION-mac-arm64.dmg\` and its blockmap, plus \`latest-mac.yml\`"
-            echo "- \`pixlad-$VERSION-win-x64.exe\` and its blockmap, plus \`latest.yml\`"
-            echo "- \`pixlad-$VERSION-linux-x86_64.rpm\` and \`pixlad-$VERSION-linux-x86_64.AppImage\`,"
-            echo "  plus \`latest-linux.yml\`"
+            # File names have no spaces, so the space-separated list splits into words.
+            for file in $FILES; do
+              echo "- \`$file\`"
+            done
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Tag the main commit
         id: tag
@@ -149,16 +162,13 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ needs.prepare.outputs.tag }}
-      VERSION: ${{ needs.prepare.outputs.version }}
+      FILES: ${{ needs.prepare.outputs.files }}
     steps:
       - name: Check that the draft has every file
         run: |
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > assets.txt
           cat assets.txt
-          for file in \
-            "pixlad-$VERSION-mac-arm64.dmg" "pixlad-$VERSION-mac-arm64.dmg.blockmap" latest-mac.yml \
-            "pixlad-$VERSION-win-x64.exe" "pixlad-$VERSION-win-x64.exe.blockmap" latest.yml \
-            "pixlad-$VERSION-linux-x86_64.rpm" "pixlad-$VERSION-linux-x86_64.AppImage" latest-linux.yml; do
+          for file in $FILES; do
             grep -qxF "$file" assets.txt || { echo "::error::The draft has no $file."; exit 1; }
           done
       - name: Publish the release and mark it Latest

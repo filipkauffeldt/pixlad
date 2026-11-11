@@ -197,6 +197,18 @@ export function Stage({
   useEffect(() => {
     const editing = (target: EventTarget | null): boolean =>
       target instanceof HTMLInputElement && target.type !== 'range';
+    // Fit when zoomed, 100% when fit: around the pointer over the picture, else the centre.
+    const toggleZoom = (): void => {
+      const { context: ctx, shown: now } = latest.current;
+      if (now.scale !== null) {
+        setView(FIT_VIEW);
+        return;
+      }
+      const at = pointer.current;
+      const centre = { x: ctx.viewport.width / 2, y: ctx.viewport.height / 2 };
+      const anchor = at && overPicture(latest.current.layout, image, at) ? at : centre;
+      setView(zoomTo(now, ctx, anchor, levelScale(1, dpr)));
+    };
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.altKey || event.getModifierState('AltGraph')) return;
       const primary = isMac ? event.metaKey : event.ctrlKey;
@@ -206,12 +218,7 @@ export function Stage({
       const centre = { x: ctx.viewport.width / 2, y: ctx.viewport.height / 2 };
       if (!primary && (event.key === 'z' || event.key === 'Z') && !editing(event.target)) {
         event.preventDefault();
-        if (now.scale !== null) setView(FIT_VIEW);
-        else {
-          const at = pointer.current;
-          const anchor = at && overPicture(latest.current.layout, image, at) ? at : centre;
-          setView(zoomTo(now, ctx, anchor, levelScale(1, dpr)));
-        }
+        toggleZoom();
       } else if (primary && (event.key === '+' || event.key === '=')) {
         event.preventDefault();
         setView(zoomBy(now, ctx, centre, ZOOM_STEP));
@@ -244,14 +251,13 @@ export function Stage({
     };
     window.addEventListener('keydown', onDeleteKey, true);
     // The zoom button in the footer does what the Z key does.
-    const onToggleZoom = (): void => onKeyDown(new KeyboardEvent('keydown', { key: 'z' }));
-    document.addEventListener('pixlad:toggle-zoom', onToggleZoom);
+    document.addEventListener('pixlad:toggle-zoom', toggleZoom);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
     return () => {
       window.removeEventListener('keydown', onDeleteKey, true);
-      document.removeEventListener('pixlad:toggle-zoom', onToggleZoom);
+      document.removeEventListener('pixlad:toggle-zoom', toggleZoom);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);

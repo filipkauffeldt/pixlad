@@ -627,11 +627,16 @@ input[type='range']::-webkit-slider-thumb {
   position: relative;
   height: 100%;
 }
-.thumb {
+.thumbSlot {
   position: absolute;
   top: 8px;
   width: 96px;
   height: 76px;
+}
+.thumb {
+  position: relative;
+  width: 100%;
+  height: 100%;
   background: var(--bg);
   border: 0;
   padding: 0;
@@ -660,7 +665,7 @@ input[type='range']::-webkit-slider-thumb {
 .thumb .badges svg {
   display: block;
 }
-.thumb .remove {
+.thumbSlot .remove {
   position: absolute;
   top: 2px;
   right: 2px;
@@ -668,13 +673,20 @@ input[type='range']::-webkit-slider-thumb {
   height: 16px;
   line-height: 14px;
   padding: 0;
-  display: none;
+  opacity: 0;
+  pointer-events: none;
   background: var(--scrim);
   border: 0;
   color: var(--text);
 }
-.thumb:hover .remove {
-  display: block;
+.thumbSlot:hover .remove,
+.thumbSlot:focus-within .remove {
+  opacity: 1;
+  pointer-events: auto;
+}
+.thumbSlot .remove:focus-visible {
+  outline: 1px solid var(--text);
+  outline-offset: 1px;
 }
 
 /* Footer */

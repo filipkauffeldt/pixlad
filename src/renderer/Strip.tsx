@@ -100,6 +100,27 @@ export function Strip() {
     };
   }, []);
 
+  // A plain vertical wheel over the strip scrolls it sideways: a vertical wheel has nowhere
+  // else to go here. Horizontal wheel and trackpad movement are left to the browser.
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element) return;
+    const onWheel = (event: WheelEvent): void => {
+      if (event.ctrlKey || event.metaKey) return;
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const unit =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? 16
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? element.clientWidth
+            : 1;
+      element.scrollLeft += (event.deltaY + event.deltaX) * unit;
+      event.preventDefault();
+    };
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, []);
+
   // Keep the current photo in view when stepping with the arrow keys.
   useEffect(() => {
     const element = scroller.current;
@@ -120,39 +141,37 @@ export function Strip() {
         {app.photos.slice(first, last).map((photo, i) => {
           const index = first + i;
           return (
-            <button
-              key={photo.info.id}
-              type="button"
-              className="thumb"
-              style={{ left: 8 + index * ITEM }}
-              aria-current={photo.info.id === app.currentId}
-              aria-label={photo.info.name}
-              title={photo.info.name}
-              data-testid="thumb"
-              data-name={photo.info.name}
-              onClick={() => actions.select(photo.info.id)}
-            >
-              <img
-                src={`pixlad://thumb/${photo.info.id}?v=${photo.fileVersion}`}
-                alt=""
-                loading="lazy"
-                draggable={false}
-              />
-              <Badges photo={photo} />
-              <span
+            <div key={photo.info.id} className="thumbSlot" style={{ left: 8 + index * ITEM }}>
+              <button
+                type="button"
+                className="thumb"
+                aria-current={photo.info.id === app.currentId}
+                aria-label={photo.info.name}
+                title={photo.info.name}
+                data-testid="thumb"
+                data-name={photo.info.name}
+                onClick={() => actions.select(photo.info.id)}
+              >
+                <img
+                  src={`pixlad://thumb/${photo.info.id}?v=${photo.fileVersion}`}
+                  alt=""
+                  loading="lazy"
+                  draggable={false}
+                />
+                <Badges photo={photo} />
+              </button>
+              <button
+                type="button"
                 className="remove"
-                role="button"
                 aria-label={`Remove ${photo.info.name} from the session`}
                 title="Remove from the session. The file stays on disk."
                 data-testid="remove"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  actions.remove(photo.info.id);
-                }}
+                data-name={photo.info.name}
+                onClick={() => actions.remove(photo.info.id)}
               >
                 ×
-              </span>
-            </button>
+              </button>
+            </div>
           );
         })}
       </div>

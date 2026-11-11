@@ -134,6 +134,88 @@ describe('opening', () => {
     );
   });
 
+  it('says when dropped photos were already in the session', async () => {
+    const dir = await tmp();
+    const a = await photoFile(dir, 'a.jpg');
+    const b = await photoFile(dir, 'b.jpg');
+    running = await launch();
+    const { page } = running;
+    await dropFiles(page, [a, b]);
+    await page.waitForFunction(() =>
+      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
+    );
+    await dropFiles(page, [a, b]);
+    await page.waitForFunction(() =>
+      Array.from(document.querySelectorAll('[data-testid="notice"]')).some((notice) =>
+        notice.textContent?.includes('2 photos were already in the session.'),
+      ),
+    );
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(2);
+  });
+
+  it('asks before a photo with unexported areas leaves the session', async () => {
+    const dir = await tmp();
+    const file = await photoFile(dir, 'work.jpg');
+    running = await launch();
+    const { page } = running;
+    await dropFiles(page, [file]);
+    await photoReady(page);
+    await pickTool(page, 'rect');
+    await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+    await page.waitForSelector('[data-testid="mosaic-patch"]');
+
+    await page.keyboard.press('Delete');
+    await page.waitForSelector('[data-testid="remove-photo"]');
+    const question = await page.locator('[data-testid="remove-photo"]').innerText();
+    expect(question).toContain('Remove work.jpg from the session?');
+    expect(question).toContain(
+      'Its areas have not been exported and will be lost. The file stays on disk.',
+    );
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
+
+    await page.keyboard.press('Enter'); // Keep is focused, so Enter keeps the photo
+    expect(await page.locator('[data-testid="remove-photo"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
+
+    await page.keyboard.press('Delete');
+    await page.waitForSelector('[data-testid="remove-photo"]');
+    await page.keyboard.press('Escape'); // Escape keeps the photo
+    expect(await page.locator('[data-testid="remove-photo"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
+
+    await page.keyboard.press('Delete');
+    await page.locator('[data-testid="remove-photo-remove"]').click();
+    await page.waitForSelector('[data-testid="empty"]');
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(0);
+    expect(await readdir(dir)).toEqual(['work.jpg']);
+  });
+
+  it('shows the thumbnail remove button on keyboard focus and removes with it', async () => {
+    const dir = await tmp();
+    await photoFile(dir, 'a.jpg');
+    await photoFile(dir, 'b.jpg');
+    running = await launch();
+    const { page } = running;
+    await dropFiles(page, [join(dir, 'a.jpg'), join(dir, 'b.jpg')]);
+    await page.waitForFunction(() =>
+      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
+    );
+    const thumb = page.locator('[data-testid="thumb"]').first();
+    const remove = page.locator('[data-testid="remove"]').first();
+    const opacity = (): Promise<string> => remove.evaluate((el) => getComputedStyle(el).opacity);
+    expect(await opacity()).toBe('0');
+    await thumb.hover();
+    expect(await opacity()).toBe('1');
+    await thumb.focus();
+    expect(await opacity()).toBe('1');
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe(
+      'remove',
+    );
+    await page.keyboard.press('Enter');
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
+  });
+
   it('removes a photo from the session only: the file stays', async () => {
     const dir = await tmp();
     const a = await photoFile(dir, 'a.jpg');
@@ -143,11 +225,68 @@ describe('opening', () => {
     await dropFiles(page, [a, join(dir, 'b.jpg')]);
     await photoReady(page);
     await page.locator('[data-testid="thumb"][data-name="a.jpg"]').hover();
-    await page.locator('[data-testid="thumb"][data-name="a.jpg"] [data-testid="remove"]').click();
+    await page.locator('[data-testid="remove"][data-name="a.jpg"]').click();
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
     await page.keyboard.press('Delete');
     await page.waitForSelector('[data-testid="empty"]');
     expect((await readdir(dir)).sort()).toEqual(['a.jpg', 'b.jpg']);
+  });
+});
+
+describe('face padding', () => {
+  it('starts the next photo with the padding set on the last one', async () => {
+    const dir = await tmp();
+    const a = await photoFile(dir, 'a.jpg');
+    const b = await photoFile(dir, 'b.jpg');
+    const c = await photoFile(dir, 'c.jpg');
+    running = await launch();
+    const { page } = running;
+    await dropFiles(page, [a, b]);
+    await page.waitForFunction(() =>
+      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
+    );
+    const padding = page.locator('[aria-label="Face padding in percent"]');
+    expect(await padding.inputValue()).toBe('15');
+    await padding.fill('30');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('ArrowRight');
+    expect(await padding.inputValue()).toBe('30');
+
+    await dropFiles(page, [c]);
+    await page.waitForFunction(() =>
+      document.querySelector('[data-testid="footer"]')?.textContent?.includes('2 / 3'),
+    );
+    await page.keyboard.press('ArrowRight');
+    expect(await padding.inputValue()).toBe('30');
+  });
+});
+
+describe('the strip', () => {
+  it('scrolls sideways with a plain vertical wheel, and horizontal still works', async () => {
+    const dir = await tmp();
+    const files: string[] = [];
+    for (let i = 0; i < 20; i++) files.push(await photoFile(dir, `w${i}.jpg`, 400, 300));
+    running = await launch();
+    const { page } = running;
+    await dropFiles(page, files);
+    await page.waitForFunction(() =>
+      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 20'),
+    );
+    const strip = page.locator('[data-testid="strip"]');
+    const scrollLeft = (): Promise<number> => strip.evaluate((el) => el.scrollLeft);
+    expect(await scrollLeft()).toBe(0);
+    const box = (await strip.boundingBox())!;
+    await page.mouse.move(box.x + 700, box.y + box.height / 2);
+    await page.mouse.wheel(0, 400);
+    await page.waitForFunction(
+      () => (document.querySelector('[data-testid="strip"]') as HTMLElement).scrollLeft > 0,
+    );
+    const afterVertical = await scrollLeft();
+    await page.mouse.wheel(200, 0);
+    await page.waitForFunction(
+      (from) => (document.querySelector('[data-testid="strip"]') as HTMLElement).scrollLeft > from,
+      afterVertical,
+    );
   });
 });
 

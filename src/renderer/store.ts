@@ -76,6 +76,8 @@ export interface AppState {
   exportChosen: boolean;
   /** The first-export choice, open under the Export or the Export all button. */
   exportChoice: { anchor: 'export' | 'all' } | undefined;
+  /** A photo whose unexported areas are about to be lost, waiting for an answer. */
+  removePhotoQuestion: { id: string; name: string } | undefined;
   /** The Replace original confirmation, open for one photo or for every photo with a mosaic. */
   overwriteConfirm: { anchor: 'export' | 'all' } | undefined;
   /** False once the user ticked "Don't ask again this session". Never saved, so a restart asks. */
@@ -109,6 +111,7 @@ const initial: AppState = {
   // True until the settings load, so an export started before that never asks twice.
   exportChosen: true,
   exportChoice: undefined,
+  removePhotoQuestion: undefined,
   overwriteConfirm: undefined,
   overwriteAsk: true,
   checkForUpdates: true,
@@ -183,12 +186,15 @@ const notify = (lines: string[], kind: Notice['kind'] = 'info'): void => {
 const toast = (lines: string[]): void =>
   set((s) => ({ toasts: [...s.toasts, { id: ++noticeId, lines, kind: 'error' }] }));
 
+/** The padding the user chose last. New photos start with it, for this session only. */
+let lastFacePadding = 0.15;
+
 const newPhoto = (info: PhotoInfo): PhotoState => ({
   info,
   areas: [],
   undo: [],
   blockPx: defaultBlockPx(Math.max(info.width, info.height)),
-  facePadding: 0.15,
+  facePadding: lastFacePadding,
   rev: 0,
   exportedRev: 0,
   status: 'idle',
@@ -236,6 +242,21 @@ const offerRemoval = (ids: readonly string[]): Promise<void> => {
 const errorText = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
+/** Take a photo out of the session, keeping the current photo near where it was. */
+const removeNow = (id: string): void => {
+  const index = state.photos.findIndex((p) => p.info.id === id);
+  if (index < 0) return;
+  void window.api.removePhoto(id);
+  set((s) => {
+    const photos = s.photos.filter((p) => p.info.id !== id);
+    const currentId =
+      s.currentId === id
+        ? (photos[Math.min(index, photos.length - 1)]?.info.id ?? undefined)
+        : s.currentId;
+    return { photos, currentId };
+  });
+};
+
 export const actions = {
   setDragging: (dragging: boolean): void => set({ dragging }),
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
@@ -279,7 +300,13 @@ export const actions = {
     } finally {
       set({ adding: false });
     }
-    void duplicates;
+    if (duplicates > 0) {
+      notify([
+        duplicates === 1
+          ? '1 photo was already in the session.'
+          : `${duplicates} photos were already in the session.`,
+      ]);
+    }
     if (refused.length > 0) {
       const shown = refused.slice(0, 8);
       if (refused.length > 8) shown.push(`…and ${refused.length - 8} more.`);
@@ -297,19 +324,22 @@ export const actions = {
     if (next) set({ currentId: next.info.id });
   },
 
-  /** Remove from the session only; the file is never touched. */
+  /** Remove from the session only; the file is never touched. Asks first if work would be lost. */
   remove(id: string): void {
-    const index = state.photos.findIndex((p) => p.info.id === id);
-    if (index < 0) return;
-    void window.api.removePhoto(id);
-    set((s) => {
-      const photos = s.photos.filter((p) => p.info.id !== id);
-      const currentId =
-        s.currentId === id
-          ? (photos[Math.min(index, photos.length - 1)]?.info.id ?? undefined)
-          : s.currentId;
-      return { photos, currentId };
-    });
+    const photo = state.photos.find((p) => p.info.id === id);
+    if (!photo) return;
+    if (isUnexported(photo)) {
+      set({ removePhotoQuestion: { id, name: photo.info.name } });
+      return;
+    }
+    removeNow(id);
+  },
+
+  /** The answer to "Remove <name> from the session?": true removes it, false keeps it. */
+  answerRemovePhoto(remove: boolean): void {
+    const question = state.removePhotoQuestion;
+    set({ removePhotoQuestion: undefined });
+    if (remove && question) removeNow(question.id);
   },
 
   addShape(shape: Shape, mode: RetouchMode): void {
@@ -369,11 +399,17 @@ export const actions = {
   },
 
   setFacePadding(value: number): void {
+    lastFacePadding = value;
     const id = state.currentId;
-    if (id)
-      updatePhoto(id, (p) =>
-        p.facePadding === value ? p : { ...p, facePadding: value, rev: p.rev + 1 },
-      );
+    set((s) => ({
+      photos: s.photos.map((p) => {
+        if (p.facePadding === value) return p;
+        if (p.info.id === id) return { ...p, facePadding: value, rev: p.rev + 1 };
+        // A photo with no areas yet has nothing to keep its old value for.
+        if (p.areas.length === 0) return { ...p, facePadding: value };
+        return p;
+      }),
+    }));
   },
 
   /** Export one photo from what is on screen right now. */

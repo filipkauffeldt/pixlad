@@ -1,6 +1,7 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { copyFile, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
@@ -30,8 +31,8 @@ async function answerOpenDialog(app: Launched['app'], paths: string[]): Promise<
 }
 
 /** Launches with one photo open and the rectangle tool picked. */
-async function openPhoto(): Promise<Page> {
-  const file = await writePhoto('p.jpg');
+async function openPhoto(file?: string): Promise<Page> {
+  file ??= await writePhoto('p.jpg');
   running = await launch();
   const { page } = running;
   await dropFiles(page, [file]);
@@ -121,5 +122,86 @@ describe('adding photos to a running session', () => {
     await page.focus('[aria-label="Block size in px"]');
     await page.keyboard.press('ControlOrMeta+o');
     await page.waitForSelector('[data-testid="photo"]');
+  });
+});
+
+describe('finding all faces', () => {
+  const crew = resolve(import.meta.dirname, '../../fixtures/apollo11_crew.jpg');
+  const faceCount = async (page: Page): Promise<number> => {
+    const text = await page.locator('[data-testid="face-count"]').textContent();
+    return Number(/of (\d+)/.exec(text ?? '')?.[1] ?? 0);
+  };
+
+  it('is off with no photo open', async () => {
+    running = await launch();
+    await running.page.waitForSelector('[data-testid="empty"]');
+    expect(await button(running.page, 'Find all faces').isDisabled()).toBe(true);
+    await running.page.keyboard.press('f');
+    expect(await running.page.locator('[data-testid="detect-label"]').count()).toBe(0);
+  });
+
+  it('finds the faces from the button and from F, and F types in a field', async (ctx) => {
+    if (!existsSync(crew)) return ctx.skip(); // fetched by `pnpm fetch-fixtures`
+    const file = join(await mkdtemp(join(tmpdir(), 'pixlad-e2e-')), 'crew.jpg');
+    await copyFile(crew, file);
+    const page = await openPhoto(file);
+    expect(await button(page, 'Find all faces').isEnabled()).toBe(true);
+
+    await button(page, 'Find all faces').click();
+    await page.waitForSelector('[data-testid="face-count"]', { timeout: 30000 });
+    const total = await faceCount(page);
+    expect(total).toBeGreaterThanOrEqual(3);
+    expect(await button(page, 'Find all faces').isEnabled()).toBe(true);
+
+    // The same faces found again are not added twice.
+    await button(page, 'Find all faces').click();
+    await page.locator('[data-testid="detect-label"]').waitFor({ state: 'detached' });
+    expect(await faceCount(page)).toBe(total);
+
+    // Take them away with Subtract over the whole photo, then F brings them back.
+    await pickTool(page, 'faces');
+    await page.click('[data-mode="subtract"]');
+    await drag(page, [-0.01, -0.01], [1.01, 1.01]);
+    await page.waitForFunction(() => !document.querySelector('[data-testid="face-count"]'));
+    await page.click('[data-mode="add"]');
+    await page.locator('body').click({ position: { x: 5, y: 300 } });
+    await page.keyboard.press('f');
+    await page.waitForSelector('[data-testid="face-count"]', { timeout: 30000 });
+    expect(await faceCount(page)).toBe(total);
+
+    // Typing an f into a field is typing, not a command.
+    const field = page.locator('[aria-label="Block size in px"]');
+    await field.focus();
+    await page.keyboard.press('f');
+    expect(await field.inputValue()).toMatch(/f$/);
+    expect(await page.locator('[data-testid="detect-label"]').count()).toBe(0);
+  });
+
+  it('says so at the photo when there are no faces to find', async () => {
+    const page = await openPhoto();
+    await button(page, 'Find all faces').click();
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="detect-label"]')?.textContent === 'No faces found',
+    );
+    expect(await page.locator('[data-testid="notice"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="detect-region"]').count()).toBe(0);
+    expect(await button(page, 'Find all faces').isEnabled()).toBe(true);
+  });
+
+  it('labels the whole photo while it looks, with no outline, and is off meanwhile', async () => {
+    const page = await openPhoto();
+    await running!.app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler('photo:detect');
+      ipcMain.handle('photo:detect', () => new Promise(() => undefined));
+    });
+    await button(page, 'Find all faces').click();
+    const label = page.locator('[data-testid="detect-label"]');
+    await label.waitFor();
+    expect(await label.innerText()).toBe('Looking for faces…');
+    expect(await page.locator('[data-testid="detect-region"]').count()).toBe(0);
+    expect(await button(page, 'Find all faces').isDisabled()).toBe(true);
+    await page.keyboard.press('f');
+    expect(await label.count()).toBe(1);
   });
 });

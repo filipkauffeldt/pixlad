@@ -95,6 +95,9 @@ export function App() {
         event.preventDefault();
         if (event.shiftKey) actions.redo();
         else actions.undo();
+      } else if (!primary && !event.shiftKey && key === 'f') {
+        event.preventDefault();
+        void actions.findAllFaces();
       } else if (primary && key === 'y' && !isMac && !event.shiftKey) {
         event.preventDefault();
         actions.redo();

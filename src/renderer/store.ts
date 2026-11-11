@@ -4,8 +4,9 @@ import { useSyncExternalStore } from 'react';
 import { defaultBlockPx } from '../shared/block-size';
 import type { AfterExport, ExportTarget, PhotoInfo } from '../shared/ipc';
 import type { ReleaseNote } from '../shared/update';
-import { opHasAddedArea, type Rect, type Shape } from '../shared/types';
+import { opHasAddedArea, type Point, type Rect, type Shape } from '../shared/types';
 import {
+  facesInLasso,
   opFromAreas,
   withDetectedFaces,
   withoutFacesInside,
@@ -459,6 +460,51 @@ export const actions = {
     clearTimeout(noFacesTimer);
     set({ detecting: false, detectRegion: undefined, noFaces: where });
     noFacesTimer = setTimeout(() => set({ noFaces: undefined }), NO_FACES_MS);
+  },
+
+  /**
+   * Run the detector over `region` of a photo and add what it finds, as Faces + Add does. The
+   * stage outlines the region (or the lasso) while it works; `outline: false` leaves it to the
+   * label's whole-photo position.
+   */
+  async detectFaces(
+    id: string,
+    region: Rect,
+    lasso?: readonly Point[],
+    outline = true,
+  ): Promise<void> {
+    const shape: Shape | undefined = !outline
+      ? undefined
+      : lasso
+        ? { type: 'polygon', points: [...lasso] }
+        : region;
+    actions.setDetecting(true, shape);
+    try {
+      const found = await window.api.detect(id, region);
+      const inside = lasso ? facesInLasso(found, lasso) : found;
+      // Nothing found is not an error, but the user should see it, where the detector looked.
+      if (inside.length === 0) actions.noFacesFound();
+      actions.addFaces(
+        id,
+        inside.map((f) => ({ box: f.box, score: f.score })),
+        'add',
+      );
+    } catch (cause) {
+      document.dispatchEvent(
+        new CustomEvent('pixlad:detect-failed', {
+          detail: cause instanceof Error ? cause.message : String(cause),
+        }),
+      );
+    } finally {
+      actions.setDetecting(false);
+    }
+  },
+
+  /** The whole current photo, for the Find all faces button and its shortcut. */
+  async findAllFaces(): Promise<void> {
+    const id = state.currentId;
+    if (!id || state.detecting) return;
+    await actions.detectFaces(id, { type: 'rect', x: 0, y: 0, w: 1, h: 1 }, undefined, false);
   },
   notice: (lines: string[], kind: Notice['kind'] = 'info'): void => notify(lines, kind),
 

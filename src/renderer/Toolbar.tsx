@@ -318,6 +318,16 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           </button>
         ))}
       </div>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => void actions.findAllFaces()}
+        disabled={!photo || app.detecting}
+        title="Find every face in this photo and add it to the mosaic (F)"
+        data-testid="find-faces"
+      >
+        Find all faces
+      </button>
       <label
         className="control"
         title="Block edge in pixels of the full-resolution photo. Small selections get larger blocks, so a face stays unrecognisable."

@@ -586,11 +586,15 @@ input[type='range']::-webkit-slider-thumb {
   stroke-width: 1;
   stroke-dasharray: 4 3;
 }
-.busy {
+/* Next to the region the detector is looking at; a chip so it reads over any photo. */
+.regionLabel {
   position: absolute;
-  top: 10px;
-  left: 12px;
-  color: var(--muted);
+  padding: 3px 8px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* Empty state and drop overlay */

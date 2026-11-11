@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { polygonBounds, simplifyPolygon } from '../shared/geometry';
+import { clamp, polygonBounds, shapeBounds, simplifyPolygon } from '../shared/geometry';
 import type { Point, Rect, Shape } from '../shared/types';
 import {
   areaIndexAt,
@@ -366,15 +366,12 @@ export function Stage({
   };
 
   const detect = async (region: Rect, lasso?: readonly Point[]): Promise<void> => {
-    actions.setDetecting(true);
+    actions.setDetecting(true, lasso ? { type: 'polygon', points: [...lasso] } : region);
     try {
       const found = await window.api.detect(id, region);
       const inside = lasso ? facesInLasso(found, lasso) : found;
-      if (inside.length === 0) {
-        actions.setDetecting(false);
-        // Nothing found is not an error, but the user should see it.
-        document.dispatchEvent(new CustomEvent('pixlad:no-faces'));
-      }
+      // Nothing found is not an error, but the user should see it, at the region.
+      if (inside.length === 0) actions.noFacesFound();
       actions.addFaces(
         id,
         inside.map((f) => ({ box: f.box, score: f.score })),
@@ -404,6 +401,24 @@ export function Stage({
     height: h * layout.scale,
     imageRendering: layout.scale * dpr >= 1 ? 'pixelated' : 'auto',
   });
+
+  // The region being searched stays in view, with its label next to it; with no region (the whole
+  // photo) the label sits over the photo's top left. "No faces found" stays there a moment.
+  const looking = app.detectRegion?.photoId === id ? app.detectRegion : undefined;
+  const found = app.noFaces?.photoId === id ? app.noFaces : undefined;
+  const marked = looking ?? found;
+  const markedBox = marked?.shape && shapeBounds(marked.shape);
+  const labelAt = ((): { left: number; top: number } => {
+    const height = 24;
+    const left = (x: number): number => clamp(x, 8, Math.max(8, size.w - 160));
+    if (!markedBox)
+      return { left: left(layout.offset.x + 10), top: Math.max(8, layout.offset.y + 10) };
+    const x = layout.offset.x + markedBox.x * pw;
+    const top = layout.offset.y + markedBox.y * ph;
+    const bottom = top + markedBox.h * ph;
+    if (bottom + 6 + height <= size.h) return { left: left(x), top: bottom + 6 };
+    return { left: left(x), top: Math.max(8, top - 6 - height) };
+  })();
 
   return (
     <div
@@ -453,10 +468,17 @@ export function Stage({
             {draftPoints.length > 1 && (
               <path d={`M${draftPoints.map(toPx).join('L')}`} className="draft" />
             )}
+            {marked?.shape && (
+              <path d={shapePath(marked.shape)} className="draft" data-testid="detect-region" />
+            )}
           </svg>
+          {marked && (
+            <div className="regionLabel" style={labelAt} data-testid="detect-label">
+              {looking ? 'Looking for faces…' : 'No faces found'}
+            </div>
+          )}
         </>
       )}
-      {app.detecting && <div className="busy">Looking for faces…</div>}
     </div>
   );
 }

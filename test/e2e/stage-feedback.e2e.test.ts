@@ -69,3 +69,108 @@ describe('notices over the stage', () => {
     expect(await photoBox(page)).toEqual(before);
   });
 });
+
+/** Replace the main process's face detector: hang for good, find nothing, or fail. */
+async function stubDetect(app: Launched['app'], mode: 'hang' | 'none' | 'fail'): Promise<void> {
+  await app.evaluate(({ ipcMain }, how) => {
+    ipcMain.removeHandler('photo:detect');
+    ipcMain.handle('photo:detect', async () => {
+      if (how === 'hang') await new Promise(() => undefined);
+      if (how === 'fail') throw new Error('model missing');
+      return [];
+    });
+  }, mode);
+}
+
+/** A real-mouse drag between two points given as fractions of the photo. */
+async function drag(page: Page, points: Array<[number, number]>): Promise<void> {
+  const box = await photoBox(page);
+  const at = (p: [number, number]): [number, number] => [
+    box.x + p[0] * box.width,
+    box.y + p[1] * box.height,
+  ];
+  await page.mouse.move(...at(points[0]!));
+  await page.mouse.down();
+  for (const p of points.slice(1)) await page.mouse.move(...at(p), { steps: 5 });
+  await page.mouse.up();
+}
+
+describe('detection feedback', () => {
+  it('keeps the dragged rectangle with the label beside it while it looks', async () => {
+    running = await launch();
+    const { page, app } = running;
+    await openPhoto(page, await tmp());
+    await stubDetect(app, 'hang');
+    await drag(page, [
+      [0.2, 0.3],
+      [0.5, 0.6],
+    ]);
+    const label = page.locator('[data-testid="detect-label"]');
+    await label.waitFor();
+    expect(await label.innerText()).toBe('Looking for faces…');
+    const photo = await photoBox(page);
+    const region = (await page.locator('[data-testid="detect-region"]').boundingBox())!;
+    expect(region.x).toBeCloseTo(photo.x + 0.2 * photo.width, -1);
+    expect(region.width).toBeCloseTo(0.3 * photo.width, -1);
+    const text = (await label.boundingBox())!;
+    expect(Math.abs(text.x - region.x)).toBeLessThan(20);
+    expect(text.y).toBeGreaterThan(region.y + region.height - 1);
+    expect(await page.locator('[data-testid="notice"]').count()).toBe(0);
+    expect(await page.locator('.busy').count()).toBe(0);
+  });
+
+  it('keeps a lasso as drawn while it looks', async () => {
+    running = await launch();
+    const { page, app } = running;
+    await openPhoto(page, await tmp());
+    await stubDetect(app, 'hang');
+    await page.keyboard.down('Alt');
+    await drag(page, [
+      [0.2, 0.3],
+      [0.5, 0.3],
+      [0.55, 0.6],
+      [0.25, 0.65],
+    ]);
+    await page.keyboard.up('Alt');
+    await page.locator('[data-testid="detect-label"]').waitFor();
+    const d = await page.locator('[data-testid="detect-region"]').getAttribute('d');
+    expect(d!.split('L').length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('says "No faces found" at the region for a moment, with no notice', async () => {
+    running = await launch();
+    const { page, app } = running;
+    await openPhoto(page, await tmp());
+    await stubDetect(app, 'none');
+    await drag(page, [
+      [0.2, 0.3],
+      [0.5, 0.6],
+    ]);
+    const label = page.locator('[data-testid="detect-label"]');
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="detect-label"]')?.textContent === 'No faces found',
+    );
+    expect(await page.locator('[data-testid="notice"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="detect-region"]').count()).toBe(1);
+    await label.waitFor({ state: 'detached', timeout: 5000 });
+    expect(await page.locator('[data-testid="detect-region"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="notice"]').count()).toBe(0);
+  });
+
+  it('keeps the error notice when the detector fails, and drops the region', async () => {
+    running = await launch();
+    const { page, app } = running;
+    await openPhoto(page, await tmp());
+    await stubDetect(app, 'fail');
+    await drag(page, [
+      [0.2, 0.3],
+      [0.5, 0.6],
+    ]);
+    const notice = page.locator('[data-testid="notice"]');
+    await notice.waitFor();
+    expect(await notice.innerText()).toContain('Face detection failed');
+    expect(await page.locator('[data-testid="detect-label"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="detect-region"]').count()).toBe(0);
+  });
+});

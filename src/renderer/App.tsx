@@ -104,13 +104,10 @@ export function App() {
 
   // Messages from the stage that are not failures of an export.
   useEffect(() => {
-    const none = (): void => void actions.notice(['No faces found in that area.']);
     const failed = (e: Event): void =>
       void actions.notice([`Face detection failed: ${(e as CustomEvent<string>).detail}`], 'error');
-    document.addEventListener('pixlad:no-faces', none);
     document.addEventListener('pixlad:detect-failed', failed);
     return () => {
-      document.removeEventListener('pixlad:no-faces', none);
       document.removeEventListener('pixlad:detect-failed', failed);
     };
   }, []);

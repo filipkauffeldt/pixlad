@@ -58,6 +58,11 @@ export type AboutCheck =
   | { phase: 'up-to-date' }
   | { phase: 'error'; message: string };
 
+export interface DetectRegion {
+  photoId: string | undefined;
+  shape: Shape | undefined;
+}
+
 export interface AppState {
   photos: PhotoState[];
   currentId: string | undefined;
@@ -65,6 +70,10 @@ export interface AppState {
   outline: Outline;
   mode: RetouchMode;
   detecting: boolean;
+  /** What the detector is looking at, so the stage can keep it in view. No shape: the whole photo. */
+  detectRegion: DetectRegion | undefined;
+  /** "No faces found", kept for a couple of seconds where the detector looked. */
+  noFaces: DetectRegion | undefined;
   adding: boolean;
   notices: Notice[];
   toasts: Notice[];
@@ -102,6 +111,8 @@ const initial: AppState = {
   outline: 'rect',
   mode: 'add',
   detecting: false,
+  detectRegion: undefined,
+  noFaces: undefined,
   adding: false,
   notices: [],
   toasts: [],
@@ -183,6 +194,9 @@ const notify = (lines: string[], kind: Notice['kind'] = 'info'): void => {
   }));
   infoNoticeTimer = setTimeout(() => actions.dismissNotice(id), INFO_NOTICE_MS);
 };
+const NO_FACES_MS = 2000;
+let noFacesTimer: ReturnType<typeof setTimeout> | undefined;
+
 const toast = (lines: string[]): void =>
   set((s) => ({ toasts: [...s.toasts, { id: ++noticeId, lines, kind: 'error' }] }));
 
@@ -375,7 +389,27 @@ export const actions = {
     });
   },
 
-  setDetecting: (detecting: boolean): void => set({ detecting }),
+  /** The detector starts on `region` (none: the whole photo) or stops. */
+  setDetecting(detecting: boolean, region?: Shape): void {
+    if (!detecting) {
+      set({ detecting, detectRegion: undefined });
+      return;
+    }
+    clearTimeout(noFacesTimer);
+    set({
+      detecting,
+      detectRegion: { photoId: state.currentId, shape: region },
+      noFaces: undefined,
+    });
+  },
+
+  /** The detector found nothing: say so where it looked, then let it go. */
+  noFacesFound(): void {
+    const where = state.detectRegion ?? { photoId: state.currentId, shape: undefined };
+    clearTimeout(noFacesTimer);
+    set({ detecting: false, detectRegion: undefined, noFaces: where });
+    noFacesTimer = setTimeout(() => set({ noFaces: undefined }), NO_FACES_MS);
+  },
   notice: (lines: string[], kind: Notice['kind'] = 'info'): void => notify(lines, kind),
 
   undo(): void {

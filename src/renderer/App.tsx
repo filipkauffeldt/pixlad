@@ -182,6 +182,15 @@ export function App() {
             {app.adding && <p>Adding…</p>}
           </div>
         )}
+        {photo && !app.firstAreaDrawn && (
+          <div className="stageHint" data-testid="stage-hint">
+            {app.target === 'faces'
+              ? 'Drag around faces to find them'
+              : 'Drag to draw an area to pixelate'}
+            {' · '}
+            <span className="mono">?</span> lists the shortcuts
+          </div>
+        )}
       </div>
       {app.photos.length > 0 && <Strip />}
       <div className="footer mono" data-testid="footer">

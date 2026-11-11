@@ -299,3 +299,69 @@ describe('the shortcuts sheet', () => {
     expect(await current(page)).toBe('b.jpg');
   });
 });
+
+describe('the first-use hint', () => {
+  const hint = (page: Page) => page.locator('[data-testid="stage-hint"]');
+
+  it('shows what a drag does for the target, never takes a pointer, and goes for good with the first area', async () => {
+    running = await launch();
+    const { page } = running;
+    expect(await hint(page).count()).toBe(0); // no photo yet
+    await openPhoto(page, await tmp());
+    await hint(page).waitFor();
+    expect(await hint(page).innerText()).toContain('Drag around faces to find them');
+    expect(await hint(page).innerText()).toContain('? lists the shortcuts');
+    const box = (await hint(page).boundingBox())!;
+    const stage = (await page.locator('[data-testid="stage"]').boundingBox())!;
+    expect(box.y + box.height).toBeGreaterThan(stage.y + stage.height - 30);
+    const under = await page.evaluate(
+      ({ x, y }) =>
+        document.elementFromPoint(x, y)?.closest('[data-testid]')?.getAttribute('data-testid'),
+      { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+    );
+    expect(under).toBe('stage');
+
+    await page.click('[data-testid="target"]');
+    await page.click('[data-target="area"]');
+    expect(await hint(page).innerText()).toContain('Drag to draw an area to pixelate');
+
+    await drag(page, [
+      [0.2, 0.3],
+      [0.5, 0.6],
+    ]);
+    await hint(page).waitFor({ state: 'detached' });
+    // Undo takes the area away again, and the hint stays gone.
+    await page.keyboard.press('Control+z');
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-testid="area"]').length === 0,
+    );
+    expect(await hint(page).count()).toBe(0);
+  });
+
+  it('stays away once any photo has had an area, also on another photo', async () => {
+    running = await launch();
+    const { page } = running;
+    const dir = await tmp();
+    const files = [join(dir, 'a.jpg'), join(dir, 'b.jpg')];
+    for (const file of files) await writeFile(file, await encodeJpeg(syntheticPhoto(800, 600)));
+    await dropFiles(page, files);
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-testid="thumb"]').length === 2,
+    );
+    await hint(page).waitFor();
+    await pickTool(page, 'rect');
+    await drag(page, [
+      [0.2, 0.3],
+      [0.5, 0.6],
+    ]);
+    await hint(page).waitFor({ state: 'detached' });
+    await page.keyboard.press('ArrowRight');
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-testid="thumb"][aria-current="true"]')
+          ?.getAttribute('data-name') === 'b.jpg',
+    );
+    expect(await hint(page).count()).toBe(0);
+  });
+});

@@ -94,6 +94,8 @@ export interface AppState {
   checkForUpdates: boolean;
   aboutOpen: boolean;
   shortcutsOpen: boolean;
+  /** Some area has existed in this session. The first-use hint never comes back after that. */
+  firstAreaDrawn: boolean;
   update: UpdateState;
   /** The user chose Later, so the prompt stays away until something new happens. */
   updatePromptHidden: boolean;
@@ -129,6 +131,7 @@ const initial: AppState = {
   checkForUpdates: true,
   aboutOpen: false,
   shortcutsOpen: false,
+  firstAreaDrawn: false,
   update: { phase: 'idle' },
   updatePromptHidden: false,
   updateNotes: undefined,
@@ -143,6 +146,10 @@ let noticeId = 0;
 
 const set = (next: Partial<AppState> | ((s: AppState) => Partial<AppState>)): void => {
   state = { ...state, ...(typeof next === 'function' ? next(state) : next) };
+  // Whatever way the first area arrives, undoing or removing it later does not bring the hint back.
+  if (!state.firstAreaDrawn && state.photos.some((p) => p.areas.length > 0)) {
+    state = { ...state, firstAreaDrawn: true };
+  }
   listeners.forEach((l) => l());
 };
 

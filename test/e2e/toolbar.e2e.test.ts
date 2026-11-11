@@ -250,3 +250,31 @@ describe('the sliders', () => {
     await page.mouse.up();
   });
 });
+
+describe('the slider labels', () => {
+  it('use the muted text colour, not the dim one reserved for disabled states', async () => {
+    running = await launch();
+    const { page } = running;
+    await page.waitForSelector('[data-testid="empty"]');
+    const colours = await page.evaluate(() => {
+      const root = getComputedStyle(document.documentElement);
+      const resolve = (token: string): string => {
+        const probe = document.createElement('span');
+        probe.style.color = root.getPropertyValue(token);
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).color;
+        probe.remove();
+        return colour;
+      };
+      const of = (selector: string): string[] =>
+        [...document.querySelectorAll(selector)].map((e) => getComputedStyle(e).color);
+      return {
+        muted: resolve('--muted'),
+        labels: of('.control .label'),
+        units: of('.control .unit'),
+      };
+    });
+    expect(colours.labels).toEqual([colours.muted, colours.muted]);
+    expect(colours.units).toEqual([colours.muted, colours.muted]);
+  });
+});

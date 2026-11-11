@@ -26,6 +26,10 @@
   gap: 8px;
   color: var(--muted);
 }
+.control .label,
+.control .unit {
+  color: var(--muted);
+}
 .control input[type='range'] {
   width: 110px;
 }

@@ -14,6 +14,7 @@ const api: Api = {
   detect: (id, region) => ipcRenderer.invoke('photo:detect', id, region),
   exportPhoto: (id, op) => ipcRenderer.invoke('photo:export', id, op),
   settings: () => ipcRenderer.invoke('settings:get'),
+  showInFolder: (id) => ipcRenderer.invoke('export:show-in-folder', id),
   exportNames: (id) => ipcRenderer.invoke('export:names', id),
   setExportTarget: (target) => ipcRenderer.invoke('settings:set-export-target', target),
   setCheckForUpdates: (enabled) => ipcRenderer.invoke('settings:set-check-for-updates', enabled),

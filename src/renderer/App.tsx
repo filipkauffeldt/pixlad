@@ -205,6 +205,19 @@ export function App() {
                     style={{ display: 'inline-block', marginRight: 6 }}
                   />
                   {photo.message}
+                  {photo.status === 'exported' && (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        className="footerButton"
+                        onClick={() => void actions.showInFolder(photo.info.id)}
+                        data-testid="show-in-folder"
+                      >
+                        Show in folder
+                      </button>
+                    </>
+                  )}
                 </span>
               )}
             </>

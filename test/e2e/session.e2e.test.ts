@@ -643,6 +643,38 @@ describe('after an export', () => {
     expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
   });
 
+  it('Show in folder reveals the exported file, and only appears once there is one', async () => {
+    const dir = await tmp();
+    const userData = await tmp('pixlad-userdata-');
+    await writeFile(
+      join(userData, 'settings.json'),
+      JSON.stringify({ exportTarget: 'suffix', exportChosen: true, afterExport: 'keep' }),
+    );
+    running = await launch({ userData });
+    const { app, page } = running;
+    await app.evaluate(({ shell }) => {
+      const shown: string[] = [];
+      (globalThis as { __shown?: string[] }).__shown = shown;
+      shell.showItemInFolder = (path: string) => void shown.push(path);
+    });
+    const file = await photoFile(dir, 'reveal.jpg');
+    await dropFiles(page, [file]);
+    await photoReady(page);
+    await pickTool(page, 'rect');
+    await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+    expect(await page.locator('[data-testid="show-in-folder"]').count()).toBe(0);
+
+    await page.keyboard.press('Control+e');
+    await page.waitForSelector('[data-testid="show-in-folder"]', { timeout: 30000 });
+    expect(await page.locator('[data-testid="photo-status"]').innerText()).toContain(
+      'Saved as reveal_edit.jpg',
+    );
+    await page.click('[data-testid="show-in-folder"]');
+    await expect
+      .poll(() => app.evaluate(() => (globalThis as { __shown?: string[] }).__shown))
+      .toEqual([join(dir, 'reveal_edit.jpg')]);
+  });
+
   it('does not offer to remove a photo edited while it was exporting', async () => {
     const dir = await tmp();
     running = await launch();

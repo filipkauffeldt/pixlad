@@ -836,6 +836,9 @@ input[type='range']::-webkit-slider-thumb {
   color: var(--text);
   text-decoration: underline;
 }
+.footer .status .footerButton {
+  margin-left: 8px;
+}
 .footerButton:disabled {
   color: var(--dim);
 }

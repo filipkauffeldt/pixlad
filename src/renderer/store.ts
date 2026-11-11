@@ -582,6 +582,15 @@ export const actions = {
     }
   },
 
+  /** Reveal the exported file in the system file manager. */
+  async showInFolder(id: string): Promise<void> {
+    try {
+      await window.api.showInFolder(id);
+    } catch (cause) {
+      notify([`Could not show the file: ${errorText(cause)}`], 'error');
+    }
+  },
+
   async setAfterExport(afterExport: AfterExport): Promise<void> {
     set({ afterExport });
     try {

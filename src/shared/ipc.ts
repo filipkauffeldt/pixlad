@@ -122,6 +122,8 @@ export interface Api {
   settings(): Promise<Settings>;
   /** Also records that the user has chosen, so the first-export choice does not show again. */
   setExportTarget(target: ExportTarget): Promise<void>;
+  /** Reveal the file this photo was last exported to in the system file manager. */
+  showInFolder(id: string): Promise<void>;
   exportNames(id: string): Promise<ExportNames>;
   setCheckForUpdates(enabled: boolean): Promise<void>;
   setAfterExport(choice: AfterExport): Promise<void>;

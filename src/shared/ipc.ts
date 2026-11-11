@@ -51,6 +51,17 @@ export interface Settings {
   exportChosen: boolean;
   /** Whether the app looks for a newer release when it starts. */
   checkForUpdates: boolean;
+  /** How the window was left, to open it the same way. Missing before the first close. */
+  window?: WindowState;
+}
+
+/** The window's size and place when not maximized, and whether it was maximized. */
+export interface WindowState {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  maximized: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -99,8 +110,6 @@ export interface Api {
   preview(id: string, op: MosaicOp): Promise<PreviewPatch | null>;
   detect(id: string, region: Rect): Promise<FaceDetection[]>;
   exportPhoto(id: string, op: MosaicOp): Promise<ExportOutcome>;
-  /** Ask whether to take exported photos out of the session. `name` is given for a single photo. */
-  confirmRemoveExported(count: number, name: string | undefined): Promise<boolean>;
   settings(): Promise<Settings>;
   /** Also records that the user has chosen, so the first-export choice does not show again. */
   setExportTarget(target: ExportTarget): Promise<void>;
@@ -115,6 +124,8 @@ export interface Api {
   downloadUpdate(): Promise<UpdateDownload>;
   /** Quits and installs the downloaded update, after asking if mosaics are not exported. */
   installUpdate(): Promise<void>;
+  /** Open the release page of a version in the browser. */
+  openReleaseNotes(version: string): Promise<void>;
   /** Percent of the download, or undefined when the size is not known. Returns an unsubscribe. */
   onUpdateProgress(listener: (percent: number | undefined) => void): () => void;
   /** Open the source code repository in the browser. */

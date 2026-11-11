@@ -19,7 +19,7 @@ export function RemovePhoto({ question }: { question: { id: string; name: string
   return (
     <div className="modalScrim">
       <div
-        className="modal removePhoto"
+        className="modal confirm"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="remove-photo-title"
@@ -32,7 +32,7 @@ export function RemovePhoto({ question }: { question: { id: string; name: string
             Its areas have not been exported and will be lost. The file stays on disk.
           </p>
         </div>
-        <div className="modalActions">
+        <footer className="modalFooter end">
           <button
             type="button"
             className="btn"
@@ -50,7 +50,7 @@ export function RemovePhoto({ question }: { question: { id: string; name: string
           >
             Remove
           </button>
-        </div>
+        </footer>
       </div>
     </div>
   );

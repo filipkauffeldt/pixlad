@@ -6,6 +6,7 @@ import { RELEASES_OWNER, RELEASES_REPO } from '../shared/update';
 import { isPrerelease, parseVersion } from '../shared/version';
 import { chooseUpdater, type UpdaterKind } from './update-assets';
 import {
+  fetchReleaseNotes,
   GithubDmgSource,
   parseTestUpdates,
   UpdateService,
@@ -97,8 +98,10 @@ export function createUpdateService(): UpdateService {
     return new UpdateService(undefined);
   }
   const platform = test?.platform ?? process.platform;
+  const apiUrl = test?.url ?? `https://api.github.com/repos/${RELEASES_OWNER}/${RELEASES_REPO}`;
+  const notes = (version: string) =>
+    fetchReleaseNotes(apiUrl, version, net.fetch.bind(net) as typeof fetch);
   if (platform === 'darwin') {
-    const apiUrl = test?.url ?? `https://api.github.com/repos/${RELEASES_OWNER}/${RELEASES_REPO}`;
     return new UpdateService(
       new GithubDmgSource({
         apiUrl,
@@ -109,11 +112,13 @@ export function createUpdateService(): UpdateService {
         downloadsDir: app.getPath('downloads'),
         openPath: (path) => shell.openPath(path),
       }),
+      notes,
     );
   }
   if (platform === 'win32' || platform === 'linux') {
     return new UpdateService(
       new ElectronUpdaterSource(createUpdater(platform, test), currentVersion),
+      notes,
     );
   }
   return new UpdateService(undefined);

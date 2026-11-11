@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { chooseInstaller, chooseUpdater, type ReleaseAsset } from '../src/main/update-assets';
+import { parseReleaseNotes } from '../src/shared/update';
 import {
   describeError,
+  fetchReleaseNotes,
   GithubDmgSource,
   parseTestUpdates,
   UpdateService,
@@ -108,6 +110,32 @@ describe('chooseUpdater', () => {
   });
 });
 
+describe('parseReleaseNotes', () => {
+  it('reads the bullets of a generated release body', () => {
+    const body = [
+      "## What's Changed",
+      '* Remember the window size by @filipkauffeldt in https://github.com/filipkauffeldt/pixlad/pull/18',
+      '- Offer the AppImage in #17',
+      '* A line with no link',
+      '',
+      '## New Contributors',
+      '* @anna made their first contribution in https://github.com/filipkauffeldt/pixlad/pull/19',
+      '',
+      '**Full Changelog**: https://github.com/filipkauffeldt/pixlad/compare/v0.2.0...v0.3.0',
+    ].join('\r\n');
+    expect(parseReleaseNotes(body)).toEqual([
+      { title: 'Remember the window size', pr: 18 },
+      { title: 'Offer the AppImage', pr: 17 },
+      { title: 'A line with no link' },
+    ]);
+  });
+
+  it('finds nothing in a body without bullets', () => {
+    expect(parseReleaseNotes('Fixes some things.')).toEqual([]);
+    expect(parseReleaseNotes('')).toEqual([]);
+  });
+});
+
 describe('describeError', () => {
   it('keeps the first line and the reason behind a failed fetch', () => {
     expect(describeError(new Error('first\nsecond\nthird'))).toBe('first');
@@ -158,6 +186,17 @@ describe('UpdateService', () => {
     ).toEqual({ status: 'error', message: 'offline' });
   });
 
+  it('adds the release notes to an available update, and goes on without them', async () => {
+    const notes = [{ title: 'Fix it', pr: 1 }];
+    expect(await new UpdateService(source(), async () => notes).check()).toEqual({
+      status: 'available',
+      version: '0.3.0',
+      notes,
+    });
+    const failing = new UpdateService(source(), () => Promise.reject(new Error('offline')));
+    expect(await failing.check()).toEqual({ status: 'available', version: '0.3.0' });
+  });
+
   it('refuses to check when the build has no source', async () => {
     const service = new UpdateService(undefined);
     expect(service.enabled).toBe(false);
@@ -203,6 +242,29 @@ describe('UpdateService', () => {
     );
     await service.check();
     expect(await service.download(() => undefined)).toEqual({ ok: false, message: 'disk full' });
+  });
+});
+
+describe('fetchReleaseNotes', () => {
+  const answer = (status: number, body: unknown): typeof fetch =>
+    (async () => new Response(JSON.stringify(body), { status })) as typeof fetch;
+
+  it('reads the notes of the release tagged with the version', async () => {
+    const urls: string[] = [];
+    const record = (async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ body: '* Fix it in #1' }));
+    }) as unknown as typeof fetch;
+    expect(await fetchReleaseNotes('https://api.test/repo', '0.3.0', record)).toEqual([
+      { title: 'Fix it', pr: 1 },
+    ]);
+    expect(urls).toEqual(['https://api.test/repo/releases/tags/v0.3.0']);
+  });
+
+  it('has nothing for a missing release, an empty body or no bullets', async () => {
+    expect(await fetchReleaseNotes('x', '0.3.0', answer(404, {}))).toBeUndefined();
+    expect(await fetchReleaseNotes('x', '0.3.0', answer(200, { body: null }))).toBeUndefined();
+    expect(await fetchReleaseNotes('x', '0.3.0', answer(200, { body: 'Text' }))).toBeUndefined();
   });
 });
 

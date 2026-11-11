@@ -9,7 +9,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 20px;
+  gap: 8px 16px;
   min-height: var(--topbar-h);
   padding: 6px 12px;
   background: var(--panel);
@@ -34,7 +34,7 @@
 }
 .counts {
   color: var(--muted);
-  min-width: 150px;
+  min-width: 120px;
   display: flex;
   gap: 12px;
 }
@@ -77,6 +77,64 @@
 .tab[aria-pressed='true'] {
   color: var(--text);
   border-bottom-color: var(--text);
+}
+
+.tab[data-flipped] {
+  border-bottom-style: dashed;
+}
+.targetMenu {
+  position: relative;
+  margin-right: 4px;
+}
+.dropdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 10px;
+}
+/* Every label sits in one grid cell and only the current one shows, so the button keeps the
+   width of the longest and the toolbar does not shift when the target changes. */
+.dropdownLabel {
+  display: grid;
+}
+.dropdownLabel > span {
+  grid-area: 1 / 1;
+  text-align: left;
+  visibility: hidden;
+}
+.dropdownLabel > span[data-current] {
+  visibility: visible;
+}
+.dropdown svg {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.4;
+}
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 25;
+  min-width: 100px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+}
+.menuItem {
+  background: transparent;
+  border: 0;
+  padding: 5px 8px;
+  text-align: left;
+  color: var(--muted);
+}
+.menuItem:hover,
+.menuItem[aria-checked='true'] {
+  color: var(--text);
+}
+.menuItem[aria-checked='true'] {
+  background: var(--line);
 }
 
 .numberField {
@@ -320,6 +378,7 @@ input[type='range']::-webkit-slider-thumb {
   text-decoration: underline;
 }
 .licenseText {
+  flex-shrink: 0;
   max-height: 260px;
   overflow: auto;
   margin: 0 0 8px;
@@ -351,21 +410,76 @@ input[type='range']::-webkit-slider-thumb {
   font-size: inherit;
 }
 
-/* Small confirm dialogs */
-.modal.removePhoto {
+.changeRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+.modal.confirm {
   width: min(420px, 100%);
 }
-.removePhoto h2 {
-  margin: 0 0 6px;
+.modal.confirm h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+.modalFooter.end {
+  justify-content: flex-end;
+}
+.modalFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+}
+
+/* Replace original confirmation */
+.modal.confirm {
+  width: min(310px, 100%);
+}
+.confirmTitle {
+  margin: 0;
+  padding: 12px 14px 0;
   font-size: 14px;
   font-weight: 500;
 }
-.modalActions {
+.confirmBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 14px 12px;
+}
+.confirmBody p {
+  margin: 0;
+}
+.confirmFiles {
+  padding: 5px 8px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  word-break: break-all;
+}
+.confirmFiles div + div {
+  margin-top: 2px;
+}
+.confirmFoot {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 10px 16px 14px;
+  gap: 6px;
+  padding: 9px 14px;
   border-top: 1px solid var(--line);
+}
+/* Both buttons are the same size, and focus is a border so neither looks taller. */
+.confirmFoot .btn {
+  width: 92px;
+  padding: 0;
+  white-space: nowrap;
+}
+.confirmFoot .btn:focus {
+  outline: 0;
+  border-color: var(--text);
 }
 
 /* Notices */

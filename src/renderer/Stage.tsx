@@ -4,14 +4,16 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { polygonBounds, simplifyPolygon } from '../shared/geometry';
 import type { Point, Rect, Shape } from '../shared/types';
 import {
-  altHeld,
   areaIndexAt,
   areaShape,
   clampToPicture,
   facesInLasso,
   HIT_MARGIN,
   isOnPicture,
+  flipsHeld,
+  withFlips,
 } from './retouch';
+import { isMac } from './flips';
 import { actions, hasMosaic, opOf, useApp, type PhotoState } from './store';
 import {
   FIT_VIEW,
@@ -57,8 +59,6 @@ const rectFrom = (a: Point, b: Point): Rect => ({
   w: Math.abs(a.x - b.x),
   h: Math.abs(a.y - b.y),
 });
-
-const isMac = navigator.platform.toLowerCase().includes('mac');
 
 /** The photo, its mosaic preview and the drawing overlay, with zoom and pan. */
 export function Stage({
@@ -163,7 +163,7 @@ export function Stage({
     [],
   );
 
-  // ---- keyboard: Z, Ctrl +/-, Space. Matched by what the key prints, never by position.
+  // ---- keyboard: Z, Ctrl +/-, Ctrl+0, Space. Matched by what the key prints, never by position.
   useEffect(() => {
     const editing = (target: EventTarget | null): boolean =>
       target instanceof HTMLInputElement && target.type !== 'range';
@@ -188,6 +188,9 @@ export function Stage({
       } else if (primary && event.key === '-') {
         event.preventDefault();
         setView(zoomBy(now, ctx, centre, 1 / ZOOM_STEP));
+      } else if (primary && event.key === '0') {
+        event.preventDefault();
+        setView(FIT_VIEW);
       } else if (!primary && event.key === ' ' && !editing(event.target)) {
         if (!(event.target instanceof HTMLButtonElement)) event.preventDefault();
         setPanHeld(true);
@@ -267,16 +270,15 @@ export function Stage({
       raw.y * h <= h + HIT_MARGIN;
     if (!near) return;
     event.preventDefault();
-    const alt = altHeld(event);
-    const faceLasso = app.tool === 'faces' && alt;
-    const lasso = app.tool === 'lasso' || faceLasso;
+    const { outline, mode } = withFlips(app, flipsHeld(event, isMac));
+    const lasso = outline === 'lasso';
     const start = clampToPicture(raw);
     drag.current = {
       start,
       onPicture: isOnPicture(raw),
       entered: isOnPicture(raw),
       lasso,
-      mode: alt && !faceLasso ? (app.mode === 'add' ? 'subtract' : 'add') : app.mode,
+      mode,
       moved: false,
     };
     surface.setPointerCapture(event.pointerId);
@@ -346,7 +348,7 @@ export function Stage({
       const simplified = simplifyPolygon(points, 1.5 / Math.max(w, h));
       if (simplified.length < 3) return;
       const polygon: Shape = { type: 'polygon', points: simplified };
-      if (app.tool === 'faces') {
+      if (app.target === 'faces') {
         const bounds = polygonBounds(simplified);
         if (bounds.w * w < MIN_AREA_PX || bounds.h * h < MIN_AREA_PX) return;
         if (d.mode === 'subtract') actions.removeFacesInside(polygon);
@@ -356,7 +358,7 @@ export function Stage({
     }
     const rect = rectFrom(d.start, end);
     if (rect.w * w < MIN_AREA_PX || rect.h * h < MIN_AREA_PX) return;
-    if (app.tool === 'faces') {
+    if (app.target === 'faces') {
       // Subtract removes the faces already found in the area; it never runs the detector.
       if (d.mode === 'subtract') actions.removeFacesInside(rect);
       else void detect(rect);

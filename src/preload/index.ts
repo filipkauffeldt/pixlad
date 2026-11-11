@@ -13,7 +13,6 @@ const api: Api = {
   preview: (id, op) => ipcRenderer.invoke('photo:preview', id, op),
   detect: (id, region) => ipcRenderer.invoke('photo:detect', id, region),
   exportPhoto: (id, op) => ipcRenderer.invoke('photo:export', id, op),
-  confirmRemoveExported: (count, name) => ipcRenderer.invoke('dialog:remove-exported', count, name),
   settings: () => ipcRenderer.invoke('settings:get'),
   exportNames: (id) => ipcRenderer.invoke('export:names', id),
   setExportTarget: (target) => ipcRenderer.invoke('settings:set-export-target', target),
@@ -25,6 +24,7 @@ const api: Api = {
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
+  openReleaseNotes: (version) => ipcRenderer.invoke('update:open-notes', version),
   onUpdateProgress: (listener) => {
     const handler = (_event: unknown, percent: number | undefined): void => listener(percent);
     ipcRenderer.on('update:progress', handler);

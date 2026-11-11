@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { dropFiles, launch, stubCloseDialog, type Launched } from './app';
+import { answerRemove, dropFiles, launch, pickTool, stubCloseDialog, type Launched } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -28,17 +28,17 @@ async function drag(
   page: Page,
   from: [number, number],
   to: [number, number],
-  alt = false,
+  hold: Array<'Alt' | 'Control'> = [],
 ): Promise<void> {
   const b = await photoBox(page);
   const at = (p: [number, number]): [number, number] => [b.x + p[0] * b.w, b.y + p[1] * b.h];
-  if (alt) await page.keyboard.down('Alt');
+  for (const key of hold) await page.keyboard.down(key);
   await page.mouse.move(...at(from));
   await page.mouse.down();
   await page.mouse.move(...at([(from[0] + to[0]) / 2, (from[1] + to[1]) / 2]), { steps: 5 });
   await page.mouse.move(...at(to), { steps: 5 });
   await page.mouse.up();
-  if (alt) await page.keyboard.up('Alt');
+  for (const key of hold) await page.keyboard.up(key);
 }
 
 async function open(page: Page, paths: string[]): Promise<void> {
@@ -53,6 +53,23 @@ async function open(page: Page, paths: string[]): Promise<void> {
 const areas = (page: Page): Promise<number> => page.locator('[data-testid="area"]').count();
 
 describe('drawing with the real mouse', () => {
+  it('starts a drag in the margin around the picture', async () => {
+    const dir = await tmp();
+    const file = join(dir, 'p.jpg');
+    await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
+    running = await launch();
+    const { page } = running;
+    await open(page, [file]);
+    await pickTool(page, 'rect');
+    const b = await photoBox(page);
+    // The photo is height-bound in this window, so there is room to the left of it.
+    await page.mouse.move(b.x - 32, b.y + 0.3 * b.h);
+    await page.mouse.down();
+    await page.mouse.move(b.x + 0.3 * b.w, b.y + 0.5 * b.h, { steps: 5 });
+    await page.mouse.up();
+    expect(await areas(page)).toBe(1);
+  });
+
   it('puts a rectangle under the pointer, clips from the margin, toggles, undoes', async () => {
     const dir = await tmp();
     const file = join(dir, 'p.jpg');
@@ -60,7 +77,7 @@ describe('drawing with the real mouse', () => {
     running = await launch();
     const { page } = running;
     await open(page, [file]);
-    await page.click('[data-tool="rect"]');
+    await pickTool(page, 'rect');
 
     await drag(page, [0.2, 0.2], [0.4, 0.5]);
     expect(await areas(page)).toBe(1);
@@ -105,6 +122,49 @@ describe('drawing with the real mouse', () => {
     expect(await areas(page)).toBe(3);
     await page.keyboard.press('Control+z');
     expect(await areas(page)).toBe(2);
+
+    // Reset clears every area, and Undo brings them back.
+    await page.click('[data-testid="reset"]');
+    expect(await areas(page)).toBe(0);
+    await expect(page.locator('[data-testid="reset"]').isDisabled()).resolves.toBe(true);
+    await page.keyboard.press('Control+z');
+    expect(await areas(page)).toBe(2);
+  });
+
+  it('flips the outline with Alt and add or subtract with Ctrl while a drag starts', async () => {
+    const dir = await tmp();
+    const file = join(dir, 'p.jpg');
+    await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
+    running = await launch();
+    const { page } = running;
+    await open(page, [file]);
+    await pickTool(page, 'rect');
+    const marked = (attribute: string): Promise<string | null> =>
+      page.locator(`[${attribute}][data-flipped]`).getAttribute(attribute);
+
+    await page.keyboard.down('Alt');
+    await expect(marked('data-outline')).resolves.toBe('lasso');
+    await page.keyboard.up('Alt');
+    await page.keyboard.down('Control');
+    await expect(marked('data-mode')).resolves.toBe('subtract');
+    await page.keyboard.up('Control');
+    expect(await page.locator('[data-flipped]').count()).toBe(0);
+
+    // A lasso needs a path that bends; a straight drag has no area.
+    const b = await photoBox(page);
+    const at = (x: number, y: number): [number, number] => [b.x + x * b.w, b.y + y * b.h];
+    await page.keyboard.down('Alt');
+    await page.mouse.move(...at(0.2, 0.2));
+    await page.mouse.down();
+    await page.mouse.move(...at(0.4, 0.25), { steps: 5 });
+    await page.mouse.move(...at(0.3, 0.5), { steps: 5 });
+    await page.mouse.up();
+    await page.keyboard.up('Alt');
+    await expect(page.locator('[data-testid="area"]').getAttribute('data-kind')).resolves.toBe(
+      'lasso',
+    );
+    await drag(page, [0.5, 0.2], [0.7, 0.5], ['Control']);
+    await expect(page.locator('.areaSubtract').count()).resolves.toBe(1);
   });
 
   it('finds faces, subtract removes them, and a click toggles one', async () => {
@@ -150,11 +210,12 @@ describe('drawing with the real mouse', () => {
     running = await launch();
     const { page } = running;
     await open(page, [file]);
-    await page.click('[data-tool="rect"]');
+    await pickTool(page, 'rect');
     await drag(page, [0.3, 0.2], [0.7, 0.6]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.keyboard.press('Control+e');
     await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
+    await answerRemove(page, 'keep');
     expect((await readdir(dir)).sort()).toEqual(['_DSC1234.JPG', '_DSC1234_edit.JPG']);
     expect(Buffer.compare(await readFile(file), bytes)).toBe(0);
     // Exporting the same photo again replaces this session's own file.

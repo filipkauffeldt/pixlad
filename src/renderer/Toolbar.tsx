@@ -5,7 +5,7 @@ import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/blo
 import type { AfterExport, ExportTarget } from '../shared/ipc';
 import { ExportChoice } from './ExportChoice';
 import { isMac, useFlips } from './flips';
-import { countAreas, withFlips, type Outline } from './retouch';
+import { withFlips, type Outline } from './retouch';
 import {
   actions,
   hasMosaic,
@@ -288,7 +288,6 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
   const app = useApp();
   const flips = useFlips();
   const active = withFlips(app, flips);
-  const counts = photo ? countAreas(photo.areas) : undefined;
   const longEdge = photo ? longEdgeOf(photo) : 1;
   const px = photo
     ? blockSizeRelToPx(blockSizePxToRel(photo.blockPx, longEdge), longEdge)
@@ -397,14 +396,6 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           onPointerUp={(e) => e.currentTarget.blur()}
         />
       </label>
-      <div className="counts mono" data-testid="area-counts">
-        {counts && counts.faces.total > 0 && (
-          <span data-testid="face-count">{`${counts.faces.on} of ${counts.faces.total} faces on`}</span>
-        )}
-        {counts && counts.drawn.total > 0 && (
-          <span data-testid="drawn-count">{`${counts.drawn.on} of ${counts.drawn.total} areas on`}</span>
-        )}
-      </div>
       <div className="spacer" />
       <button
         type="button"

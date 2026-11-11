@@ -37,9 +37,11 @@
   flex: 1;
 }
 .counts {
-  color: var(--muted);
   display: flex;
   gap: 12px;
+}
+.counts:empty {
+  display: none;
 }
 
 .btn {

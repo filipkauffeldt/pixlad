@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useCallback, useEffect, useState } from 'react';
 import { About } from './About';
+import { AreaCounts } from './AreaCounts';
 import { OverwriteConfirm } from './OverwriteConfirm';
 import { ReleaseNotes } from './ReleaseNotes';
 import { isMac } from './flips';
@@ -211,6 +212,7 @@ export function App() {
             <>
               <span>{photo.info.name}</span>
               <span>{`${photo.info.width}×${photo.info.height}`}</span>
+              <AreaCounts photo={photo} />
               {photo.message && (
                 <span>
                   <span

@@ -169,6 +169,8 @@ describe('finding all faces', () => {
     const total = await faceCount(page);
     expect(total).toBeGreaterThanOrEqual(3);
     expect(await button(page, 'Find all faces').isEnabled()).toBe(true);
+    // Found faces and their count do not push the toolbar onto a second row.
+    expect((await page.locator('[data-testid="toolbar"]').boundingBox())!.height).toBeLessThan(50);
 
     // The same faces found again are not added twice.
     await button(page, 'Find all faces').click();
@@ -323,5 +325,30 @@ describe('tooltips', () => {
     const padding = await page.locator('.control', { hasText: 'Padding' }).getAttribute('title');
     expect(padding).toContain('mosaic grows');
     expect(padding).toContain('detected face');
+  });
+});
+
+describe('the area counts', () => {
+  it('are in the footer, and the toolbar stays on one row in the default window', async () => {
+    const page = await openPhoto();
+    const toolbar = page.locator('[data-testid="toolbar"]');
+    const singleRow = (await toolbar.boundingBox())!.height;
+    expect(await page.locator('[data-testid="footer"] [data-testid="area-counts"]').count()).toBe(
+      1,
+    );
+    expect(await page.locator('[data-testid="drawn-count"]').count()).toBe(0);
+
+    await drag(page, [0.2, 0.2], [0.5, 0.5]);
+    await drag(page, [0.6, 0.6], [0.8, 0.8]);
+    const counts = page.locator('[data-testid="footer"] [data-testid="drawn-count"]');
+    expect(await counts.textContent()).toBe('2 of 2 areas on');
+    expect(await toolbar.locator('[data-testid="area-counts"]').count()).toBe(0);
+    expect((await toolbar.boundingBox())!.height).toBe(singleRow);
+
+    await page.mouse.click(...(await centreOfFirstArea(page)));
+    expect(await counts.textContent()).toBe('1 of 2 areas on');
+    // The readout comes after the photo's name and size.
+    const status = await page.locator('[data-testid="photo-status"]').innerText();
+    expect(status.indexOf('1600×1200')).toBeLessThan(status.indexOf('areas on'));
   });
 });

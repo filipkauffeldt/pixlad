@@ -388,6 +388,15 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       <button
         type="button"
         className="btn"
+        onClick={actions.redo}
+        disabled={!photo || photo.redo.length === 0}
+        title="Redo the change you just undid (Ctrl/⌘+Shift+Z)"
+      >
+        Redo
+      </button>
+      <button
+        type="button"
+        className="btn"
         onClick={actions.reset}
         disabled={!photo || photo.areas.length === 0}
         title="Clear every area and face on this photo (Undo brings them back)"

@@ -22,6 +22,8 @@ export interface PhotoState {
   info: PhotoInfo;
   areas: RetouchArea[];
   undo: RetouchArea[][];
+  /** What Undo took off, newest last. Any new edit clears it. */
+  redo: RetouchArea[][];
   blockPx: number;
   facePadding: number;
   /** Bumped by every change that alters the mosaic. */
@@ -184,12 +186,20 @@ const updatePhoto = (id: string, fn: (p: PhotoState) => PhotoState): void =>
 const needsOverwriteConfirm = (confirmed: boolean): boolean =>
   !confirmed && state.exportTarget === 'overwrite' && state.overwriteAsk;
 
-/** An edit to the areas: remembered for Undo, bumps the revision. */
+const UNDO_STEPS = 50;
+
+/** An edit to the areas: remembered for Undo, forgets Redo, bumps the revision. */
 const editAreas = (id: string, fn: (areas: RetouchArea[]) => RetouchArea[]): void =>
   updatePhoto(id, (p) => {
     const areas = fn(p.areas);
     if (areas === p.areas) return p;
-    return { ...p, areas, undo: [...p.undo.slice(-49), p.areas], rev: p.rev + 1 };
+    return {
+      ...p,
+      areas,
+      undo: [...p.undo.slice(-(UNDO_STEPS - 1)), p.areas],
+      redo: [],
+      rev: p.rev + 1,
+    };
   });
 
 const INFO_NOTICE_MS = 8000;
@@ -224,6 +234,7 @@ const newPhoto = (info: PhotoInfo): PhotoState => ({
   info,
   areas: [],
   undo: [],
+  redo: [],
   blockPx: defaultBlockPx(Math.max(info.width, info.height)),
   facePadding: lastFacePadding,
   rev: 0,
@@ -457,7 +468,29 @@ export const actions = {
     updatePhoto(id, (p) => {
       const previous = p.undo[p.undo.length - 1];
       if (!previous) return p;
-      return { ...p, areas: previous, undo: p.undo.slice(0, -1), rev: p.rev + 1 };
+      return {
+        ...p,
+        areas: previous,
+        undo: p.undo.slice(0, -1),
+        redo: [...p.redo, p.areas],
+        rev: p.rev + 1,
+      };
+    });
+  },
+
+  redo(): void {
+    const id = state.currentId;
+    if (!id) return;
+    updatePhoto(id, (p) => {
+      const next = p.redo[p.redo.length - 1];
+      if (!next) return p;
+      return {
+        ...p,
+        areas: next,
+        undo: [...p.undo.slice(-(UNDO_STEPS - 1)), p.areas],
+        redo: p.redo.slice(0, -1),
+        rev: p.rev + 1,
+      };
     });
   },
 
@@ -504,6 +537,7 @@ export const actions = {
           ...p,
           areas,
           undo: [],
+          redo: [],
           rev: nextRev,
           exportedRev: areas.length === 0 ? nextRev : p.exportedRev,
           status: 'exported',

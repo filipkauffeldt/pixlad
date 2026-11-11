@@ -85,9 +85,14 @@ export function App() {
         return;
       }
       if (typing) return;
-      if (primary && (event.key === 'z' || event.key === 'Z') && !event.shiftKey) {
+      const key = event.key.toLowerCase();
+      if (primary && key === 'z') {
         event.preventDefault();
-        actions.undo();
+        if (event.shiftKey) actions.redo();
+        else actions.undo();
+      } else if (primary && key === 'y' && !isMac && !event.shiftKey) {
+        event.preventDefault();
+        actions.redo();
       } else if (!primary && event.key === 'ArrowLeft') {
         event.preventDefault();
         actions.step(-1);

@@ -102,3 +102,50 @@ describe('hovering an area', () => {
     expect(await hoveredCount(page)).toBe(1);
   });
 });
+
+const areaCount = (page: Page): Promise<number> => page.locator('[data-testid="area"]').count();
+const photosInSession = (page: Page): Promise<string> =>
+  page.locator('[data-testid="photo-status"]').innerText();
+
+describe('removing an area', () => {
+  it('right-click removes the topmost area under the pointer and Undo restores it', async () => {
+    const page = await openWithTwoAreas();
+    // A right-click on empty photo removes nothing.
+    await page.mouse.click(...(await at(page, 0.4, 0.45)), { button: 'right' });
+    expect(await areaCount(page)).toBe(2);
+
+    await page.mouse.click(...(await at(page, 0.2, 0.45)), { button: 'right' });
+    expect(await areaCount(page)).toBe(1);
+    // What is left is B.
+    const left = (await page.locator('[data-testid="area"]').first().boundingBox())!;
+    const b = await photoBox(page);
+    expect(left.x).toBeGreaterThan(b.x + 0.45 * b.w);
+
+    await page.keyboard.press('Control+z');
+    expect(await areaCount(page)).toBe(2);
+  });
+
+  it('Delete and Backspace remove the area under the pointer and keep the photo', async () => {
+    const page = await openWithTwoAreas();
+    const status = await photosInSession(page);
+    await page.mouse.move(...(await at(page, 0.6, 0.45)));
+    await page.keyboard.press('Delete');
+    expect(await areaCount(page)).toBe(1);
+    await page.mouse.move(...(await at(page, 0.2, 0.45)));
+    await page.keyboard.press('Backspace');
+    expect(await areaCount(page)).toBe(0);
+    // The photo is still in the session.
+    await expect(photosInSession(page)).resolves.toBe(status);
+    await expect(page.locator('[data-testid="photo"]').count()).resolves.toBe(1);
+  });
+
+  it('Delete with the pointer off every area still removes the photo from the session', async () => {
+    const page = await openWithTwoAreas();
+    await page.mouse.move(...(await at(page, 0.4, 0.45)));
+    await page.keyboard.press('Delete');
+    // The areas are not exported, so the photo asks before it goes.
+    await page.locator('[data-testid="remove-photo-remove"]').click();
+    await page.waitForSelector('[data-testid="empty"]');
+    await expect(page.locator('[data-testid="photo"]').count()).resolves.toBe(0);
+  });
+});

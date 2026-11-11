@@ -163,6 +163,9 @@ describe('opening', () => {
     await pickTool(page, 'rect');
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
+    // Delete with the pointer over an area removes that area, so rest it on bare photo.
+    const photo = (await page.locator('[data-testid="photo"]').boundingBox())!;
+    await page.mouse.move(photo.x + 0.9 * photo.width, photo.y + 0.9 * photo.height);
 
     await page.keyboard.press('Delete');
     await page.waitForSelector('[data-testid="remove-photo"]');

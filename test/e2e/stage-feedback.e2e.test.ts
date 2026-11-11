@@ -317,6 +317,9 @@ describe('the remove question and the notices', () => {
     const notice = page.locator('[data-testid="notice"]');
     await notice.waitFor();
     const at = (await notice.boundingBox())!;
+    // Delete with the pointer over an area removes that area, so rest it on bare photo.
+    const shown = (await page.locator('[data-testid="photo"]').boundingBox())!;
+    await page.mouse.move(shown.x + 0.9 * shown.width, shown.y + 0.9 * shown.height);
     await page.keyboard.press('Delete');
     await page.locator('[data-testid="remove-photo"]').waitFor();
     const top = await page.evaluate(

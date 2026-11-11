@@ -376,6 +376,15 @@ export const actions = {
     );
   },
 
+  /** Take one area away for good; Undo brings it back. */
+  removeArea(index: number): void {
+    const id = state.currentId;
+    if (!id) return;
+    editAreas(id, (areas) =>
+      index >= 0 && index < areas.length ? areas.filter((_, i) => i !== index) : areas,
+    );
+  },
+
   removeFacesInside(region: Shape): void {
     const id = state.currentId;
     if (!id) return;

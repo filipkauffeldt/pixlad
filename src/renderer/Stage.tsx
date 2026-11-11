@@ -116,9 +116,9 @@ export function Stage({
     if (isOnPicture(unit)) hovered = areaIndexAt(photo.areas, unit, photo.facePadding);
   }
 
-  const latest = useRef({ context, shown, layout, pw, ph });
+  const latest = useRef({ context, shown, layout, pw, ph, hovered });
   useLayoutEffect(() => {
-    latest.current = { context, shown, layout, pw, ph };
+    latest.current = { context, shown, layout, pw, ph, hovered };
   });
   const pointer = useRef<Point | null>(null);
 
@@ -211,10 +211,24 @@ export function Stage({
       if (event.key === ' ') setPanHeld(false);
     };
     const onBlur = (): void => setPanHeld(false);
+    // Delete or Backspace over an area removes that area. This runs in the capture phase, ahead
+    // of the window handler in App that takes a photo out of the session on Delete, and stops
+    // the key there, so that one only ever sees a Delete with the pointer off every area.
+    const onDeleteKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+      if (event.altKey || event.ctrlKey || event.metaKey || editing(event.target)) return;
+      const over = latest.current.hovered;
+      if (over < 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      actions.removeArea(over);
+    };
+    window.addEventListener('keydown', onDeleteKey, true);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
     return () => {
+      window.removeEventListener('keydown', onDeleteKey, true);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
@@ -321,6 +335,16 @@ export function Stage({
     surface.setPointerCapture(event.pointerId);
     setDragging(true);
     if (lasso) setDraftPoints([start]);
+  };
+
+  // Right-click removes the topmost area under the pointer.
+  const onContextMenu = (event: React.MouseEvent): void => {
+    event.preventDefault();
+    if (panHeld || drag.current) return;
+    const unit = toUnit(event);
+    if (!isOnPicture(unit)) return;
+    const index = areaIndexAt(photo.areas, unit, photo.facePadding);
+    if (index >= 0) actions.removeArea(index);
   };
 
   const onPointerMove = (event: React.PointerEvent): void => {
@@ -472,6 +496,7 @@ export function Stage({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onContextMenu={onContextMenu}
       onPointerLeave={() => {
         pointer.current = null;
         setHoverAt(null);

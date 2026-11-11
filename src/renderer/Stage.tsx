@@ -35,6 +35,13 @@ import {
 const CLICK_PX = 4;
 const MIN_AREA_PX = 6;
 
+/** Each outline's halo has its own class: it must never match what counts the outlines. */
+const haloFor = {
+  areaOn: 'haloOn',
+  areaOff: 'haloOff',
+  areaSubtract: 'haloSubtract',
+} as const;
+
 interface Patch {
   url: string;
   x: number;
@@ -532,7 +539,10 @@ export function Stage({
                   : 'areaOn';
               return (
                 <g key={i}>
-                  <path d={d} className={`halo ${state}${hover}`} />
+                  <path
+                    d={d}
+                    className={`halo ${haloFor[state]}${i === hovered ? ' haloHover' : ''}`}
+                  />
                   <path
                     d={d}
                     className={`${state}${hover}`}
@@ -545,13 +555,13 @@ export function Stage({
             })}
             {draftRect && (
               <>
-                <path d={shapePath(draftRect)} className="halo draft" />
+                <path d={shapePath(draftRect)} className="halo haloDraft" />
                 <path d={shapePath(draftRect)} className="draft" />
               </>
             )}
             {draftPoints.length > 1 && (
               <>
-                <path d={`M${draftPoints.map(toPx).join('L')}`} className="halo draft" />
+                <path d={`M${draftPoints.map(toPx).join('L')}`} className="halo haloDraft" />
                 <path d={`M${draftPoints.map(toPx).join('L')}`} className="draft" />
               </>
             )}

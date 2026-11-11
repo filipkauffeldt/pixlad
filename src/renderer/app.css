@@ -635,15 +635,23 @@ input[type='range']::-webkit-slider-thumb {
   stroke-opacity: 0.75;
   stroke-width: 3;
 }
+.overlay .haloOff {
+  stroke-dasharray: 2 4;
+}
+.overlay .haloSubtract {
+  stroke-dasharray: 6 3;
+}
+.overlay .haloDraft {
+  stroke-dasharray: 4 3;
+}
 /* The area under the pointer: what a click would switch. Dashes stay, so on and off still read. */
 .overlay .areaHover {
   stroke: var(--text);
 }
-.overlay path.areaHover:not(.halo) {
+.overlay path.areaHover {
   fill: rgba(255, 255, 255, 0.14);
 }
-.overlay .halo.areaHover {
-  stroke: var(--bg);
+.overlay .haloHover {
   stroke-opacity: 0.95;
   stroke-width: 6;
 }

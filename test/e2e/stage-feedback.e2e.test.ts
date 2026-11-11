@@ -365,3 +365,32 @@ describe('the first-use hint', () => {
     expect(await hint(page).count()).toBe(0);
   });
 });
+
+describe('the remove question and the notices', () => {
+  it('covers a notice, and Delete on a photo with unexported areas asks first', async () => {
+    running = await launch();
+    const { page } = running;
+    const dir = await tmp();
+    await openPhoto(page, dir);
+    await pickTool(page, 'rect');
+    await drag(page, [
+      [0.2, 0.3],
+      [0.5, 0.6],
+    ]);
+    const text = join(dir, 'a.txt');
+    await writeFile(text, 'not a photo');
+    await dropFiles(page, [text]);
+    const notice = page.locator('[data-testid="notice"]');
+    await notice.waitFor();
+    const at = (await notice.boundingBox())!;
+    await page.keyboard.press('Delete');
+    await page.locator('[data-testid="remove-photo"]').waitFor();
+    const top = await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.closest('.modalScrim') !== null,
+      { x: at.x + at.width / 2, y: at.y + at.height / 2 },
+    );
+    expect(top).toBe(true);
+    await page.click('[data-testid="remove-photo-keep"]');
+    expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
+  });
+});

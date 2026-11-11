@@ -16,7 +16,10 @@ export const shortcutList = (mod: string): Shortcut[] => [
   { keys: [mod], does: 'Hold to flip Add and Subtract' },
   { keys: [mod, 'Z'], does: 'Undo' },
   { keys: ['← / →'], does: 'Previous / next photo' },
-  { keys: ['Delete'], does: 'Remove the photo from the session' },
+  {
+    keys: ['Delete'],
+    does: 'Remove the photo from the session (asks first if it has unexported areas)',
+  },
   { keys: [mod, 'E'], does: 'Export the photo' },
   { keys: ['Z'], does: 'Toggle Fit and 100%' },
   { keys: [mod, '+'], does: 'Zoom in' },

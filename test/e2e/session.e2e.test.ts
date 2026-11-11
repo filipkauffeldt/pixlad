@@ -181,6 +181,34 @@ describe('opening', () => {
   });
 });
 
+describe('face padding', () => {
+  it('starts the next photo with the padding set on the last one', async () => {
+    const dir = await tmp();
+    const a = await photoFile(dir, 'a.jpg');
+    const b = await photoFile(dir, 'b.jpg');
+    const c = await photoFile(dir, 'c.jpg');
+    running = await launch();
+    const { page } = running;
+    await dropFiles(page, [a, b]);
+    await page.waitForFunction(() =>
+      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
+    );
+    const padding = page.locator('[aria-label="Face padding in percent"]');
+    expect(await padding.inputValue()).toBe('15');
+    await padding.fill('30');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('ArrowRight');
+    expect(await padding.inputValue()).toBe('30');
+
+    await dropFiles(page, [c]);
+    await page.waitForFunction(() =>
+      document.querySelector('[data-testid="footer"]')?.textContent?.includes('2 / 3'),
+    );
+    await page.keyboard.press('ArrowRight');
+    expect(await padding.inputValue()).toBe('30');
+  });
+});
+
 describe('zoom and pan', () => {
   it('toggles Fit and 100% on Z, snaps 100% to the device pixel grid, zooms with Ctrl, and pans', async () => {
     const dir = await tmp();

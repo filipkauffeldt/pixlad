@@ -146,12 +146,15 @@ const notify = (lines: string[], kind: Notice['kind'] = 'info'): void =>
 const toast = (lines: string[]): void =>
   set((s) => ({ toasts: [...s.toasts, { id: ++noticeId, lines, kind: 'error' }] }));
 
+/** The padding the user chose last. New photos start with it, for this session only. */
+let lastFacePadding = 0.15;
+
 const newPhoto = (info: PhotoInfo): PhotoState => ({
   info,
   areas: [],
   undo: [],
   blockPx: defaultBlockPx(Math.max(info.width, info.height)),
-  facePadding: 0.15,
+  facePadding: lastFacePadding,
   rev: 0,
   exportedRev: 0,
   status: 'idle',
@@ -330,11 +333,17 @@ export const actions = {
   },
 
   setFacePadding(value: number): void {
+    lastFacePadding = value;
     const id = state.currentId;
-    if (id)
-      updatePhoto(id, (p) =>
-        p.facePadding === value ? p : { ...p, facePadding: value, rev: p.rev + 1 },
-      );
+    set((s) => ({
+      photos: s.photos.map((p) => {
+        if (p.facePadding === value) return p;
+        if (p.info.id === id) return { ...p, facePadding: value, rev: p.rev + 1 };
+        // A photo with no areas yet has nothing to keep its old value for.
+        if (p.areas.length === 0) return { ...p, facePadding: value };
+        return p;
+      }),
+    }));
   },
 
   /** Export one photo from what is on screen right now. */

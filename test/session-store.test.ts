@@ -25,6 +25,37 @@ beforeEach(() => {
 
 const store = () => import('../src/renderer/store');
 
+describe('face padding', () => {
+  it('gives a new photo the padding set last in the session', async () => {
+    api.addPaths.mockResolvedValueOnce({ photos: [photo('a')], refused: [], duplicates: 0 });
+    const { actions, getState } = await store();
+    await actions.addPaths(['/photos/a.jpg']);
+    actions.setFacePadding(0.3);
+
+    api.addPaths.mockResolvedValueOnce({ photos: [photo('b')], refused: [], duplicates: 0 });
+    await actions.addPaths(['/photos/b.jpg']);
+    expect(getState().photos.map((p) => p.facePadding)).toEqual([0.3, 0.3]);
+  });
+
+  it('moves photos with no areas yet, but leaves photos with areas as they are', async () => {
+    api.addPaths.mockResolvedValueOnce({
+      photos: [photo('a'), photo('b')],
+      refused: [],
+      duplicates: 0,
+    });
+    const { actions, getState } = await store();
+    await actions.addPaths(['/photos/a.jpg', '/photos/b.jpg']);
+    actions.setFacePadding(0.3);
+
+    actions.select('b');
+    actions.addShape(rect, 'add');
+    actions.select('a');
+    actions.setFacePadding(0.4);
+    const paddings = Object.fromEntries(getState().photos.map((p) => [p.info.id, p.facePadding]));
+    expect(paddings).toEqual({ a: 0.4, b: 0.3 });
+  });
+});
+
 describe('removing a photo from the session', () => {
   it('asks first when its areas have not been exported, and Keep leaves it alone', async () => {
     api.addPaths.mockResolvedValueOnce({ photos: [photo('a')], refused: [], duplicates: 0 });

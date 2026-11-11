@@ -436,6 +436,39 @@ input[type='range']::-webkit-slider-thumb {
   border-top: 1px solid var(--line);
 }
 
+/* Keyboard shortcuts: the About modal's frame, with a list of keys and what they do. */
+.modal.shortcuts {
+  width: min(480px, 100%);
+}
+.shortcutList {
+  margin: 0;
+}
+.shortcutRow {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  align-items: baseline;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+.shortcutRow dt,
+.shortcutRow dd {
+  margin: 0;
+}
+.shortcutRow dd {
+  color: var(--muted);
+}
+.shortcutRow kbd {
+  padding: 1px 6px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  font-size: var(--fs-mono);
+}
+.shortcutRow .plus {
+  margin: 0 4px;
+  color: var(--dim);
+}
+
 /* Replace original confirmation */
 .modal.confirm {
   width: min(310px, 100%);
@@ -482,15 +515,29 @@ input[type='range']::-webkit-slider-thumb {
   border-color: var(--text);
 }
 
-/* Notices */
+/* Notices float over the top of the stage, so one appearing or clearing never resizes the stage
+   and moves the photo. The stack lets pointers through; only a notice itself takes them. */
+.noticeStack {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 5;
+  width: min(560px, calc(100% - 24px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
 .notice {
   display: flex;
   align-items: flex-start;
   gap: 12px;
   padding: 6px 12px;
   background: var(--raised);
-  border-bottom: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   color: var(--text);
+  pointer-events: auto;
 }
 .notice .lines {
   flex: 1;
@@ -549,6 +596,30 @@ input[type='range']::-webkit-slider-thumb {
   height: 100%;
   pointer-events: none;
 }
+/* The first-use hint: quiet, at the bottom of the stage, and never in the way of a drag. */
+.stageHint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  z-index: 4;
+  max-width: calc(100% - 24px);
+  transform: translateX(-50%);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.stageHint kbd {
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  font-size: var(--fs-mono);
+}
+/* Holding B shows the photo as it was: no mosaic patch, no outlines. */
+.stage[data-peek] .patch,
+.stage[data-peek] .overlay {
+  visibility: hidden;
+}
 .areaOn {
   fill: rgba(255, 255, 255, 0.05);
   stroke: var(--text);
@@ -572,11 +643,15 @@ input[type='range']::-webkit-slider-thumb {
   stroke-width: 1;
   stroke-dasharray: 4 3;
 }
-.busy {
+/* Next to the region the detector is looking at; a chip so it reads over any photo. */
+.regionLabel {
   position: absolute;
-  top: 10px;
-  left: 12px;
-  color: var(--muted);
+  padding: 3px 8px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* Empty state and drop overlay */

@@ -219,6 +219,17 @@ function Settings({ exporting }: { exporting: boolean }) {
             className="linkButton"
             onClick={() => {
               setOpen(false);
+              actions.setShortcutsOpen(true);
+            }}
+            data-testid="open-shortcuts"
+          >
+            Keyboard shortcuts
+          </button>
+          <button
+            type="button"
+            className="linkButton"
+            onClick={() => {
+              setOpen(false);
               actions.setAboutOpen(true);
             }}
             data-testid="open-about"

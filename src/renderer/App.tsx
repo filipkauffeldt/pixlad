@@ -7,6 +7,7 @@ import { ReleaseNotes } from './ReleaseNotes';
 import { isMac } from './flips';
 import { RemoveExported } from './RemoveExported';
 import { RemovePhoto } from './RemovePhoto';
+import { Shortcuts } from './Shortcuts';
 import { Stage } from './Stage';
 import { Strip } from './Strip';
 import { Toolbar } from './Toolbar';
@@ -93,6 +94,9 @@ export function App() {
       } else if (!primary && event.key === 'ArrowRight') {
         event.preventDefault();
         actions.step(1);
+      } else if (!primary && event.key === '?') {
+        event.preventDefault();
+        actions.setShortcutsOpen(true);
       } else if (!primary && event.key === 'Delete') {
         event.preventDefault();
         if (app.currentId) actions.remove(app.currentId);
@@ -104,13 +108,10 @@ export function App() {
 
   // Messages from the stage that are not failures of an export.
   useEffect(() => {
-    const none = (): void => void actions.notice(['No faces found in that area.']);
     const failed = (e: Event): void =>
       void actions.notice([`Face detection failed: ${(e as CustomEvent<string>).detail}`], 'error');
-    document.addEventListener('pixlad:no-faces', none);
     document.addEventListener('pixlad:detect-failed', failed);
     return () => {
-      document.removeEventListener('pixlad:no-faces', none);
       document.removeEventListener('pixlad:detect-failed', failed);
     };
   }, []);
@@ -125,43 +126,45 @@ export function App() {
   return (
     <div className="app">
       <Toolbar photo={photo} />
-      {app.notices.map((notice) => (
-        <div className="notice" role="alert" key={notice.id} data-testid="notice">
-          <span className={`dot ${notice.kind === 'error' ? 'error' : ''}`} />
-          <div className="lines">
-            {notice.lines.map((line, i) => (
-              <div key={i}>{line}</div>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="close"
-            aria-label="Dismiss"
-            onClick={() => actions.dismissNotice(notice.id)}
-          >
-            ×
-          </button>
-        </div>
-      ))}
-      {app.update.phase !== 'idle' && !app.updatePromptHidden && !app.aboutOpen && (
-        <div className="notice update" role="status" data-testid="update-prompt">
-          <span className="dot ok" />
-          <div className="lines">
-            <UpdateStatus update={app.update} withLater />
-          </div>
-          {app.update.phase === 'opened' && (
-            <button
-              type="button"
-              className="close"
-              aria-label="Dismiss"
-              onClick={actions.hideUpdatePrompt}
-            >
-              ×
-            </button>
+      <div className="stageWrap">
+        <div className="noticeStack">
+          {app.notices.map((notice) => (
+            <div className="notice" role="alert" key={notice.id} data-testid="notice">
+              <span className={`dot ${notice.kind === 'error' ? 'error' : ''}`} />
+              <div className="lines">
+                {notice.lines.map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="close"
+                aria-label="Dismiss"
+                onClick={() => actions.dismissNotice(notice.id)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {app.update.phase !== 'idle' && !app.updatePromptHidden && !app.aboutOpen && (
+            <div className="notice update" role="status" data-testid="update-prompt">
+              <span className="dot ok" />
+              <div className="lines">
+                <UpdateStatus update={app.update} withLater />
+              </div>
+              {app.update.phase === 'opened' && (
+                <button
+                  type="button"
+                  className="close"
+                  aria-label="Dismiss"
+                  onClick={actions.hideUpdatePrompt}
+                >
+                  ×
+                </button>
+              )}
+            </div>
           )}
         </div>
-      )}
-      <div className="stageWrap">
         {photo ? (
           <Stage key={`${photo.info.id}-${photo.fileVersion}`} photo={photo} onZoom={onZoom} />
         ) : (
@@ -177,6 +180,15 @@ export function App() {
               Open…
             </button>
             {app.adding && <p>Adding…</p>}
+          </div>
+        )}
+        {photo && !app.firstAreaDrawn && (
+          <div className="stageHint" data-testid="stage-hint">
+            {app.target === 'faces'
+              ? 'Drag around faces to find them'
+              : 'Drag to draw an area to pixelate'}
+            {' · '}
+            <kbd className="mono">?</kbd> lists the shortcuts
           </div>
         )}
       </div>
@@ -232,6 +244,7 @@ export function App() {
       )}
       {app.removePhotoQuestion && <RemovePhoto question={app.removePhotoQuestion} />}
       {app.aboutOpen && <About />}
+      {app.shortcutsOpen && <Shortcuts />}
       {app.overwriteConfirm && <OverwriteConfirm anchor={app.overwriteConfirm.anchor} />}
       {app.notesOpen && app.update.phase !== 'idle' && <ReleaseNotes />}
       {app.removeQuestion && <RemoveExported question={app.removeQuestion} />}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { polygonBounds, simplifyPolygon } from '../shared/geometry';
+import { clamp, polygonBounds, shapeBounds, simplifyPolygon } from '../shared/geometry';
 import type { Point, Rect, Shape } from '../shared/types';
 import {
   areaIndexAt,
@@ -75,6 +75,7 @@ export function Stage({
   const [view, setView] = useState<ZoomView>(FIT_VIEW);
   const [panHeld, setPanHeld] = useState(false);
   const [panning, setPanning] = useState(false);
+  const [peek, setPeek] = useState(false);
   const [patch, setPatch] = useState<Patch | null>(null);
   const [draftRect, setDraftRect] = useState<Rect | undefined>();
   const [draftPoints, setDraftPoints] = useState<Point[]>([]);
@@ -210,6 +211,32 @@ export function Stage({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dpr, iw, ih]);
+
+  // Hold B to see the photo as it was: the mosaic patch and every outline hide until the key goes
+  // up or the window loses focus. Not while typing in a field.
+  useEffect(() => {
+    const isB = (event: KeyboardEvent): boolean => event.key === 'b' || event.key === 'B';
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!isB(event) || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      const typing =
+        (target instanceof HTMLInputElement && target.type !== 'range') ||
+        target instanceof HTMLTextAreaElement;
+      if (!typing) setPeek(true);
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (isB(event)) setPeek(false);
+    };
+    const onBlur = (): void => setPeek(false);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, []);
 
   // Ctrl/Cmd+wheel zooms (also a trackpad pinch), a plain wheel pans a zoomed view.
   useEffect(() => {
@@ -366,15 +393,12 @@ export function Stage({
   };
 
   const detect = async (region: Rect, lasso?: readonly Point[]): Promise<void> => {
-    actions.setDetecting(true);
+    actions.setDetecting(true, lasso ? { type: 'polygon', points: [...lasso] } : region);
     try {
       const found = await window.api.detect(id, region);
       const inside = lasso ? facesInLasso(found, lasso) : found;
-      if (inside.length === 0) {
-        actions.setDetecting(false);
-        // Nothing found is not an error, but the user should see it.
-        document.dispatchEvent(new CustomEvent('pixlad:no-faces'));
-      }
+      // Nothing found is not an error, but the user should see it, at the region.
+      if (inside.length === 0) actions.noFacesFound();
       actions.addFaces(
         id,
         inside.map((f) => ({ box: f.box, score: f.score })),
@@ -405,6 +429,24 @@ export function Stage({
     imageRendering: layout.scale * dpr >= 1 ? 'pixelated' : 'auto',
   });
 
+  // The region being searched stays in view, with its label next to it; with no region (the whole
+  // photo) the label sits over the photo's top left. "No faces found" stays there a moment.
+  const looking = app.detectRegion?.photoId === id ? app.detectRegion : undefined;
+  const found = app.noFaces?.photoId === id ? app.noFaces : undefined;
+  const marked = looking ?? found;
+  const markedBox = marked?.shape && shapeBounds(marked.shape);
+  const labelAt = ((): { left: number; top: number } => {
+    const height = 24;
+    const left = (x: number): number => clamp(x, 8, Math.max(8, size.w - 160));
+    if (!markedBox)
+      return { left: left(layout.offset.x + 10), top: Math.max(8, layout.offset.y + 10) };
+    const x = layout.offset.x + markedBox.x * pw;
+    const top = layout.offset.y + markedBox.y * ph;
+    const bottom = top + markedBox.h * ph;
+    if (bottom + 6 + height <= size.h) return { left: left(x), top: bottom + 6 };
+    return { left: left(x), top: Math.max(8, top - 6 - height) };
+  })();
+
   return (
     <div
       ref={stageRef}
@@ -412,6 +454,7 @@ export function Stage({
       style={panning ? { cursor: 'grabbing' } : undefined}
       data-testid="stage"
       data-fit={shown.scale === null ? 'true' : 'false'}
+      data-peek={peek ? '' : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -431,6 +474,7 @@ export function Stage({
             <img
               src={patch.url}
               alt=""
+              className="patch"
               draggable={false}
               style={imageStyle(patch.x, patch.y, patch.width, patch.height)}
               data-testid="mosaic-patch"
@@ -453,10 +497,17 @@ export function Stage({
             {draftPoints.length > 1 && (
               <path d={`M${draftPoints.map(toPx).join('L')}`} className="draft" />
             )}
+            {marked?.shape && (
+              <path d={shapePath(marked.shape)} className="draft" data-testid="detect-region" />
+            )}
           </svg>
+          {marked && (
+            <div className="regionLabel" style={labelAt} data-testid="detect-label">
+              {looking ? 'Looking for faces…' : 'No faces found'}
+            </div>
+          )}
         </>
       )}
-      {app.detecting && <div className="busy">Looking for faces…</div>}
     </div>
   );
 }

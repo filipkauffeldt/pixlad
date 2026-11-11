@@ -76,6 +76,9 @@ export function Stage({
   const [panHeld, setPanHeld] = useState(false);
   const [panning, setPanning] = useState(false);
   const [peek, setPeek] = useState(false);
+  // The pointer over the stage (CSS px) and whether a drawing drag is under way, for the hover.
+  const [hoverAt, setHoverAt] = useState<Point | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [patch, setPatch] = useState<Patch | null>(null);
   const [draftRect, setDraftRect] = useState<Rect | undefined>();
   const [draftPoints, setDraftPoints] = useState<Point[]>([]);
@@ -105,6 +108,13 @@ export function Stage({
   const layout = viewLayout(shown, base, image, dpr);
   const pw = iw * layout.scale;
   const ph = ih * layout.scale;
+
+  // The topmost area under the pointer: what a click would switch. None while drawing or panning.
+  let hovered = -1;
+  if (hoverAt && !dragging && !panHeld && !panning) {
+    const unit = { x: (hoverAt.x - layout.offset.x) / pw, y: (hoverAt.y - layout.offset.y) / ph };
+    if (isOnPicture(unit)) hovered = areaIndexAt(photo.areas, unit, photo.facePadding);
+  }
 
   const latest = useRef({ context, shown, layout, pw, ph });
   useLayoutEffect(() => {
@@ -309,12 +319,14 @@ export function Stage({
       moved: false,
     };
     surface.setPointerCapture(event.pointerId);
+    setDragging(true);
     if (lasso) setDraftPoints([start]);
   };
 
   const onPointerMove = (event: React.PointerEvent): void => {
     const box = stageRef.current!.getBoundingClientRect();
     pointer.current = { x: event.clientX - box.left, y: event.clientY - box.top };
+    setHoverAt(pointer.current);
     if (panDrag.current) {
       const delta = {
         x: event.clientX - panDrag.current.last.x,
@@ -352,6 +364,7 @@ export function Stage({
     const d = drag.current;
     if (!d) return;
     drag.current = null;
+    setDragging(false);
     const { pw: w, ph: h } = latest.current;
     const rawEnd = toUnit(event);
     const end = clampToPicture(rawEnd);
@@ -450,7 +463,7 @@ export function Stage({
   return (
     <div
       ref={stageRef}
-      className={`stage ${panHeld ? 'panning' : 'drawing'}`}
+      className={`stage ${panHeld ? 'panning' : 'drawing'}${hovered >= 0 ? ' overArea' : ''}`}
       style={panning ? { cursor: 'grabbing' } : undefined}
       data-testid="stage"
       data-fit={shown.scale === null ? 'true' : 'false'}
@@ -459,7 +472,10 @@ export function Stage({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      onPointerLeave={() => (pointer.current = null)}
+      onPointerLeave={() => {
+        pointer.current = null;
+        setHoverAt(null);
+      }}
     >
       {size.w > 0 && (
         <>
@@ -483,6 +499,7 @@ export function Stage({
           <svg className="overlay" data-testid="overlay" role="img" aria-label="Retouch areas">
             {photo.areas.map((area, i) => {
               const d = shapePath(areaShape(area, photo.facePadding));
+              const hover = i === hovered ? ' areaHover' : '';
               const state = !area.enabled
                 ? 'areaOff'
                 : area.mode === 'subtract'
@@ -490,10 +507,10 @@ export function Stage({
                   : 'areaOn';
               return (
                 <g key={i}>
-                  <path d={d} className={`halo ${state}`} />
+                  <path d={d} className={`halo ${state}${hover}`} />
                   <path
                     d={d}
-                    className={state}
+                    className={`${state}${hover}`}
                     data-testid="area"
                     data-kind={area.kind}
                     data-enabled={area.enabled}

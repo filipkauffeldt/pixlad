@@ -100,6 +100,27 @@ export function Strip() {
     };
   }, []);
 
+  // A plain vertical wheel over the strip scrolls it sideways: a vertical wheel has nowhere
+  // else to go here. Horizontal wheel and trackpad movement are left to the browser.
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element) return;
+    const onWheel = (event: WheelEvent): void => {
+      if (event.ctrlKey || event.metaKey) return;
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const unit =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? 16
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? element.clientWidth
+            : 1;
+      element.scrollLeft += (event.deltaY + event.deltaX) * unit;
+      event.preventDefault();
+    };
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, []);
+
   // Keep the current photo in view when stepping with the arrow keys.
   useEffect(() => {
     const element = scroller.current;

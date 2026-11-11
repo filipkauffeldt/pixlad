@@ -209,6 +209,35 @@ describe('face padding', () => {
   });
 });
 
+describe('the strip', () => {
+  it('scrolls sideways with a plain vertical wheel, and horizontal still works', async () => {
+    const dir = await tmp();
+    const files: string[] = [];
+    for (let i = 0; i < 20; i++) files.push(await photoFile(dir, `w${i}.jpg`, 400, 300));
+    running = await launch();
+    const { page } = running;
+    await dropFiles(page, files);
+    await page.waitForFunction(() =>
+      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 20'),
+    );
+    const strip = page.locator('[data-testid="strip"]');
+    const scrollLeft = (): Promise<number> => strip.evaluate((el) => el.scrollLeft);
+    expect(await scrollLeft()).toBe(0);
+    const box = (await strip.boundingBox())!;
+    await page.mouse.move(box.x + 700, box.y + box.height / 2);
+    await page.mouse.wheel(0, 400);
+    await page.waitForFunction(
+      () => (document.querySelector('[data-testid="strip"]') as HTMLElement).scrollLeft > 0,
+    );
+    const afterVertical = await scrollLeft();
+    await page.mouse.wheel(200, 0);
+    await page.waitForFunction(
+      (from) => (document.querySelector('[data-testid="strip"]') as HTMLElement).scrollLeft > from,
+      afterVertical,
+    );
+  });
+});
+
 describe('zoom and pan', () => {
   it('toggles Fit and 100% on Z, snaps 100% to the device pixel grid, zooms with Ctrl, and pans', async () => {
     const dir = await tmp();

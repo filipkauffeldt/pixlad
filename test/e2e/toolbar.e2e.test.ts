@@ -228,3 +228,25 @@ describe('the Export tooltip', () => {
     expect(await exportButton.getAttribute('title')).toBe('Draw an area or find faces first');
   });
 });
+
+describe('the sliders', () => {
+  it('grabs the thumb from a few pixels beside its line, and drags it', async () => {
+    const page = await openPhoto();
+    const slider = page.locator('[aria-label="Face padding"]');
+    const box = (await slider.boundingBox())!;
+    const value = async (): Promise<number> => Number(await slider.inputValue());
+    const start = await value(); // 0.15 of 0..0.5
+    // Chromium keeps the thumb's own width inside the track at both ends.
+    const thumb = 14;
+    const centre = box.x + thumb / 2 + (start / 0.5) * (box.width - thumb);
+    const y = box.y + box.height / 2;
+
+    // Pressing on the track outside the thumb would jump the value to the pointer.
+    await page.mouse.move(centre + 5, y);
+    await page.mouse.down();
+    expect(await value()).toBe(start);
+    await page.mouse.move(centre + 25, y, { steps: 5 });
+    expect(await value()).toBeGreaterThan(start + 0.05);
+    await page.mouse.up();
+  });
+});

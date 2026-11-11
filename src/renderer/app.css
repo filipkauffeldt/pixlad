@@ -164,12 +164,13 @@ input[type='range']::-webkit-slider-runnable-track {
   height: 1px;
   background: var(--line-strong);
 }
+/* The thumb is a 14px grab area that draws a 2px line, so it stays easy to hit and looks the same. */
 input[type='range']::-webkit-slider-thumb {
   appearance: none;
-  width: 2px;
+  width: 14px;
   height: 11px;
   margin-top: -5px;
-  background: var(--text);
+  background: linear-gradient(var(--text), var(--text)) center / 2px 100% no-repeat;
 }
 
 /* Settings */

@@ -481,21 +481,37 @@ export function Stage({
             />
           )}
           <svg className="overlay" data-testid="overlay" role="img" aria-label="Retouch areas">
-            {photo.areas.map((area, i) => (
-              <path
-                key={i}
-                d={shapePath(areaShape(area, photo.facePadding))}
-                className={
-                  !area.enabled ? 'areaOff' : area.mode === 'subtract' ? 'areaSubtract' : 'areaOn'
-                }
-                data-testid="area"
-                data-kind={area.kind}
-                data-enabled={area.enabled}
-              />
-            ))}
-            {draftRect && <path d={shapePath(draftRect)} className="draft" />}
+            {photo.areas.map((area, i) => {
+              const d = shapePath(areaShape(area, photo.facePadding));
+              const state = !area.enabled
+                ? 'areaOff'
+                : area.mode === 'subtract'
+                  ? 'areaSubtract'
+                  : 'areaOn';
+              return (
+                <g key={i}>
+                  <path d={d} className={`halo ${state}`} />
+                  <path
+                    d={d}
+                    className={state}
+                    data-testid="area"
+                    data-kind={area.kind}
+                    data-enabled={area.enabled}
+                  />
+                </g>
+              );
+            })}
+            {draftRect && (
+              <>
+                <path d={shapePath(draftRect)} className="halo draft" />
+                <path d={shapePath(draftRect)} className="draft" />
+              </>
+            )}
             {draftPoints.length > 1 && (
-              <path d={`M${draftPoints.map(toPx).join('L')}`} className="draft" />
+              <>
+                <path d={`M${draftPoints.map(toPx).join('L')}`} className="halo draft" />
+                <path d={`M${draftPoints.map(toPx).join('L')}`} className="draft" />
+              </>
             )}
             {marked?.shape && (
               <path d={shapePath(marked.shape)} className="draft" data-testid="detect-region" />

@@ -173,6 +173,12 @@ describe('opening', () => {
     );
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
 
+    await page.keyboard.press('Enter'); // Keep is focused, so Enter keeps the photo
+    expect(await page.locator('[data-testid="remove-photo"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
+
+    await page.keyboard.press('Delete');
+    await page.waitForSelector('[data-testid="remove-photo"]');
     await page.keyboard.press('Escape'); // Escape keeps the photo
     expect(await page.locator('[data-testid="remove-photo"]').count()).toBe(0);
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);

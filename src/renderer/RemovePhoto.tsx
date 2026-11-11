@@ -35,7 +35,8 @@ export function RemovePhoto({ question }: { question: { id: string; name: string
         <footer className="modalFooter end">
           <button
             type="button"
-            className="btn"
+            className="btn primary"
+            autoFocus
             onClick={() => actions.answerRemovePhoto(false)}
             data-testid="remove-photo-keep"
           >
@@ -43,8 +44,7 @@ export function RemovePhoto({ question }: { question: { id: string; name: string
           </button>
           <button
             type="button"
-            className="btn primary"
-            autoFocus
+            className="btn"
             onClick={() => actions.answerRemovePhoto(true)}
             data-testid="remove-photo-remove"
           >

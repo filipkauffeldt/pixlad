@@ -643,6 +643,29 @@ describe('after an export', () => {
     });
   });
 
+  it("Escape keeps the photo for this export and does not save Don't ask again", async () => {
+    const dir = await tmp();
+    const userData = await tmp('pixlad-userdata-');
+    running = await launch({ userData });
+    const { page } = running;
+    await exportOne(page, 'escape-ticked.jpg', dir);
+    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    await page.check('[data-testid="remove-exported-dont-ask"]');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-testid="remove-exported"]', { state: 'detached' });
+    expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
+
+    await page.click('[data-testid="settings"]');
+    expect(await page.isChecked('[data-testid="after-export-ask"]')).toBe(true);
+    await page.keyboard.press('Escape');
+    await running.app.close();
+    running = undefined;
+    const saved = JSON.parse(await readFile(join(userData, 'settings.json'), 'utf8')) as {
+      afterExport?: string;
+    };
+    expect(saved.afterExport ?? 'ask').toBe('ask');
+  });
+
   it('keeps the photo without asking when the setting is keep', async () => {
     const dir = await tmp();
     const userData = await tmp('pixlad-userdata-');

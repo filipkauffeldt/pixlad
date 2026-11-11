@@ -17,7 +17,8 @@ export function RemoveExported({
     // question is open. Buttons still activate, because that is the default action.
     const onKeyDown = (event: KeyboardEvent): void => {
       event.stopPropagation();
-      if (event.key === 'Escape') answer(false);
+      // Escape keeps the photos for this export only; the checkbox is for the buttons.
+      if (event.key === 'Escape') actions.answerRemove(false);
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);

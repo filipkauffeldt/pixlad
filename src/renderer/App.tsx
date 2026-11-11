@@ -188,7 +188,7 @@ export function App() {
               ? 'Drag around faces to find them'
               : 'Drag to draw an area to pixelate'}
             {' · '}
-            <span className="mono">?</span> lists the shortcuts
+            <kbd className="mono">?</kbd> lists the shortcuts
           </div>
         )}
       </div>

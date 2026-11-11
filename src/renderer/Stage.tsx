@@ -578,7 +578,10 @@ export function Stage({
               </>
             )}
             {marked?.shape && (
-              <path d={shapePath(marked.shape)} className="draft" data-testid="detect-region" />
+              <>
+                <path d={shapePath(marked.shape)} className="halo haloDraft" />
+                <path d={shapePath(marked.shape)} className="draft" data-testid="detect-region" />
+              </>
             )}
           </svg>
           {marked && (

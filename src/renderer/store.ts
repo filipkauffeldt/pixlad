@@ -63,6 +63,19 @@ export interface DetectRegion {
   shape: Shape | undefined;
 }
 
+/** An Export all in progress, or the numbers of the last one while the footer still shows them. */
+export interface Batch {
+  done: number;
+  total: number;
+  failed: string[];
+  finished: boolean;
+  ok: number;
+  /** Cancel was pressed: the photo being written finishes, the rest are left alone. */
+  cancelling: boolean;
+  /** Photos that were never started because the batch was cancelled. */
+  cancelled: number;
+}
+
 export interface AppState {
   photos: PhotoState[];
   currentId: string | undefined;
@@ -77,8 +90,7 @@ export interface AppState {
   adding: boolean;
   notices: Notice[];
   toasts: Notice[];
-  batch:
-    { done: number; total: number; failed: string[]; finished: boolean; ok: number } | undefined;
+  batch: Batch | undefined;
   dragging: boolean;
   exportTarget: ExportTarget;
   /** Whether the user has picked an export target. Until then the first export asks. */
@@ -650,6 +662,15 @@ export const actions = {
   setNotesOpen: (notesOpen: boolean): void =>
     set(notesOpen ? { notesOpen, aboutOpen: false } : { notesOpen }),
 
+  /** Stop Export all after the photo being written. Photos already exported stay exported. */
+  cancelExportAll(): void {
+    set((s) =>
+      s.batch && !s.batch.finished && !s.batch.cancelling
+        ? { batch: { ...s.batch, cancelling: true } }
+        : {},
+    );
+  },
+
   /** Every photo with a mosaic, one after the other, in the background. */
   async exportAll(confirmed = false): Promise<void> {
     if (state.batch && !state.batch.finished) return;
@@ -663,9 +684,26 @@ export const actions = {
       set({ overwriteConfirm: { anchor: 'all' } });
       return;
     }
-    set({ batch: { done: 0, total: ids.length, failed: [], finished: false, ok: 0 } });
+    set({
+      batch: {
+        done: 0,
+        total: ids.length,
+        failed: [],
+        finished: false,
+        ok: 0,
+        cancelling: false,
+        cancelled: 0,
+      },
+    });
     const exported: string[] = [];
-    for (const id of ids) {
+    for (const [index, id] of ids.entries()) {
+      if (state.batch?.cancelling) {
+        const left = ids
+          .slice(index)
+          .filter((rest) => state.photos.some((p) => p.info.id === rest));
+        set((s) => ({ batch: s.batch && { ...s.batch, cancelled: left.length } }));
+        break;
+      }
       const photo = state.photos.find((p) => p.info.id === id);
       const name = photo?.info.name ?? id;
       let ok = false;

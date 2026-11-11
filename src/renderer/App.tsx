@@ -119,7 +119,14 @@ export function App() {
   const batch = app.batch;
   const batchText = batch
     ? batch.finished
-      ? `${batch.ok} exported, ${batch.failed.length} failed`
+      ? [
+          `${batch.ok} exported`,
+          // "0 failed" stays when nothing was cancelled; after a cancel only real failures show.
+          ...(batch.failed.length > 0 || batch.cancelled === 0
+            ? [`${batch.failed.length} failed`]
+            : []),
+          ...(batch.cancelled > 0 ? [`${batch.cancelled} cancelled`] : []),
+        ].join(', ')
       : `Exporting ${Math.min(batch.done + 1, batch.total)} of ${batch.total}`
     : '';
 
@@ -203,7 +210,35 @@ export function App() {
             </>
           )}
         </span>
-        {batchText && <span data-testid="batch-status">{batchText}</span>}
+        {batchText && (
+          <span className="batch">
+            <span data-testid="batch-status">{batchText}</span>
+            {batch && !batch.finished && (
+              <>
+                <span
+                  className="progress"
+                  role="progressbar"
+                  aria-label="Export progress"
+                  aria-valuemin={0}
+                  aria-valuemax={batch.total}
+                  aria-valuenow={batch.done}
+                  data-testid="batch-progress"
+                >
+                  <span style={{ width: `${(batch.done / Math.max(batch.total, 1)) * 100}%` }} />
+                </span>
+                <button
+                  type="button"
+                  className="footerButton"
+                  disabled={batch.cancelling}
+                  onClick={actions.cancelExportAll}
+                  data-testid="batch-cancel"
+                >
+                  {batch.cancelling ? 'Cancelling…' : 'Cancel'}
+                </button>
+              </>
+            )}
+          </span>
+        )}
         {photo && <span>{zoom === undefined ? 'Fit' : `${Math.round(zoom)}%`}</span>}
         <span>
           {app.photos.length > 0 && photo

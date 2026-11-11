@@ -454,6 +454,65 @@ describe('closing and exporting a batch', () => {
     }
   });
 
+  it('shows progress while a batch exports, and Cancel lets the photo being written finish, then stops', async () => {
+    const dir = await tmp();
+    const files = [
+      await photoFile(dir, 'one.jpg'),
+      await photoFile(dir, 'two.jpg'),
+      await photoFile(dir, 'three.jpg'),
+    ];
+    running = await launch();
+    const { app, page } = running;
+    await dropFiles(page, files);
+    await photoReady(page);
+    await pickTool(page, 'rect');
+    for (let i = 0; i < 3; i++) {
+      await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+      if (i < 2) {
+        await page.keyboard.press('ArrowRight');
+        await photoReady(page);
+      }
+    }
+    // Each export takes a moment, so Cancel can be pressed while the first one is being written.
+    await app.evaluate(({ ipcMain }) => {
+      const handlers = (
+        ipcMain as unknown as { _invokeHandlers: Map<string, (...args: unknown[]) => unknown> }
+      )._invokeHandlers;
+      const original = handlers.get('photo:export')!;
+      ipcMain.removeHandler('photo:export');
+      ipcMain.handle('photo:export', async (event, ...args) => {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        return original(event, ...args);
+      });
+    });
+
+    await page.click('[data-testid="export-all"]');
+    await page.waitForSelector('[data-testid="batch-progress"]');
+    expect(await page.locator('[data-testid="batch-status"]').innerText()).toBe('Exporting 1 of 3');
+    expect(await page.getAttribute('[data-testid="batch-progress"]', 'aria-valuenow')).toBe('0');
+    await page.click('[data-testid="batch-cancel"]');
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="batch-status"]')?.textContent ===
+        '1 exported, 2 cancelled',
+      undefined,
+      { timeout: 30000 },
+    );
+    // The bar and Cancel go away when the batch is over.
+    expect(await page.locator('[data-testid="batch-progress"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="batch-cancel"]').count()).toBe(0);
+    // The photo being written finished; the others were never started.
+    await page.waitForSelector('[data-testid="remove-exported"]');
+    expect(await removeQuestion(page)).toBe('Remove one.jpg from the session?');
+    await answerRemove(page, 'keep');
+    expect((await readdir(dir)).sort()).toEqual([
+      'one.jpg',
+      'one_edit.jpg',
+      'three.jpg',
+      'two.jpg',
+    ]);
+  });
+
   it('can keep working while a batch exports: edits after a photo started do not change that export', async () => {
     const dir = await tmp();
     const file = await photoFile(dir, 'busy.jpg');

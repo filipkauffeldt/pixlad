@@ -798,6 +798,37 @@ input[type='range']::-webkit-slider-thumb {
   align-items: center;
   gap: 8px;
 }
+/* Export all: progress next to the count, and Cancel */
+.footer .batch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.progress {
+  display: block;
+  width: 96px;
+  height: 2px;
+  background: var(--line-strong);
+}
+.progress > span {
+  display: block;
+  height: 100%;
+  background: var(--text);
+}
+.footerButton {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+}
+.footerButton:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration: underline;
+}
+.footerButton:disabled {
+  color: var(--dim);
+}
 .label {
   color: var(--dim);
   font-size: var(--fs-label);

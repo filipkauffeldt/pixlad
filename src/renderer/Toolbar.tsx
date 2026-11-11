@@ -28,6 +28,21 @@ const OUTLINES: Array<{ outline: Outline; label: string; title: string }> = [
 ];
 const FLIP_KEY = isMac ? '⌘' : 'Ctrl';
 
+/** The arrow on Undo, turned around for Redo. It takes the colour of its button's text. */
+function CurvedArrow({ mirrored = false }: { mirrored?: boolean }) {
+  return (
+    <svg
+      className={mirrored ? 'curvedArrow mirrored' : 'curvedArrow'}
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      aria-hidden="true"
+    >
+      <path d="M5 3 2 6l3 3M2 6h7.5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  );
+}
+
 /** Picks what a drag acts on. */
 function TargetMenu() {
   const app = useApp();
@@ -405,18 +420,20 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
         className="btn"
         onClick={actions.undo}
         disabled={!photo || photo.undo.length === 0}
+        aria-label="Undo"
         title={`Undo the last change to the areas (${FLIP_KEY}+Z)`}
       >
-        Undo
+        <CurvedArrow />
       </button>
       <button
         type="button"
         className="btn"
         onClick={actions.redo}
         disabled={!photo || photo.redo.length === 0}
+        aria-label="Redo"
         title={`Redo the change you just undid (${REDO_KEYS})`}
       >
-        Redo
+        <CurvedArrow mirrored />
       </button>
       <button
         type="button"

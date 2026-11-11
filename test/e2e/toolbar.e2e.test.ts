@@ -64,6 +64,18 @@ async function centreOfFirstArea(page: Page): Promise<[number, number]> {
 const areas = (page: Page): Promise<number> => page.locator('[data-testid="area"]').count();
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 
+describe('undo and redo buttons', () => {
+  it('are curved arrows with an accessible name, not text', async () => {
+    const page = await openPhoto();
+    for (const name of ['Undo', 'Redo']) {
+      const arrow = button(page, name);
+      expect(await arrow.locator('svg').count()).toBe(1);
+      expect((await arrow.textContent())?.trim()).toBe('');
+      expect(await arrow.getAttribute('title')).toContain(name);
+    }
+  });
+});
+
 describe('redo', () => {
   it('redoes from the button and both shortcuts, and a new edit drops it', async () => {
     const page = await openPhoto();

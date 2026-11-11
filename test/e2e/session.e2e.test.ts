@@ -133,6 +133,37 @@ describe('opening', () => {
     );
   });
 
+  it('asks before a photo with unexported areas leaves the session', async () => {
+    const dir = await tmp();
+    const file = await photoFile(dir, 'work.jpg');
+    running = await launch();
+    const { page } = running;
+    await dropFiles(page, [file]);
+    await photoReady(page);
+    await page.click('[data-tool="rect"]');
+    await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+    await page.waitForSelector('[data-testid="mosaic-patch"]');
+
+    await page.keyboard.press('Delete');
+    await page.waitForSelector('[data-testid="remove-photo"]');
+    const question = await page.locator('[data-testid="remove-photo"]').innerText();
+    expect(question).toContain('Remove work.jpg from the session?');
+    expect(question).toContain(
+      'Its areas have not been exported and will be lost. The file stays on disk.',
+    );
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
+
+    await page.keyboard.press('Escape'); // Escape keeps the photo
+    expect(await page.locator('[data-testid="remove-photo"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
+
+    await page.keyboard.press('Delete');
+    await page.locator('[data-testid="remove-photo-remove"]').click();
+    await page.waitForSelector('[data-testid="empty"]');
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(0);
+    expect(await readdir(dir)).toEqual(['work.jpg']);
+  });
+
   it('removes a photo from the session only: the file stays', async () => {
     const dir = await tmp();
     const a = await photoFile(dir, 'a.jpg');

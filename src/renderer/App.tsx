@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useCallback, useEffect, useState } from 'react';
 import { About } from './About';
+import { RemovePhoto } from './RemovePhoto';
 import { Stage } from './Stage';
 import { Strip } from './Strip';
 import { Toolbar } from './Toolbar';
@@ -227,6 +228,7 @@ export function App() {
           ))}
         </div>
       )}
+      {app.removePhotoQuestion && <RemovePhoto question={app.removePhotoQuestion} />}
       {app.aboutOpen && <About />}
       {app.dragging && <div className="dropOverlay">Drop JPEG photos to add them</div>}
     </div>

@@ -351,6 +351,23 @@ input[type='range']::-webkit-slider-thumb {
   font-size: inherit;
 }
 
+/* Small confirm dialogs */
+.modal.removePhoto {
+  width: min(420px, 100%);
+}
+.removePhoto h2 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--line);
+}
+
 /* Notices */
 .notice {
   display: flex;

@@ -72,6 +72,8 @@ export interface AppState {
   exportChosen: boolean;
   /** The first-export choice, open under the Export or the Export all button. */
   exportChoice: { anchor: 'export' | 'all' } | undefined;
+  /** A photo whose unexported areas are about to be lost, waiting for an answer. */
+  removePhotoQuestion: { id: string; name: string } | undefined;
   checkForUpdates: boolean;
   aboutOpen: boolean;
   update: UpdateState;
@@ -95,6 +97,7 @@ const initial: AppState = {
   // True until the settings load, so an export started before that never asks twice.
   exportChosen: true,
   exportChoice: undefined,
+  removePhotoQuestion: undefined,
   checkForUpdates: true,
   aboutOpen: false,
   update: { phase: 'idle' },
@@ -184,6 +187,21 @@ const offerRemoval = (ids: readonly string[]): Promise<void> => {
 const errorText = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
+/** Take a photo out of the session, keeping the current photo near where it was. */
+const removeNow = (id: string): void => {
+  const index = state.photos.findIndex((p) => p.info.id === id);
+  if (index < 0) return;
+  void window.api.removePhoto(id);
+  set((s) => {
+    const photos = s.photos.filter((p) => p.info.id !== id);
+    const currentId =
+      s.currentId === id
+        ? (photos[Math.min(index, photos.length - 1)]?.info.id ?? undefined)
+        : s.currentId;
+    return { photos, currentId };
+  });
+};
+
 export const actions = {
   setDragging: (dragging: boolean): void => set({ dragging }),
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
@@ -242,19 +260,22 @@ export const actions = {
     if (next) set({ currentId: next.info.id });
   },
 
-  /** Remove from the session only; the file is never touched. */
+  /** Remove from the session only; the file is never touched. Asks first if work would be lost. */
   remove(id: string): void {
-    const index = state.photos.findIndex((p) => p.info.id === id);
-    if (index < 0) return;
-    void window.api.removePhoto(id);
-    set((s) => {
-      const photos = s.photos.filter((p) => p.info.id !== id);
-      const currentId =
-        s.currentId === id
-          ? (photos[Math.min(index, photos.length - 1)]?.info.id ?? undefined)
-          : s.currentId;
-      return { photos, currentId };
-    });
+    const photo = state.photos.find((p) => p.info.id === id);
+    if (!photo) return;
+    if (isUnexported(photo)) {
+      set({ removePhotoQuestion: { id, name: photo.info.name } });
+      return;
+    }
+    removeNow(id);
+  },
+
+  /** The answer to "Remove <name> from the session?": true removes it, false keeps it. */
+  answerRemovePhoto(remove: boolean): void {
+    const question = state.removePhotoQuestion;
+    set({ removePhotoQuestion: undefined });
+    if (remove && question) removeNow(question.id);
   },
 
   addShape(shape: Shape, mode: RetouchMode): void {

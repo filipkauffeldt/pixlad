@@ -252,7 +252,17 @@ export function App() {
             )}
           </span>
         )}
-        {photo && <span>{zoom === undefined ? 'Fit' : `${Math.round(zoom)}%`}</span>}
+        {photo && (
+          <button
+            type="button"
+            className="footerButton"
+            title="Switch between Fit and 100% (Z)"
+            onClick={() => document.dispatchEvent(new Event('pixlad:toggle-zoom'))}
+            data-testid="zoom-toggle"
+          >
+            {zoom === undefined ? 'Fit' : `${Math.round(zoom)}%`}
+          </button>
+        )}
         <span>
           {app.photos.length > 0 && photo
             ? `${app.photos.indexOf(photo) + 1} / ${app.photos.length}`

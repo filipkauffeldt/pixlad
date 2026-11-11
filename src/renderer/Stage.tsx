@@ -243,11 +243,15 @@ export function Stage({
       actions.removeArea(over);
     };
     window.addEventListener('keydown', onDeleteKey, true);
+    // The zoom button in the footer does what the Z key does.
+    const onToggleZoom = (): void => onKeyDown(new KeyboardEvent('keydown', { key: 'z' }));
+    document.addEventListener('pixlad:toggle-zoom', onToggleZoom);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
     return () => {
       window.removeEventListener('keydown', onDeleteKey, true);
+      document.removeEventListener('pixlad:toggle-zoom', onToggleZoom);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);

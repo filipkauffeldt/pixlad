@@ -353,6 +353,49 @@ describe('zoom and pan', () => {
   });
 });
 
+describe('the zoom readout in the footer', () => {
+  it('is a button that switches between Fit and 100% like Z, and names the shortcut', async () => {
+    const dir = await tmp();
+    const file = await photoFile(dir, 'readout.jpg', 2400, 1600);
+    running = await launch();
+    const { page } = running;
+    expect(await page.locator('[data-testid="zoom-toggle"]').count()).toBe(0); // no photo yet
+    await dropFiles(page, [file]);
+    await photoReady(page);
+    const stage = page.locator('[data-testid="stage"]');
+    const readout = page.locator('[data-testid="zoom-toggle"]');
+    expect(await readout.innerText()).toBe('Fit');
+    expect(await readout.getAttribute('title')).toContain('(Z)');
+
+    await readout.click();
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === '100%',
+    );
+    expect(await stage.getAttribute('data-fit')).toBe('false');
+    expect((await box(page)).w).toBe(2400); // the same 100% as the Z key gives
+
+    await readout.click();
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === 'Fit',
+    );
+    expect(await stage.getAttribute('data-fit')).toBe('true');
+
+    // Zoomed to something else, it goes back to Fit, as Z does.
+    await page.mouse.move(700, 400);
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -200);
+    await page.keyboard.up('Control');
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="stage"]')?.getAttribute('data-fit') === 'false',
+    );
+    await readout.click();
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === 'Fit',
+    );
+    expect(await stage.getAttribute('data-fit')).toBe('true');
+  });
+});
+
 describe('closing and exporting a batch', () => {
   it('asks once with the count when mosaics are not exported, and not after exporting', async () => {
     const dir = await tmp();

@@ -141,39 +141,37 @@ export function Strip() {
         {app.photos.slice(first, last).map((photo, i) => {
           const index = first + i;
           return (
-            <button
-              key={photo.info.id}
-              type="button"
-              className="thumb"
-              style={{ left: 8 + index * ITEM }}
-              aria-current={photo.info.id === app.currentId}
-              aria-label={photo.info.name}
-              title={photo.info.name}
-              data-testid="thumb"
-              data-name={photo.info.name}
-              onClick={() => actions.select(photo.info.id)}
-            >
-              <img
-                src={`pixlad://thumb/${photo.info.id}?v=${photo.fileVersion}`}
-                alt=""
-                loading="lazy"
-                draggable={false}
-              />
-              <Badges photo={photo} />
-              <span
+            <div key={photo.info.id} className="thumbSlot" style={{ left: 8 + index * ITEM }}>
+              <button
+                type="button"
+                className="thumb"
+                aria-current={photo.info.id === app.currentId}
+                aria-label={photo.info.name}
+                title={photo.info.name}
+                data-testid="thumb"
+                data-name={photo.info.name}
+                onClick={() => actions.select(photo.info.id)}
+              >
+                <img
+                  src={`pixlad://thumb/${photo.info.id}?v=${photo.fileVersion}`}
+                  alt=""
+                  loading="lazy"
+                  draggable={false}
+                />
+                <Badges photo={photo} />
+              </button>
+              <button
+                type="button"
                 className="remove"
-                role="button"
                 aria-label={`Remove ${photo.info.name} from the session`}
                 title="Remove from the session. The file stays on disk."
                 data-testid="remove"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  actions.remove(photo.info.id);
-                }}
+                data-name={photo.info.name}
+                onClick={() => actions.remove(photo.info.id)}
               >
                 ×
-              </span>
-            </button>
+              </button>
+            </div>
           );
         })}
       </div>

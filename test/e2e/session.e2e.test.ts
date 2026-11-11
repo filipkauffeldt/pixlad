@@ -183,6 +183,32 @@ describe('opening', () => {
     expect(await readdir(dir)).toEqual(['work.jpg']);
   });
 
+  it('shows the thumbnail remove button on keyboard focus and removes with it', async () => {
+    const dir = await tmp();
+    await photoFile(dir, 'a.jpg');
+    await photoFile(dir, 'b.jpg');
+    running = await launch();
+    const { page } = running;
+    await dropFiles(page, [join(dir, 'a.jpg'), join(dir, 'b.jpg')]);
+    await page.waitForFunction(() =>
+      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
+    );
+    const thumb = page.locator('[data-testid="thumb"]').first();
+    const remove = page.locator('[data-testid="remove"]').first();
+    const opacity = (): Promise<string> => remove.evaluate((el) => getComputedStyle(el).opacity);
+    expect(await opacity()).toBe('0');
+    await thumb.hover();
+    expect(await opacity()).toBe('1');
+    await thumb.focus();
+    expect(await opacity()).toBe('1');
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe(
+      'remove',
+    );
+    await page.keyboard.press('Enter');
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
+  });
+
   it('removes a photo from the session only: the file stays', async () => {
     const dir = await tmp();
     const a = await photoFile(dir, 'a.jpg');
@@ -192,7 +218,7 @@ describe('opening', () => {
     await dropFiles(page, [a, join(dir, 'b.jpg')]);
     await photoReady(page);
     await page.locator('[data-testid="thumb"][data-name="a.jpg"]').hover();
-    await page.locator('[data-testid="thumb"][data-name="a.jpg"] [data-testid="remove"]').click();
+    await page.locator('[data-testid="remove"][data-name="a.jpg"]').click();
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
     await page.keyboard.press('Delete');
     await page.waitForSelector('[data-testid="empty"]');

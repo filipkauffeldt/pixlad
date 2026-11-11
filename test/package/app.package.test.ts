@@ -68,11 +68,17 @@ describe('the packaged app', () => {
     // Faces on a plain area: the model and onnxruntime load, and nothing is found.
     await pickTool(page, 'faces');
     await drag(page, [0.02, 0.02], [0.3, 0.3]);
-    const notice = page.locator('[data-testid="notice"]');
-    await notice.first().waitFor({ timeout: 60_000 });
-    const texts = await notice.allTextContents();
+    // Nothing found shows at the region; a failure shows as a notice instead.
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="detect-label"]')?.textContent === 'No faces found' ||
+        document.querySelector('[data-testid="notice"]') !== null,
+      undefined,
+      { timeout: 60_000 },
+    );
+    const texts = await page.locator('[data-testid="notice"]').allTextContents();
     expect(texts.join('\n')).not.toContain('Face detection failed');
-    expect(texts.join('\n')).toContain('No faces found');
+    expect(await page.locator('[data-testid="detect-label"]').innerText()).toBe('No faces found');
 
     // About: the notices list, the GPL text and Chromium's licences come from the package.
     await page.click('[data-testid="settings"]');

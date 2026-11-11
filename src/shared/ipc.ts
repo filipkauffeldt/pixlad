@@ -44,6 +44,12 @@ export type ExportTarget = 'suffix' | 'overwrite';
 export const isExportTarget = (value: unknown): value is ExportTarget =>
   value === 'suffix' || value === 'overwrite';
 
+/** What happens to the exported photos in the session: ask, keep them, or take them out. */
+export type AfterExport = 'ask' | 'keep' | 'remove';
+
+export const isAfterExport = (value: unknown): value is AfterExport =>
+  value === 'ask' || value === 'keep' || value === 'remove';
+
 /** What the app keeps between runs. */
 export interface Settings {
   exportTarget: ExportTarget;
@@ -51,6 +57,8 @@ export interface Settings {
   exportChosen: boolean;
   /** Whether the app looks for a newer release when it starts. */
   checkForUpdates: boolean;
+  /** What to do with photos in the session once they are exported. Missing in old files: ask. */
+  afterExport: AfterExport;
   /** How the window was left, to open it the same way. Missing before the first close. */
   window?: WindowState;
 }
@@ -68,6 +76,7 @@ export const DEFAULT_SETTINGS: Settings = {
   exportTarget: 'suffix',
   exportChosen: false,
   checkForUpdates: true,
+  afterExport: 'ask',
 };
 
 /** The file names an export of one photo would touch, for the first-export choice. */
@@ -115,6 +124,7 @@ export interface Api {
   setExportTarget(target: ExportTarget): Promise<void>;
   exportNames(id: string): Promise<ExportNames>;
   setCheckForUpdates(enabled: boolean): Promise<void>;
+  setAfterExport(choice: AfterExport): Promise<void>;
   about(): Promise<AboutInfo>;
   openChromiumLicenses(): Promise<void>;
   /** The check at start: undefined when the setting is off or this build does not check. */

@@ -568,6 +568,68 @@ describe('after an export', () => {
     expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
   });
 
+  it("Don't ask again saves the answer given, so the next export does not ask", async () => {
+    const dir = await tmp();
+    const userData = await tmp('pixlad-userdata-');
+    running = await launch({ userData });
+    const { page } = running;
+    await exportOne(page, 'first.jpg', dir);
+    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    await page.check('[data-testid="remove-exported-dont-ask"]');
+    await answerRemove(page, 'remove');
+    await page.waitForSelector('[data-testid="empty"]');
+
+    await page.click('[data-testid="settings"]');
+    expect(await page.isChecked('[data-testid="after-export-remove"]')).toBe(true);
+    await page.keyboard.press('Escape');
+
+    // The next export removes the photo without asking.
+    await exportOne(page, 'second.jpg', dir);
+    await page.waitForSelector('[data-testid="empty"]', { timeout: 30000 });
+    expect(await page.locator('[data-testid="remove-exported"]').count()).toBe(0);
+    expect((await readdir(dir)).sort()).toEqual([
+      'first.jpg',
+      'first_edit.jpg',
+      'second.jpg',
+      'second_edit.jpg',
+    ]);
+    await running.app.close();
+    running = undefined;
+    expect(JSON.parse(await readFile(join(userData, 'settings.json'), 'utf8'))).toMatchObject({
+      afterExport: 'remove',
+    });
+  });
+
+  it('keeps the photo without asking when the setting is keep', async () => {
+    const dir = await tmp();
+    const userData = await tmp('pixlad-userdata-');
+    await writeFile(
+      join(userData, 'settings.json'),
+      JSON.stringify({ exportTarget: 'suffix', exportChosen: true, afterExport: 'keep' }),
+    );
+    running = await launch({ userData });
+    const { page } = running;
+    await exportOne(page, 'stays.jpg', dir);
+    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(await page.locator('[data-testid="remove-exported"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
+  });
+
+  it('Don’t ask again does not save anything when it is not ticked', async () => {
+    const dir = await tmp();
+    const userData = await tmp('pixlad-userdata-');
+    running = await launch({ userData });
+    const { page } = running;
+    await exportOne(page, 'plain.jpg', dir);
+    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    expect(await page.isChecked('[data-testid="remove-exported-dont-ask"]')).toBe(false);
+    await answerRemove(page, 'keep');
+    await page.waitForSelector('[data-testid="badge-exported"]');
+    await page.click('[data-testid="settings"]');
+    expect(await page.isChecked('[data-testid="after-export-ask"]')).toBe(true);
+  });
+
   it('Escape keeps the photo, and Delete does not remove anything while the question is open', async () => {
     const dir = await tmp();
     running = await launch();

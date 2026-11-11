@@ -22,6 +22,7 @@ describe('the settings file', () => {
       exportTarget: 'suffix',
       exportChosen: false,
       checkForUpdates: true,
+      afterExport: 'ask',
     });
   });
 
@@ -30,6 +31,7 @@ describe('the settings file', () => {
       exportTarget: 'overwrite',
       exportChosen: true,
       checkForUpdates: false,
+      afterExport: 'remove',
     } as const;
     await writeSettings(file, saved);
     expect(await readSettings(file)).toEqual(saved);
@@ -55,6 +57,7 @@ describe('the settings file', () => {
       exportTarget: 'overwrite',
       exportChosen: true,
       checkForUpdates: true,
+      afterExport: 'ask',
     });
   });
 });
@@ -122,11 +125,55 @@ describe('the update check setting', () => {
       exportTarget: 'suffix',
       exportChosen: true,
       checkForUpdates: false,
+      afterExport: 'ask',
     });
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({
       exportTarget: 'suffix',
       exportChosen: true,
       checkForUpdates: false,
+      afterExport: 'ask',
+    });
+  });
+});
+
+describe('the after export setting', () => {
+  it.each(['ask', 'keep', 'remove'] as const)('reads back %s', async (afterExport) => {
+    await writeSettings(file, { ...DEFAULT_SETTINGS, afterExport });
+    expect((await readSettings(file)).afterExport).toBe(afterExport);
+  });
+
+  it('is ask in a file from before the setting existed', async () => {
+    await writeFile(
+      file,
+      '{"exportTarget":"overwrite","exportChosen":true,"checkForUpdates":false}',
+    );
+    expect(await readSettings(file)).toEqual({
+      exportTarget: 'overwrite',
+      exportChosen: true,
+      checkForUpdates: false,
+      afterExport: 'ask',
+    });
+  });
+
+  it.each(['not json', 'null', '{"afterExport":"delete"}', '{"afterExport":true}', ''])(
+    'is ask when the file is damaged: %j',
+    async (content) => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      await writeFile(file, content);
+      expect((await readSettings(file)).afterExport).toBe('ask');
+    },
+  );
+
+  it('is kept next to a damaged export target, and the other way round', async () => {
+    await writeFile(file, '{"exportTarget":"delete","afterExport":"remove"}');
+    expect(await readSettings(file)).toMatchObject({
+      exportTarget: 'suffix',
+      afterExport: 'remove',
+    });
+    await writeFile(file, '{"exportTarget":"overwrite","afterExport":"always"}');
+    expect(await readSettings(file)).toMatchObject({
+      exportTarget: 'overwrite',
+      afterExport: 'ask',
     });
   });
 });

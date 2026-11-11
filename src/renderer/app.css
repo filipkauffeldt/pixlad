@@ -206,6 +206,9 @@ input[type='range']::-webkit-slider-thumb {
 .settingsPanel legend + * {
   clear: both;
 }
+.settingsPanel .subLabel {
+  margin-top: 4px;
+}
 .linkButton {
   align-self: flex-start;
   padding: 8px 0 0;
@@ -423,6 +426,13 @@ input[type='range']::-webkit-slider-thumb {
   margin: 0;
   font-size: 15px;
   font-weight: 500;
+}
+.modalButtons {
+  display: flex;
+  gap: 8px;
+}
+.modalFooter .radio {
+  align-items: center;
 }
 .modalFooter.end {
   justify-content: flex-end;

@@ -17,6 +17,7 @@ const api: Api = {
   exportNames: (id) => ipcRenderer.invoke('export:names', id),
   setExportTarget: (target) => ipcRenderer.invoke('settings:set-export-target', target),
   setCheckForUpdates: (enabled) => ipcRenderer.invoke('settings:set-check-for-updates', enabled),
+  setAfterExport: (choice) => ipcRenderer.invoke('settings:set-after-export', choice),
   about: () => ipcRenderer.invoke('about:info'),
   openChromiumLicenses: () => ipcRenderer.invoke('about:chromium-licenses'),
   openSource: () => ipcRenderer.invoke('about:source'),

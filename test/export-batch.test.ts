@@ -18,6 +18,7 @@ function stubApi(exportPhoto: (id: string) => Promise<ExportOutcome>) {
     })),
     removePhoto: vi.fn(async () => undefined),
     exportPhoto: vi.fn((id: string) => exportPhoto(id)),
+    setAfterExport: vi.fn(async () => undefined),
   };
   vi.stubGlobal('window', { api });
   return api;
@@ -46,10 +47,15 @@ beforeEach(() => {
   vi.useRealTimers();
 });
 afterEach(async () => {
+  await actions.setAfterExport('ask').catch(() => undefined);
   // Leave the shared store empty for the next test.
   if (getState().removeQuestion) actions.answerRemove(false);
   await settle();
-  for (const photo of getState().photos) actions.remove(photo.info.id);
+  for (const photo of getState().photos) {
+    actions.remove(photo.info.id);
+    // A photo with unexported areas asks first; the answer here is yes.
+    if (getState().removePhotoQuestion) actions.answerRemovePhoto(true);
+  }
   vi.unstubAllGlobals();
 });
 
@@ -126,5 +132,81 @@ describe('Export all', () => {
     const before = getState().batch;
     actions.cancelExportAll();
     expect(getState().batch).toBe(before);
+  });
+});
+
+describe('the question after an export', () => {
+  /** Export one photo and return what the app asked, if it did. */
+  async function exportOne(): Promise<void> {
+    await sessionWith(['a']);
+    await actions.exportAll();
+  }
+
+  it('asks by default, and Don’t ask again saves the answer given', async () => {
+    const api = stubApi(async (id) => ok(id));
+    await sessionWith(['a']);
+    const done = actions.exportAll();
+    await settle();
+    expect(getState().removeQuestion).toEqual({ count: 1, name: 'a.jpg' });
+    actions.answerRemove(true, true);
+    await done;
+    expect(api.setAfterExport).toHaveBeenCalledWith('remove');
+    expect(getState().afterExport).toBe('remove');
+    expect(getState().photos).toEqual([]);
+    // The photos were exported, so removing them loses nothing and does not ask.
+    expect(getState().removePhotoQuestion).toBeUndefined();
+  });
+
+  it('saves Keep when that is the answer given with Don’t ask again', async () => {
+    const api = stubApi(async (id) => ok(id));
+    await sessionWith(['a']);
+    const done = actions.exportAll();
+    await settle();
+    actions.answerRemove(false, true);
+    await done;
+    expect(api.setAfterExport).toHaveBeenCalledWith('keep');
+    expect(getState().afterExport).toBe('keep');
+    expect(getState().photos).toHaveLength(1);
+  });
+
+  it('saves nothing when Don’t ask again is not ticked', async () => {
+    const api = stubApi(async (id) => ok(id));
+    await sessionWith(['a']);
+    const done = actions.exportAll();
+    await settle();
+    actions.answerRemove(true);
+    await done;
+    expect(api.setAfterExport).not.toHaveBeenCalled();
+    expect(getState().afterExport).toBe('ask');
+  });
+
+  it('keeps the photos without asking when set to keep', async () => {
+    stubApi(async (id) => ok(id));
+    await actions.setAfterExport('keep');
+    await exportOne();
+    expect(getState().removeQuestion).toBeUndefined();
+    expect(getState().photos.map((p) => p.status)).toEqual(['exported']);
+  });
+
+  it('removes the exported photos without asking when set to remove', async () => {
+    stubApi(async (id) => ok(id));
+    await actions.setAfterExport('remove');
+    await exportOne();
+    expect(getState().removeQuestion).toBeUndefined();
+    expect(getState().removePhotoQuestion).toBeUndefined();
+    expect(getState().photos).toEqual([]);
+  });
+
+  it('still leaves out a photo edited after its export when set to remove', async () => {
+    stubApi(async (id) => {
+      // Drawn while the export runs.
+      actions.addShape({ type: 'rect', x: 0.6, y: 0.6, w: 0.2, h: 0.2 }, 'add');
+      return ok(id);
+    });
+    await actions.setAfterExport('remove');
+    await exportOne();
+    expect(getState().photos.map((p) => p.info.id)).toEqual(['a']);
+    // Leaving it out is not asking: the question about losing edits never opens by itself.
+    expect(getState().removePhotoQuestion).toBeUndefined();
   });
 });

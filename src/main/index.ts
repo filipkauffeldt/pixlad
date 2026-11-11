@@ -17,6 +17,7 @@ import { basename, dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   DEFAULT_SETTINGS,
+  isAfterExport,
   isExportTarget,
   SOURCE_URL,
   type AboutInfo,
@@ -315,6 +316,10 @@ function registerIpc(): void {
   ipcMain.handle('settings:set-check-for-updates', async (_e, enabled: unknown) => {
     if (typeof enabled !== 'boolean') throw new Error('Unknown value for the update check');
     await changeSettings({ checkForUpdates: enabled });
+  });
+  ipcMain.handle('settings:set-after-export', async (_e, choice: unknown) => {
+    if (!isAfterExport(choice)) throw new Error('Unknown choice for what happens after an export');
+    await changeSettings({ afterExport: choice });
   });
   ipcMain.handle('update:check-on-start', () =>
     settings.checkForUpdates && updates.enabled ? updates.check() : undefined,

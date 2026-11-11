@@ -13,11 +13,25 @@ afterEach(async () => {
   running = undefined;
 });
 
+async function writePhoto(name: string): Promise<string> {
+  const file = join(await mkdtemp(join(tmpdir(), 'pixlad-e2e-')), name);
+  await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
+  return file;
+}
+
+/** The next Open dialog answers with these files instead of showing itself. */
+async function answerOpenDialog(app: Launched['app'], paths: string[]): Promise<void> {
+  await app.evaluate(({ dialog }, files) => {
+    dialog.showOpenDialog = (async () => ({
+      canceled: false,
+      filePaths: files,
+    })) as unknown as typeof dialog.showOpenDialog;
+  }, paths);
+}
+
 /** Launches with one photo open and the rectangle tool picked. */
 async function openPhoto(): Promise<Page> {
-  const dir = await mkdtemp(join(tmpdir(), 'pixlad-e2e-'));
-  const file = join(dir, 'p.jpg');
-  await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
+  const file = await writePhoto('p.jpg');
   running = await launch();
   const { page } = running;
   await dropFiles(page, [file]);
@@ -75,5 +89,37 @@ describe('redo', () => {
     expect(await button(page, 'Redo').isDisabled()).toBe(true);
     await page.keyboard.press('ControlOrMeta+Shift+z');
     expect(await areas(page)).toBe(2);
+  });
+});
+
+describe('adding photos to a running session', () => {
+  it('opens the file dialog from the Add button and from Ctrl/⌘+O', async () => {
+    const page = await openPhoto();
+    const { app } = running!;
+    const thumbs = (): Promise<number> => page.locator('[data-testid="thumb"]').count();
+    expect(await thumbs()).toBe(1);
+
+    await answerOpenDialog(app, [await writePhoto('b.jpg')]);
+    await button(page, 'Add…').click();
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-testid="thumb"]').length === 2,
+    );
+
+    await answerOpenDialog(app, [await writePhoto('c.jpg')]);
+    await page.keyboard.press('ControlOrMeta+o');
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-testid="thumb"]').length === 3,
+    );
+    expect(await thumbs()).toBe(3);
+  });
+
+  it('works while a number field has focus, and before any photo is open', async () => {
+    running = await launch();
+    const { page, app } = running;
+    await page.waitForSelector('[data-testid="empty"]');
+    await answerOpenDialog(app, [await writePhoto('a.jpg')]);
+    await page.focus('[aria-label="Block size in px"]');
+    await page.keyboard.press('ControlOrMeta+o');
+    await page.waitForSelector('[data-testid="photo"]');
   });
 });

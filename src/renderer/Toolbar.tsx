@@ -379,6 +379,15 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       <button
         type="button"
         className="btn"
+        onClick={() => void actions.openDialog()}
+        title="Add photos to this session (Ctrl/⌘+O)"
+        data-testid="add-photos"
+      >
+        Add…
+      </button>
+      <button
+        type="button"
+        className="btn"
         onClick={actions.undo}
         disabled={!photo || photo.undo.length === 0}
         title="Undo the last change to the areas (Ctrl/⌘+Z)"

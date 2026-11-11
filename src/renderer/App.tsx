@@ -79,13 +79,18 @@ export function App() {
       const typing =
         (target instanceof HTMLInputElement && target.type !== 'range') ||
         target instanceof HTMLTextAreaElement;
-      if (primary && (event.key === 'e' || event.key === 'E')) {
+      const key = event.key.toLowerCase();
+      if (primary && key === 'e') {
         event.preventDefault();
         void actions.exportCurrent();
         return;
       }
+      if (primary && key === 'o') {
+        event.preventDefault();
+        void actions.openDialog();
+        return;
+      }
       if (typing) return;
-      const key = event.key.toLowerCase();
       if (primary && key === 'z') {
         event.preventDefault();
         if (event.shiftKey) actions.redo();

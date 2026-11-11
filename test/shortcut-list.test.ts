@@ -23,5 +23,7 @@ describe('the shortcuts list', () => {
     expect(has('B')).toBe(true);
     expect(has('?')).toBe(true);
     expect(has('Space')).toBe(true);
+    expect(has('Right-click')).toBe(true);
+    expect(has('Delete / Backspace')).toBe(true);
   });
 });

@@ -12,13 +12,15 @@ export interface Shortcut {
 export const shortcutList = (mod: string): Shortcut[] => [
   { keys: ['Drag'], does: 'Find faces in a region, or draw an area, depending on the target' },
   { keys: ['Click'], does: 'Switch the area under the pointer on or off' },
+  { keys: ['Right-click'], does: 'Remove the area under the pointer' },
+  { keys: ['Delete / Backspace'], does: 'Remove the area under the pointer' },
   { keys: ['Alt'], does: 'Hold to draw with the other outline (rectangle or lasso)' },
   { keys: [mod], does: 'Hold to flip Add and Subtract' },
   { keys: [mod, 'Z'], does: 'Undo' },
   { keys: ['← / →'], does: 'Previous / next photo' },
   {
     keys: ['Delete'],
-    does: 'Remove the photo from the session (asks first if it has unexported areas)',
+    does: 'Remove the photo from the session, when not over an area (asks first if it has unexported areas)',
   },
   { keys: [mod, 'E'], does: 'Export the photo' },
   { keys: ['Z'], does: 'Toggle Fit and 100%' },

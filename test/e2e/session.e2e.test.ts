@@ -133,6 +133,25 @@ describe('opening', () => {
     );
   });
 
+  it('says when dropped photos were already in the session', async () => {
+    const dir = await tmp();
+    const a = await photoFile(dir, 'a.jpg');
+    const b = await photoFile(dir, 'b.jpg');
+    running = await launch();
+    const { page } = running;
+    await dropFiles(page, [a, b]);
+    await page.waitForFunction(() =>
+      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
+    );
+    await dropFiles(page, [a, b]);
+    await page.waitForFunction(() =>
+      Array.from(document.querySelectorAll('[data-testid="notice"]')).some((notice) =>
+        notice.textContent?.includes('2 photos were already in the session.'),
+      ),
+    );
+    expect(await page.locator('[data-testid="thumb"]').count()).toBe(2);
+  });
+
   it('asks before a photo with unexported areas leaves the session', async () => {
     const dir = await tmp();
     const file = await photoFile(dir, 'work.jpg');

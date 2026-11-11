@@ -56,6 +56,26 @@ describe('face padding', () => {
   });
 });
 
+describe('adding photos already in the session', () => {
+  it('says how many were skipped', async () => {
+    api.addPaths.mockResolvedValueOnce({ photos: [], refused: [], duplicates: 3 });
+    const { actions, getState } = await store();
+    await actions.addPaths(['/photos/a.jpg', '/photos/b.jpg', '/photos/c.jpg']);
+    expect(getState().notices.map((n) => n.lines)).toEqual([
+      ['3 photos were already in the session.'],
+    ]);
+  });
+
+  it('uses the singular for one', async () => {
+    api.addPaths.mockResolvedValueOnce({ photos: [], refused: [], duplicates: 1 });
+    const { actions, getState } = await store();
+    await actions.addPaths(['/photos/a.jpg']);
+    expect(getState().notices.map((n) => n.lines)).toEqual([
+      ['1 photo was already in the session.'],
+    ]);
+  });
+});
+
 describe('removing a photo from the session', () => {
   it('asks first when its areas have not been exported, and Keep leaves it alone', async () => {
     api.addPaths.mockResolvedValueOnce({ photos: [photo('a')], refused: [], duplicates: 0 });

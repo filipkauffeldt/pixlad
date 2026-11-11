@@ -245,7 +245,13 @@ export const actions = {
     } finally {
       set({ adding: false });
     }
-    void duplicates;
+    if (duplicates > 0) {
+      notify([
+        duplicates === 1
+          ? '1 photo was already in the session.'
+          : `${duplicates} photos were already in the session.`,
+      ]);
+    }
     if (refused.length > 0) {
       const shown = refused.slice(0, 8);
       if (refused.length > 8) shown.push(`…and ${refused.length - 8} more.`);

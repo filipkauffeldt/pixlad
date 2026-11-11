@@ -430,9 +430,11 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           onClick={() => void actions.exportCurrent()}
           disabled={!photo || !hasMosaic(photo) || photo.status === 'exporting'}
           title={
-            app.exportTarget === 'overwrite'
-              ? 'Replace the original file with the mosaic (Ctrl/⌘+E)'
-              : 'Save a new copy with _edit next to the original (Ctrl/⌘+E)'
+            photo && !hasMosaic(photo)
+              ? 'Draw an area or find faces first'
+              : app.exportTarget === 'overwrite'
+                ? 'Replace the original file with the mosaic (Ctrl/⌘+E)'
+                : 'Save a new copy with _edit next to the original (Ctrl/⌘+E)'
           }
           data-testid="export"
         >

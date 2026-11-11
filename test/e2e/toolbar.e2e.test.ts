@@ -56,6 +56,11 @@ async function drag(page: Page, from: [number, number], to: [number, number]): P
   await page.mouse.up();
 }
 
+async function centreOfFirstArea(page: Page): Promise<[number, number]> {
+  const box = (await page.locator('[data-testid="area"]').first().boundingBox())!;
+  return [box.x + box.width / 2, box.y + box.height / 2];
+}
+
 const areas = (page: Page): Promise<number> => page.locator('[data-testid="area"]').count();
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 
@@ -203,5 +208,23 @@ describe('finding all faces', () => {
     expect(await button(page, 'Find all faces').isDisabled()).toBe(true);
     await page.keyboard.press('f');
     expect(await label.count()).toBe(1);
+  });
+});
+
+describe('the Export tooltip', () => {
+  it('says what is missing while there is no mosaic, then goes back to the usual text', async () => {
+    const page = await openPhoto();
+    const exportButton = page.locator('[data-testid="export"]');
+    expect(await exportButton.isDisabled()).toBe(true);
+    expect(await exportButton.getAttribute('title')).toBe('Draw an area or find faces first');
+
+    await drag(page, [0.2, 0.2], [0.5, 0.5]);
+    expect(await exportButton.isEnabled()).toBe(true);
+    expect(await exportButton.getAttribute('title')).toContain('Save a new copy');
+
+    // An area switched off is no mosaic either.
+    await page.mouse.click(...(await centreOfFirstArea(page)));
+    expect(await exportButton.isDisabled()).toBe(true);
+    expect(await exportButton.getAttribute('title')).toBe('Draw an area or find faces first');
   });
 });

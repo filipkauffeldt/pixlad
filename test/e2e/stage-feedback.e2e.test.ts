@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { dropFiles, launch, stubCloseDialog, type Launched } from './app';
+import { dropFiles, launch, pickTool, stubCloseDialog, type Launched } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -172,5 +172,62 @@ describe('detection feedback', () => {
     expect(await notice.innerText()).toContain('Face detection failed');
     expect(await page.locator('[data-testid="detect-label"]').count()).toBe(0);
     expect(await page.locator('[data-testid="detect-region"]').count()).toBe(0);
+  });
+});
+
+describe('holding B to peek at the original', () => {
+  async function withMosaic(): Promise<Page> {
+    running = await launch();
+    const { page } = running;
+    await openPhoto(page, await tmp());
+    await pickTool(page, 'rect');
+    await drag(page, [
+      [0.2, 0.3],
+      [0.5, 0.6],
+    ]);
+    await page.locator('[data-testid="mosaic-patch"]').waitFor();
+    return page;
+  }
+  const shown = async (page: Page): Promise<[boolean, boolean]> => [
+    await page.locator('[data-testid="mosaic-patch"]').isVisible(),
+    await page.locator('[data-testid="area"]').isVisible(),
+  ];
+
+  it('hides the mosaic patch and the outlines while B is down, and shows them on release', async () => {
+    const page = await withMosaic();
+    expect(await shown(page)).toEqual([true, true]);
+    await page.keyboard.down('b');
+    expect(await shown(page)).toEqual([false, false]);
+    await page.keyboard.up('b');
+    expect(await shown(page)).toEqual([true, true]);
+    await page.keyboard.down('Shift');
+    await page.keyboard.down('B'); // Caps Lock or Shift
+    expect(await shown(page)).toEqual([false, false]);
+    await page.keyboard.up('B');
+    await page.keyboard.up('Shift');
+    expect(await shown(page)).toEqual([true, true]);
+  });
+
+  it('shows them again when the window loses focus', async () => {
+    const page = await withMosaic();
+    await page.keyboard.down('b');
+    expect(await shown(page)).toEqual([false, false]);
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    expect(await shown(page)).toEqual([true, true]);
+    await page.keyboard.up('b');
+  });
+
+  it('ignores B while typing in a field and with Ctrl held', async () => {
+    const page = await withMosaic();
+    await page.locator('input[aria-label="Block size in px"]').focus();
+    await page.keyboard.down('b');
+    expect(await shown(page)).toEqual([true, true]);
+    await page.keyboard.up('b');
+    await page.locator('input[aria-label="Block size in px"]').blur();
+    await page.keyboard.down('Control');
+    await page.keyboard.down('b');
+    expect(await shown(page)).toEqual([true, true]);
+    await page.keyboard.up('b');
+    await page.keyboard.up('Control');
   });
 });

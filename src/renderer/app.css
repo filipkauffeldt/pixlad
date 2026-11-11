@@ -563,6 +563,11 @@ input[type='range']::-webkit-slider-thumb {
   height: 100%;
   pointer-events: none;
 }
+/* Holding B shows the photo as it was: no mosaic patch, no outlines. */
+.stage[data-peek] .patch,
+.stage[data-peek] .overlay {
+  visibility: hidden;
+}
 .areaOn {
   fill: rgba(255, 255, 255, 0.05);
   stroke: var(--text);

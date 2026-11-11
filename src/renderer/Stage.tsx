@@ -75,6 +75,7 @@ export function Stage({
   const [view, setView] = useState<ZoomView>(FIT_VIEW);
   const [panHeld, setPanHeld] = useState(false);
   const [panning, setPanning] = useState(false);
+  const [peek, setPeek] = useState(false);
   const [patch, setPatch] = useState<Patch | null>(null);
   const [draftRect, setDraftRect] = useState<Rect | undefined>();
   const [draftPoints, setDraftPoints] = useState<Point[]>([]);
@@ -210,6 +211,32 @@ export function Stage({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dpr, iw, ih]);
+
+  // Hold B to see the photo as it was: the mosaic patch and every outline hide until the key goes
+  // up or the window loses focus. Not while typing in a field.
+  useEffect(() => {
+    const isB = (event: KeyboardEvent): boolean => event.key === 'b' || event.key === 'B';
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!isB(event) || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      const typing =
+        (target instanceof HTMLInputElement && target.type !== 'range') ||
+        target instanceof HTMLTextAreaElement;
+      if (!typing) setPeek(true);
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (isB(event)) setPeek(false);
+    };
+    const onBlur = (): void => setPeek(false);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, []);
 
   // Ctrl/Cmd+wheel zooms (also a trackpad pinch), a plain wheel pans a zoomed view.
   useEffect(() => {
@@ -427,6 +454,7 @@ export function Stage({
       style={panning ? { cursor: 'grabbing' } : undefined}
       data-testid="stage"
       data-fit={shown.scale === null ? 'true' : 'false'}
+      data-peek={peek ? '' : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -446,6 +474,7 @@ export function Stage({
             <img
               src={patch.url}
               alt=""
+              className="patch"
               draggable={false}
               style={imageStyle(patch.x, patch.y, patch.width, patch.height)}
               data-testid="mosaic-patch"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shortcutList } from '../src/renderer/shortcuts';
+import { shortcutList } from '../src/renderer/shortcut-list';
 
 describe('the shortcuts list', () => {
   it('names only the modifier of the platform it is built for', () => {

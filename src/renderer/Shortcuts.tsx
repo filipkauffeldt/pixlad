@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef } from 'react';
-import { SHORTCUTS } from './shortcuts';
+import { SHORTCUTS } from './shortcut-list';
 import { actions } from './store';
 
 /** Every keyboard shortcut, one list. Opened with ? or from Settings. */

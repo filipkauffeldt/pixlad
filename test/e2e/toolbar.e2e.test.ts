@@ -278,3 +278,38 @@ describe('the slider labels', () => {
     expect(colours.units).toEqual([colours.muted, colours.muted]);
   });
 });
+
+describe('tooltips', () => {
+  it('show the shortcut keys of this platform only, and explain Padding', async () => {
+    const page = await openPhoto();
+    const title = (selector: string): Promise<string> =>
+      page
+        .locator(selector)
+        .first()
+        .getAttribute('title')
+        .then((t) => t ?? '');
+    const mac = process.platform === 'darwin';
+    const mod = mac ? '⌘' : 'Ctrl';
+    const other = mac ? 'Ctrl' : '⌘';
+    await drag(page, [0.2, 0.2], [0.5, 0.5]); // Export has its usual tooltip once there is a mosaic
+
+    const titles = {
+      add: await title('[data-testid="add-photos"]'),
+      undo: await page.getByRole('button', { name: 'Undo', exact: true }).getAttribute('title'),
+      redo: await page.getByRole('button', { name: 'Redo', exact: true }).getAttribute('title'),
+      export: await title('[data-testid="export"]'),
+    };
+    expect(titles.add).toContain(`${mod}+O`);
+    expect(titles.undo).toContain(`${mod}+Z`);
+    expect(titles.export).toContain(`${mod}+E`);
+    expect(titles.redo).toContain(mac ? '⌘+Shift+Z' : 'Ctrl+Shift+Z or Ctrl+Y');
+    for (const text of Object.values(titles)) {
+      expect(text).not.toContain('/');
+      expect(text).not.toContain(`${other}+`);
+    }
+
+    const padding = await page.locator('.control', { hasText: 'Padding' }).getAttribute('title');
+    expect(padding).toContain('mosaic grows');
+    expect(padding).toContain('detected face');
+  });
+});

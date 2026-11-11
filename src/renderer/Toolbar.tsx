@@ -16,6 +16,8 @@ import {
   type Target,
 } from './store';
 
+const REDO_KEYS = isMac ? '⌘+Shift+Z' : 'Ctrl+Shift+Z or Ctrl+Y';
+
 const TARGETS: Array<{ target: Target; label: string; title: string }> = [
   { target: 'faces', label: 'Faces', title: 'Drag around faces to find them' },
   { target: 'area', label: 'Area', title: 'Drag to draw an area to pixelate' },
@@ -354,7 +356,10 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           onPointerUp={(e) => e.currentTarget.blur()}
         />
       </label>
-      <label className="control">
+      <label
+        className="control"
+        title="How far the mosaic grows beyond each detected face, as a share of the face's size"
+      >
         <span className="label">Padding</span>
         <NumberField
           key={`pad-${Math.round((photo?.facePadding ?? 0.15) * 100)}`}
@@ -390,7 +395,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
         type="button"
         className="btn"
         onClick={() => void actions.openDialog()}
-        title="Add photos to this session (Ctrl/⌘+O)"
+        title={`Add photos to this session (${FLIP_KEY}+O)`}
         data-testid="add-photos"
       >
         Add…
@@ -400,7 +405,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
         className="btn"
         onClick={actions.undo}
         disabled={!photo || photo.undo.length === 0}
-        title="Undo the last change to the areas (Ctrl/⌘+Z)"
+        title={`Undo the last change to the areas (${FLIP_KEY}+Z)`}
       >
         Undo
       </button>
@@ -409,7 +414,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
         className="btn"
         onClick={actions.redo}
         disabled={!photo || photo.redo.length === 0}
-        title="Redo the change you just undid (Ctrl/⌘+Shift+Z)"
+        title={`Redo the change you just undid (${REDO_KEYS})`}
       >
         Redo
       </button>
@@ -433,8 +438,8 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
             photo && !hasMosaic(photo)
               ? 'Draw an area or find faces first'
               : app.exportTarget === 'overwrite'
-                ? 'Replace the original file with the mosaic (Ctrl/⌘+E)'
-                : 'Save a new copy with _edit next to the original (Ctrl/⌘+E)'
+                ? `Replace the original file with the mosaic (${FLIP_KEY}+E)`
+                : `Save a new copy with _edit next to the original (${FLIP_KEY}+E)`
           }
           data-testid="export"
         >

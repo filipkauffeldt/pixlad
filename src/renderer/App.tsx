@@ -125,43 +125,45 @@ export function App() {
   return (
     <div className="app">
       <Toolbar photo={photo} />
-      {app.notices.map((notice) => (
-        <div className="notice" role="alert" key={notice.id} data-testid="notice">
-          <span className={`dot ${notice.kind === 'error' ? 'error' : ''}`} />
-          <div className="lines">
-            {notice.lines.map((line, i) => (
-              <div key={i}>{line}</div>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="close"
-            aria-label="Dismiss"
-            onClick={() => actions.dismissNotice(notice.id)}
-          >
-            ×
-          </button>
-        </div>
-      ))}
-      {app.update.phase !== 'idle' && !app.updatePromptHidden && !app.aboutOpen && (
-        <div className="notice update" role="status" data-testid="update-prompt">
-          <span className="dot ok" />
-          <div className="lines">
-            <UpdateStatus update={app.update} withLater />
-          </div>
-          {app.update.phase === 'opened' && (
-            <button
-              type="button"
-              className="close"
-              aria-label="Dismiss"
-              onClick={actions.hideUpdatePrompt}
-            >
-              ×
-            </button>
+      <div className="stageWrap">
+        <div className="noticeStack">
+          {app.notices.map((notice) => (
+            <div className="notice" role="alert" key={notice.id} data-testid="notice">
+              <span className={`dot ${notice.kind === 'error' ? 'error' : ''}`} />
+              <div className="lines">
+                {notice.lines.map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="close"
+                aria-label="Dismiss"
+                onClick={() => actions.dismissNotice(notice.id)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {app.update.phase !== 'idle' && !app.updatePromptHidden && !app.aboutOpen && (
+            <div className="notice update" role="status" data-testid="update-prompt">
+              <span className="dot ok" />
+              <div className="lines">
+                <UpdateStatus update={app.update} withLater />
+              </div>
+              {app.update.phase === 'opened' && (
+                <button
+                  type="button"
+                  className="close"
+                  aria-label="Dismiss"
+                  onClick={actions.hideUpdatePrompt}
+                >
+                  ×
+                </button>
+              )}
+            </div>
           )}
         </div>
-      )}
-      <div className="stageWrap">
         {photo ? (
           <Stage key={`${photo.info.id}-${photo.fileVersion}`} photo={photo} onZoom={onZoom} />
         ) : (

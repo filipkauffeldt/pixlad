@@ -22,6 +22,7 @@ describe('the settings file', () => {
       exportTarget: 'suffix',
       exportChosen: false,
       checkForUpdates: true,
+      theme: 'system',
     });
   });
 
@@ -30,6 +31,7 @@ describe('the settings file', () => {
       exportTarget: 'overwrite',
       exportChosen: true,
       checkForUpdates: false,
+      theme: 'light',
     } as const;
     await writeSettings(file, saved);
     expect(await readSettings(file)).toEqual(saved);
@@ -55,6 +57,7 @@ describe('the settings file', () => {
       exportTarget: 'overwrite',
       exportChosen: true,
       checkForUpdates: true,
+      theme: 'system',
     });
   });
 });
@@ -122,11 +125,34 @@ describe('the update check setting', () => {
       exportTarget: 'suffix',
       exportChosen: true,
       checkForUpdates: false,
+      theme: 'system',
     });
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({
       exportTarget: 'suffix',
       exportChosen: true,
       checkForUpdates: false,
+      theme: 'system',
     });
+  });
+});
+
+describe('the theme setting', () => {
+  it.each(['light', 'dark', 'system'])('reads back %s', async (theme) => {
+    await writeFile(file, JSON.stringify({ theme }));
+    expect((await readSettings(file)).theme).toBe(theme);
+  });
+
+  it.each(['not json', 'null', '{"theme":"sepia"}', '{"theme":1}', '{}', ''])(
+    'follows the system when the file is damaged: %j',
+    async (content) => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      await writeFile(file, content);
+      expect((await readSettings(file)).theme).toBe('system');
+    },
+  );
+
+  it('is kept next to a damaged update setting', async () => {
+    await writeFile(file, '{"checkForUpdates":"x","theme":"dark"}');
+    expect(await readSettings(file)).toMatchObject({ checkForUpdates: true, theme: 'dark' });
   });
 });

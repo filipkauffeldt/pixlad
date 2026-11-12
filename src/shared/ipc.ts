@@ -44,6 +44,12 @@ export type ExportTarget = 'suffix' | 'overwrite';
 export const isExportTarget = (value: unknown): value is ExportTarget =>
   value === 'suffix' || value === 'overwrite';
 
+/** How the app looks: light, dark, or whatever the operating system uses. */
+export type Theme = 'system' | 'light' | 'dark';
+
+export const isTheme = (value: unknown): value is Theme =>
+  value === 'system' || value === 'light' || value === 'dark';
+
 /** What the app keeps between runs. */
 export interface Settings {
   exportTarget: ExportTarget;
@@ -51,6 +57,7 @@ export interface Settings {
   exportChosen: boolean;
   /** Whether the app looks for a newer release when it starts. */
   checkForUpdates: boolean;
+  theme: Theme;
   /** How the window was left, to open it the same way. Missing before the first close. */
   window?: WindowState;
 }
@@ -68,6 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
   exportTarget: 'suffix',
   exportChosen: false,
   checkForUpdates: true,
+  theme: 'system',
 };
 
 /** The file names an export of one photo would touch, for the first-export choice. */

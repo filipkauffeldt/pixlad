@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useCallback, useEffect, useState } from 'react';
 import { About } from './About';
+import { AreaCounts } from './AreaCounts';
 import { OverwriteConfirm } from './OverwriteConfirm';
 import { ReleaseNotes } from './ReleaseNotes';
 import { isMac } from './flips';
@@ -79,15 +80,28 @@ export function App() {
       const typing =
         (target instanceof HTMLInputElement && target.type !== 'range') ||
         target instanceof HTMLTextAreaElement;
-      if (primary && (event.key === 'e' || event.key === 'E')) {
+      const key = event.key.toLowerCase();
+      if (primary && key === 'e') {
         event.preventDefault();
         void actions.exportCurrent();
         return;
       }
-      if (typing) return;
-      if (primary && (event.key === 'z' || event.key === 'Z') && !event.shiftKey) {
+      if (primary && key === 'o') {
         event.preventDefault();
-        actions.undo();
+        void actions.openDialog();
+        return;
+      }
+      if (typing) return;
+      if (primary && key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) actions.redo();
+        else actions.undo();
+      } else if (!primary && !event.shiftKey && key === 'f') {
+        event.preventDefault();
+        void actions.findAllFaces();
+      } else if (primary && key === 'y' && !isMac && !event.shiftKey) {
+        event.preventDefault();
+        actions.redo();
       } else if (!primary && event.key === 'ArrowLeft') {
         event.preventDefault();
         actions.step(-1);
@@ -198,6 +212,7 @@ export function App() {
             <>
               <span>{photo.info.name}</span>
               <span>{`${photo.info.width}×${photo.info.height}`}</span>
+              <AreaCounts photo={photo} />
               {photo.message && (
                 <span>
                   <span

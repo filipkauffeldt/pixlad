@@ -26,17 +26,22 @@
   gap: 8px;
   color: var(--muted);
 }
+.control .label,
+.control .unit {
+  color: var(--muted);
+}
 .control input[type='range'] {
-  width: 110px;
+  width: 80px;
 }
 .spacer {
   flex: 1;
 }
 .counts {
-  color: var(--muted);
-  min-width: 120px;
   display: flex;
   gap: 12px;
+}
+.counts:empty {
+  display: none;
 }
 
 .btn {
@@ -105,6 +110,17 @@
 .dropdownLabel > span[data-current] {
   visibility: visible;
 }
+.curvedArrow {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.curvedArrow.mirrored {
+  transform: scaleX(-1);
+}
 .dropdown svg {
   fill: none;
   stroke: var(--muted);
@@ -164,12 +180,13 @@ input[type='range']::-webkit-slider-runnable-track {
   height: 1px;
   background: var(--line-strong);
 }
+/* The thumb is a 14px grab area that draws a 2px line, so it stays easy to hit and looks the same. */
 input[type='range']::-webkit-slider-thumb {
   appearance: none;
-  width: 2px;
+  width: 14px;
   height: 11px;
   margin-top: -5px;
-  background: var(--text);
+  background: linear-gradient(var(--text), var(--text)) center / 2px 100% no-repeat;
 }
 
 /* Settings */

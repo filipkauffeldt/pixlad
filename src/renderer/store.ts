@@ -4,8 +4,9 @@ import { useSyncExternalStore } from 'react';
 import { defaultBlockPx } from '../shared/block-size';
 import type { AfterExport, ExportTarget, PhotoInfo } from '../shared/ipc';
 import type { ReleaseNote } from '../shared/update';
-import { opHasAddedArea, type Rect, type Shape } from '../shared/types';
+import { opHasAddedArea, type Point, type Rect, type Shape } from '../shared/types';
 import {
+  facesInLasso,
   opFromAreas,
   withDetectedFaces,
   withoutFacesInside,
@@ -22,6 +23,8 @@ export interface PhotoState {
   info: PhotoInfo;
   areas: RetouchArea[];
   undo: RetouchArea[][];
+  /** What Undo took off, newest last. Any new edit clears it. */
+  redo: RetouchArea[][];
   blockPx: number;
   facePadding: number;
   /** Bumped by every change that alters the mosaic. */
@@ -184,12 +187,20 @@ const updatePhoto = (id: string, fn: (p: PhotoState) => PhotoState): void =>
 const needsOverwriteConfirm = (confirmed: boolean): boolean =>
   !confirmed && state.exportTarget === 'overwrite' && state.overwriteAsk;
 
-/** An edit to the areas: remembered for Undo, bumps the revision. */
+const UNDO_STEPS = 50;
+
+/** An edit to the areas: remembered for Undo, forgets Redo, bumps the revision. */
 const editAreas = (id: string, fn: (areas: RetouchArea[]) => RetouchArea[]): void =>
   updatePhoto(id, (p) => {
     const areas = fn(p.areas);
     if (areas === p.areas) return p;
-    return { ...p, areas, undo: [...p.undo.slice(-49), p.areas], rev: p.rev + 1 };
+    return {
+      ...p,
+      areas,
+      undo: [...p.undo.slice(-(UNDO_STEPS - 1)), p.areas],
+      redo: [],
+      rev: p.rev + 1,
+    };
   });
 
 const INFO_NOTICE_MS = 8000;
@@ -224,6 +235,7 @@ const newPhoto = (info: PhotoInfo): PhotoState => ({
   info,
   areas: [],
   undo: [],
+  redo: [],
   blockPx: defaultBlockPx(Math.max(info.width, info.height)),
   facePadding: lastFacePadding,
   rev: 0,
@@ -449,6 +461,51 @@ export const actions = {
     set({ detecting: false, detectRegion: undefined, noFaces: where });
     noFacesTimer = setTimeout(() => set({ noFaces: undefined }), NO_FACES_MS);
   },
+
+  /**
+   * Run the detector over `region` of a photo and add what it finds, as Faces + Add does. The
+   * stage outlines the region (or the lasso) while it works; `outline: false` leaves it to the
+   * label's whole-photo position.
+   */
+  async detectFaces(
+    id: string,
+    region: Rect,
+    lasso?: readonly Point[],
+    outline = true,
+  ): Promise<void> {
+    const shape: Shape | undefined = !outline
+      ? undefined
+      : lasso
+        ? { type: 'polygon', points: [...lasso] }
+        : region;
+    actions.setDetecting(true, shape);
+    try {
+      const found = await window.api.detect(id, region);
+      const inside = lasso ? facesInLasso(found, lasso) : found;
+      // Nothing found is not an error, but the user should see it, where the detector looked.
+      if (inside.length === 0) actions.noFacesFound();
+      actions.addFaces(
+        id,
+        inside.map((f) => ({ box: f.box, score: f.score })),
+        'add',
+      );
+    } catch (cause) {
+      document.dispatchEvent(
+        new CustomEvent('pixlad:detect-failed', {
+          detail: cause instanceof Error ? cause.message : String(cause),
+        }),
+      );
+    } finally {
+      actions.setDetecting(false);
+    }
+  },
+
+  /** The whole current photo, for the Find all faces button and its shortcut. */
+  async findAllFaces(): Promise<void> {
+    const id = state.currentId;
+    if (!id || state.detecting) return;
+    await actions.detectFaces(id, { type: 'rect', x: 0, y: 0, w: 1, h: 1 }, undefined, false);
+  },
   notice: (lines: string[], kind: Notice['kind'] = 'info'): void => notify(lines, kind),
 
   undo(): void {
@@ -457,7 +514,29 @@ export const actions = {
     updatePhoto(id, (p) => {
       const previous = p.undo[p.undo.length - 1];
       if (!previous) return p;
-      return { ...p, areas: previous, undo: p.undo.slice(0, -1), rev: p.rev + 1 };
+      return {
+        ...p,
+        areas: previous,
+        undo: p.undo.slice(0, -1),
+        redo: [...p.redo, p.areas],
+        rev: p.rev + 1,
+      };
+    });
+  },
+
+  redo(): void {
+    const id = state.currentId;
+    if (!id) return;
+    updatePhoto(id, (p) => {
+      const next = p.redo[p.redo.length - 1];
+      if (!next) return p;
+      return {
+        ...p,
+        areas: next,
+        undo: [...p.undo.slice(-(UNDO_STEPS - 1)), p.areas],
+        redo: p.redo.slice(0, -1),
+        rev: p.rev + 1,
+      };
     });
   },
 
@@ -504,6 +583,7 @@ export const actions = {
           ...p,
           areas,
           undo: [],
+          redo: [],
           rev: nextRev,
           exportedRev: areas.length === 0 ? nextRev : p.exportedRev,
           status: 'exported',

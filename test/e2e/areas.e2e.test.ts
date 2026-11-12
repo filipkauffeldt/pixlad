@@ -104,8 +104,13 @@ describe('hovering an area', () => {
 });
 
 const areaCount = (page: Page): Promise<number> => page.locator('[data-testid="area"]').count();
-const photosInSession = (page: Page): Promise<string> =>
-  page.locator('[data-testid="photo-status"]').innerText();
+// The photo's name and size; the area counts beside them change when an area is removed.
+const photosInSession = async (page: Page): Promise<string> =>
+  (
+    await page
+      .locator('[data-testid="photo-status"] > span:not([data-testid="area-counts"])')
+      .allInnerTexts()
+  ).join('\n');
 
 describe('removing an area', () => {
   it('right-click removes the topmost area under the pointer and Undo restores it', async () => {

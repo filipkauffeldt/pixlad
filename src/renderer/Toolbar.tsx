@@ -5,7 +5,7 @@ import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/blo
 import type { AfterExport, ExportTarget } from '../shared/ipc';
 import { ExportChoice } from './ExportChoice';
 import { isMac, useFlips } from './flips';
-import { countAreas, withFlips, type Outline } from './retouch';
+import { withFlips, type Outline } from './retouch';
 import {
   actions,
   hasMosaic,
@@ -16,6 +16,8 @@ import {
   type Target,
 } from './store';
 
+const REDO_KEYS = isMac ? '⌘+Shift+Z' : 'Ctrl+Shift+Z or Ctrl+Y';
+
 const TARGETS: Array<{ target: Target; label: string; title: string }> = [
   { target: 'faces', label: 'Faces', title: 'Drag around faces to find them' },
   { target: 'area', label: 'Area', title: 'Drag to draw an area to pixelate' },
@@ -25,6 +27,21 @@ const OUTLINES: Array<{ outline: Outline; label: string; title: string }> = [
   { outline: 'lasso', label: 'Lasso', title: 'Draw a freehand outline (hold Alt for a rectangle)' },
 ];
 const FLIP_KEY = isMac ? '⌘' : 'Ctrl';
+
+/** The arrow on Undo, turned around for Redo. It takes the colour of its button's text. */
+function CurvedArrow({ mirrored = false }: { mirrored?: boolean }) {
+  return (
+    <svg
+      className={mirrored ? 'curvedArrow mirrored' : 'curvedArrow'}
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      aria-hidden="true"
+    >
+      <path d="M5 3 2 6l3 3M2 6h7.5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  );
+}
 
 /** Picks what a drag acts on. */
 function TargetMenu() {
@@ -271,7 +288,6 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
   const app = useApp();
   const flips = useFlips();
   const active = withFlips(app, flips);
-  const counts = photo ? countAreas(photo.areas) : undefined;
   const longEdge = photo ? longEdgeOf(photo) : 1;
   const px = photo
     ? blockSizeRelToPx(blockSizePxToRel(photo.blockPx, longEdge), longEdge)
@@ -318,6 +334,16 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           </button>
         ))}
       </div>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => void actions.findAllFaces()}
+        disabled={!photo || app.detecting}
+        title="Find every face in this photo and add it to the mosaic (F)"
+        data-testid="find-faces"
+      >
+        Find all faces
+      </button>
       <label
         className="control"
         title="Block edge in pixels of the full-resolution photo. Small selections get larger blocks, so a face stays unrecognisable."
@@ -344,7 +370,10 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           onPointerUp={(e) => e.currentTarget.blur()}
         />
       </label>
-      <label className="control">
+      <label
+        className="control"
+        title="How far the mosaic grows beyond each detected face, as a share of the face's size"
+      >
         <span className="label">Padding</span>
         <NumberField
           key={`pad-${Math.round((photo?.facePadding ?? 0.15) * 100)}`}
@@ -367,23 +396,35 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           onPointerUp={(e) => e.currentTarget.blur()}
         />
       </label>
-      <div className="counts mono" data-testid="area-counts">
-        {counts && counts.faces.total > 0 && (
-          <span data-testid="face-count">{`${counts.faces.on} of ${counts.faces.total} faces on`}</span>
-        )}
-        {counts && counts.drawn.total > 0 && (
-          <span data-testid="drawn-count">{`${counts.drawn.on} of ${counts.drawn.total} areas on`}</span>
-        )}
-      </div>
       <div className="spacer" />
+      <button
+        type="button"
+        className="btn"
+        onClick={() => void actions.openDialog()}
+        title={`Add photos to this session (${FLIP_KEY}+O)`}
+        data-testid="add-photos"
+      >
+        Add…
+      </button>
       <button
         type="button"
         className="btn"
         onClick={actions.undo}
         disabled={!photo || photo.undo.length === 0}
-        title="Undo the last change to the areas (Ctrl/⌘+Z)"
+        aria-label="Undo"
+        title={`Undo the last change to the areas (${FLIP_KEY}+Z)`}
       >
-        Undo
+        <CurvedArrow />
+      </button>
+      <button
+        type="button"
+        className="btn"
+        onClick={actions.redo}
+        disabled={!photo || photo.redo.length === 0}
+        aria-label="Redo"
+        title={`Redo the change you just undid (${REDO_KEYS})`}
+      >
+        <CurvedArrow mirrored />
       </button>
       <button
         type="button"
@@ -402,9 +443,11 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           onClick={() => void actions.exportCurrent()}
           disabled={!photo || !hasMosaic(photo) || photo.status === 'exporting'}
           title={
-            app.exportTarget === 'overwrite'
-              ? 'Replace the original file with the mosaic (Ctrl/⌘+E)'
-              : 'Save a new copy with _edit next to the original (Ctrl/⌘+E)'
+            photo && !hasMosaic(photo)
+              ? 'Draw an area or find faces first'
+              : app.exportTarget === 'overwrite'
+                ? `Replace the original file with the mosaic (${FLIP_KEY}+E)`
+                : `Save a new copy with _edit next to the original (${FLIP_KEY}+E)`
           }
           data-testid="export"
         >

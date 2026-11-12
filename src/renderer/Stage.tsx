@@ -7,7 +7,6 @@ import {
   areaIndexAt,
   areaShape,
   clampToPicture,
-  facesInLasso,
   HIT_MARGIN,
   isOnPicture,
   flipsHeld,
@@ -458,28 +457,8 @@ export function Stage({
     } else actions.addShape(rect, d.mode);
   };
 
-  const detect = async (region: Rect, lasso?: readonly Point[]): Promise<void> => {
-    actions.setDetecting(true, lasso ? { type: 'polygon', points: [...lasso] } : region);
-    try {
-      const found = await window.api.detect(id, region);
-      const inside = lasso ? facesInLasso(found, lasso) : found;
-      // Nothing found is not an error, but the user should see it, at the region.
-      if (inside.length === 0) actions.noFacesFound();
-      actions.addFaces(
-        id,
-        inside.map((f) => ({ box: f.box, score: f.score })),
-        'add',
-      );
-    } catch (cause) {
-      document.dispatchEvent(
-        new CustomEvent('pixlad:detect-failed', {
-          detail: cause instanceof Error ? cause.message : String(cause),
-        }),
-      );
-    } finally {
-      actions.setDetecting(false);
-    }
-  };
+  const detect = (region: Rect, lasso?: readonly Point[]): Promise<void> =>
+    actions.detectFaces(id, region, lasso);
 
   const toPx = (p: Point): string => `${layout.offset.x + p.x * pw},${layout.offset.y + p.y * ph}`;
   const shapePath = (shape: Shape): string =>

@@ -352,3 +352,79 @@ describe('the area counts', () => {
     expect(status.indexOf('1600×1200')).toBeLessThan(status.indexOf('areas on'));
   });
 });
+
+describe('the new shortcuts under a dialog', () => {
+  const dialogs: Array<{ name: string; open: (page: Page) => Promise<void>; selector: string }> = [
+    {
+      name: 'the shortcuts sheet',
+      open: async (page) => {
+        await page.keyboard.press('?');
+      },
+      selector: '[data-testid="shortcuts"]',
+    },
+    {
+      name: 'About',
+      open: async (page) => {
+        await page.click('[data-testid="settings"]');
+        await page.click('[data-testid="open-about"]');
+      },
+      selector: '[data-testid="about"]',
+    },
+    {
+      name: 'the remove question',
+      open: async (page) => {
+        // Rest the pointer on bare photo: over an area, Delete would remove that area instead.
+        const box = (await page.locator('[data-testid="photo"]').boundingBox())!;
+        await page.mouse.move(box.x + box.width * 0.9, box.y + box.height * 0.9);
+        await page.keyboard.press('Delete');
+      },
+      selector: '[role="alertdialog"]',
+    },
+  ];
+
+  for (const { name, open, selector } of dialogs) {
+    it(`stay quiet under ${name}`, async () => {
+      const page = await openPhoto();
+      const { app } = running!;
+      await app.evaluate(({ dialog, ipcMain }) => {
+        const counted = globalThis as { __opened?: number };
+        counted.__opened = 0;
+        dialog.showOpenDialog = (async () => {
+          counted.__opened = (counted.__opened ?? 0) + 1;
+          return { canceled: true, filePaths: [] };
+        }) as unknown as typeof dialog.showOpenDialog;
+        ipcMain.removeHandler('photo:detect');
+        ipcMain.handle('photo:detect', () => new Promise(() => undefined));
+      });
+      await drag(page, [0.1, 0.1], [0.3, 0.3]);
+      await drag(page, [0.5, 0.5], [0.7, 0.7]);
+      await page.keyboard.press('ControlOrMeta+z'); // one area on screen, one to redo
+      expect(await areas(page)).toBe(1);
+
+      await open(page);
+      await page.locator(selector).waitFor();
+      await page.keyboard.press('f');
+      await page.keyboard.press('ControlOrMeta+o');
+      await page.keyboard.press('ControlOrMeta+Shift+z');
+      if (process.platform !== 'darwin') await page.keyboard.press('Control+y');
+
+      expect(await areas(page)).toBe(1);
+      expect(await page.locator('[data-testid="detect-label"]').count()).toBe(0);
+      expect(await app.evaluate(() => (globalThis as { __opened?: number }).__opened)).toBe(0);
+
+      // Closed again, the same keys work.
+      await page.keyboard.press('Escape');
+      await page.locator(selector).waitFor({ state: 'detached' });
+      await page.keyboard.press('ControlOrMeta+Shift+z');
+      expect(await areas(page)).toBe(2);
+    });
+  }
+
+  it('are listed on the shortcuts sheet', async () => {
+    const page = await openPhoto();
+    await page.keyboard.press('?');
+    const text = await page.locator('[data-testid="shortcuts"]').innerText();
+    for (const part of ['Redo', 'Add photos to the session', 'Find all the faces in the photo'])
+      expect(text).toContain(part);
+  });
+});

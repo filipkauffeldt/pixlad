@@ -582,6 +582,9 @@ input[type='range']::-webkit-slider-thumb {
 .stage.drawing {
   cursor: crosshair;
 }
+.stage.drawing.overArea {
+  cursor: pointer;
+}
 .stage img {
   position: absolute;
   display: block;
@@ -608,9 +611,9 @@ input[type='range']::-webkit-slider-thumb {
 }
 .areaOff {
   fill: none;
-  stroke: var(--dim);
+  stroke: var(--muted);
   stroke-width: 1;
-  stroke-dasharray: 3 3;
+  stroke-dasharray: 2 4;
 }
 .areaSubtract {
   fill: none;
@@ -623,6 +626,34 @@ input[type='range']::-webkit-slider-thumb {
   stroke: var(--text);
   stroke-width: 1;
   stroke-dasharray: 4 3;
+}
+/* A dark under-stroke behind every outline, so it reads on bright and busy photos alike. It
+   keeps the dash pattern of the outline it sits behind. */
+.overlay .halo {
+  fill: none;
+  stroke: var(--bg);
+  stroke-opacity: 0.75;
+  stroke-width: 3;
+}
+.overlay .haloOff {
+  stroke-dasharray: 2 4;
+}
+.overlay .haloSubtract {
+  stroke-dasharray: 6 3;
+}
+.overlay .haloDraft {
+  stroke-dasharray: 4 3;
+}
+/* The area under the pointer: what a click would switch. Dashes stay, so on and off still read. */
+.overlay .areaHover {
+  stroke: var(--text);
+}
+.overlay path.areaHover {
+  fill: rgba(255, 255, 255, 0.14);
+}
+.overlay .haloHover {
+  stroke-opacity: 0.95;
+  stroke-width: 6;
 }
 /* Next to the region the detector is looking at; a chip so it reads over any photo. */
 .regionLabel {

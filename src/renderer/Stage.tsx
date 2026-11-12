@@ -35,6 +35,13 @@ import {
 const CLICK_PX = 4;
 const MIN_AREA_PX = 6;
 
+/** Each outline's halo has its own class: it must never match what counts the outlines. */
+const haloFor = {
+  areaOn: 'haloOn',
+  areaOff: 'haloOff',
+  areaSubtract: 'haloSubtract',
+} as const;
+
 interface Patch {
   url: string;
   x: number;
@@ -76,6 +83,9 @@ export function Stage({
   const [panHeld, setPanHeld] = useState(false);
   const [panning, setPanning] = useState(false);
   const [peek, setPeek] = useState(false);
+  // The pointer over the stage (CSS px) and whether a drawing drag is under way, for the hover.
+  const [hoverAt, setHoverAt] = useState<Point | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [patch, setPatch] = useState<Patch | null>(null);
   const [draftRect, setDraftRect] = useState<Rect | undefined>();
   const [draftPoints, setDraftPoints] = useState<Point[]>([]);
@@ -106,9 +116,28 @@ export function Stage({
   const pw = iw * layout.scale;
   const ph = ih * layout.scale;
 
-  const latest = useRef({ context, shown, layout, pw, ph });
+  // A dialog or popover is open: the photo behind it takes no hover, right-click or Delete. The
+  // pointer can rest on an area while one opens, and no pointerleave follows until it moves.
+  const dialogOpen =
+    app.aboutOpen ||
+    app.notesOpen ||
+    app.removeQuestion !== undefined ||
+    app.overwriteConfirm !== undefined ||
+    app.exportChoice !== undefined ||
+    app.shortcutsOpen ||
+    app.removePhotoQuestion !== undefined;
+
+  // The topmost area under the pointer: what a click would switch. None while drawing, panning,
+  // peeking at the bare photo, or with a dialog open.
+  let hovered = -1;
+  if (hoverAt && !dragging && !panHeld && !panning && !peek && !dialogOpen) {
+    const unit = { x: (hoverAt.x - layout.offset.x) / pw, y: (hoverAt.y - layout.offset.y) / ph };
+    if (isOnPicture(unit)) hovered = areaIndexAt(photo.areas, unit, photo.facePadding);
+  }
+
+  const latest = useRef({ context, shown, layout, pw, ph, hovered });
   useLayoutEffect(() => {
-    latest.current = { context, shown, layout, pw, ph };
+    latest.current = { context, shown, layout, pw, ph, hovered };
   });
   const pointer = useRef<Point | null>(null);
 
@@ -201,10 +230,24 @@ export function Stage({
       if (event.key === ' ') setPanHeld(false);
     };
     const onBlur = (): void => setPanHeld(false);
+    // Delete or Backspace over an area removes that area. This runs in the capture phase, ahead
+    // of the window handler in App that takes a photo out of the session on Delete, and stops
+    // the key there, so that one only ever sees a Delete with the pointer off every area.
+    const onDeleteKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+      if (event.altKey || event.ctrlKey || event.metaKey || editing(event.target)) return;
+      const over = latest.current.hovered;
+      if (over < 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      actions.removeArea(over);
+    };
+    window.addEventListener('keydown', onDeleteKey, true);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
     return () => {
+      window.removeEventListener('keydown', onDeleteKey, true);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
@@ -309,12 +352,24 @@ export function Stage({
       moved: false,
     };
     surface.setPointerCapture(event.pointerId);
+    setDragging(true);
     if (lasso) setDraftPoints([start]);
+  };
+
+  // Right-click removes the topmost area under the pointer.
+  const onContextMenu = (event: React.MouseEvent): void => {
+    event.preventDefault();
+    if (panHeld || drag.current || peek || dialogOpen) return;
+    const unit = toUnit(event);
+    if (!isOnPicture(unit)) return;
+    const index = areaIndexAt(photo.areas, unit, photo.facePadding);
+    if (index >= 0) actions.removeArea(index);
   };
 
   const onPointerMove = (event: React.PointerEvent): void => {
     const box = stageRef.current!.getBoundingClientRect();
     pointer.current = { x: event.clientX - box.left, y: event.clientY - box.top };
+    setHoverAt(pointer.current);
     if (panDrag.current) {
       const delta = {
         x: event.clientX - panDrag.current.last.x,
@@ -352,6 +407,7 @@ export function Stage({
     const d = drag.current;
     if (!d) return;
     drag.current = null;
+    setDragging(false);
     const { pw: w, ph: h } = latest.current;
     const rawEnd = toUnit(event);
     const end = clampToPicture(rawEnd);
@@ -450,7 +506,7 @@ export function Stage({
   return (
     <div
       ref={stageRef}
-      className={`stage ${panHeld ? 'panning' : 'drawing'}`}
+      className={`stage ${panHeld ? 'panning' : 'drawing'}${hovered >= 0 ? ' overArea' : ''}`}
       style={panning ? { cursor: 'grabbing' } : undefined}
       data-testid="stage"
       data-fit={shown.scale === null ? 'true' : 'false'}
@@ -459,7 +515,11 @@ export function Stage({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      onPointerLeave={() => (pointer.current = null)}
+      onContextMenu={onContextMenu}
+      onPointerLeave={() => {
+        pointer.current = null;
+        setHoverAt(null);
+      }}
     >
       {size.w > 0 && (
         <>
@@ -481,24 +541,47 @@ export function Stage({
             />
           )}
           <svg className="overlay" data-testid="overlay" role="img" aria-label="Retouch areas">
-            {photo.areas.map((area, i) => (
-              <path
-                key={i}
-                d={shapePath(areaShape(area, photo.facePadding))}
-                className={
-                  !area.enabled ? 'areaOff' : area.mode === 'subtract' ? 'areaSubtract' : 'areaOn'
-                }
-                data-testid="area"
-                data-kind={area.kind}
-                data-enabled={area.enabled}
-              />
-            ))}
-            {draftRect && <path d={shapePath(draftRect)} className="draft" />}
+            {photo.areas.map((area, i) => {
+              const d = shapePath(areaShape(area, photo.facePadding));
+              const hover = i === hovered ? ' areaHover' : '';
+              const state = !area.enabled
+                ? 'areaOff'
+                : area.mode === 'subtract'
+                  ? 'areaSubtract'
+                  : 'areaOn';
+              return (
+                <g key={i}>
+                  <path
+                    d={d}
+                    className={`halo ${haloFor[state]}${i === hovered ? ' haloHover' : ''}`}
+                  />
+                  <path
+                    d={d}
+                    className={`${state}${hover}`}
+                    data-testid="area"
+                    data-kind={area.kind}
+                    data-enabled={area.enabled}
+                  />
+                </g>
+              );
+            })}
+            {draftRect && (
+              <>
+                <path d={shapePath(draftRect)} className="halo haloDraft" />
+                <path d={shapePath(draftRect)} className="draft" />
+              </>
+            )}
             {draftPoints.length > 1 && (
-              <path d={`M${draftPoints.map(toPx).join('L')}`} className="draft" />
+              <>
+                <path d={`M${draftPoints.map(toPx).join('L')}`} className="halo haloDraft" />
+                <path d={`M${draftPoints.map(toPx).join('L')}`} className="draft" />
+              </>
             )}
             {marked?.shape && (
-              <path d={shapePath(marked.shape)} className="draft" data-testid="detect-region" />
+              <>
+                <path d={shapePath(marked.shape)} className="halo haloDraft" />
+                <path d={shapePath(marked.shape)} className="draft" data-testid="detect-region" />
+              </>
             )}
           </svg>
           {marked && (

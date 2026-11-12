@@ -353,6 +353,49 @@ describe('zoom and pan', () => {
   });
 });
 
+describe('the zoom readout in the footer', () => {
+  it('is a button that switches between Fit and 100% like Z, and names the shortcut', async () => {
+    const dir = await tmp();
+    const file = await photoFile(dir, 'readout.jpg', 2400, 1600);
+    running = await launch();
+    const { page } = running;
+    expect(await page.locator('[data-testid="zoom-toggle"]').count()).toBe(0); // no photo yet
+    await dropFiles(page, [file]);
+    await photoReady(page);
+    const stage = page.locator('[data-testid="stage"]');
+    const readout = page.locator('[data-testid="zoom-toggle"]');
+    expect(await readout.innerText()).toBe('Fit');
+    expect(await readout.getAttribute('title')).toContain('(Z)');
+
+    await readout.click();
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === '100%',
+    );
+    expect(await stage.getAttribute('data-fit')).toBe('false');
+    expect((await box(page)).w).toBe(2400); // the same 100% as the Z key gives
+
+    await readout.click();
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === 'Fit',
+    );
+    expect(await stage.getAttribute('data-fit')).toBe('true');
+
+    // Zoomed to something else, it goes back to Fit, as Z does.
+    await page.mouse.move(700, 400);
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -200);
+    await page.keyboard.up('Control');
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="stage"]')?.getAttribute('data-fit') === 'false',
+    );
+    await readout.click();
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === 'Fit',
+    );
+    expect(await stage.getAttribute('data-fit')).toBe('true');
+  });
+});
+
 describe('closing and exporting a batch', () => {
   it('asks once with the count when mosaics are not exported, and not after exporting', async () => {
     const dir = await tmp();
@@ -454,6 +497,65 @@ describe('closing and exporting a batch', () => {
     }
   });
 
+  it('shows progress while a batch exports, and Cancel lets the photo being written finish, then stops', async () => {
+    const dir = await tmp();
+    const files = [
+      await photoFile(dir, 'one.jpg'),
+      await photoFile(dir, 'two.jpg'),
+      await photoFile(dir, 'three.jpg'),
+    ];
+    running = await launch();
+    const { app, page } = running;
+    await dropFiles(page, files);
+    await photoReady(page);
+    await pickTool(page, 'rect');
+    for (let i = 0; i < 3; i++) {
+      await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+      if (i < 2) {
+        await page.keyboard.press('ArrowRight');
+        await photoReady(page);
+      }
+    }
+    // Each export takes a moment, so Cancel can be pressed while the first one is being written.
+    await app.evaluate(({ ipcMain }) => {
+      const handlers = (
+        ipcMain as unknown as { _invokeHandlers: Map<string, (...args: unknown[]) => unknown> }
+      )._invokeHandlers;
+      const original = handlers.get('photo:export')!;
+      ipcMain.removeHandler('photo:export');
+      ipcMain.handle('photo:export', async (event, ...args) => {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        return original(event, ...args);
+      });
+    });
+
+    await page.click('[data-testid="export-all"]');
+    await page.waitForSelector('[data-testid="batch-progress"]');
+    expect(await page.locator('[data-testid="batch-status"]').innerText()).toBe('Exporting 1 of 3');
+    expect(await page.getAttribute('[data-testid="batch-progress"]', 'aria-valuenow')).toBe('0');
+    await page.click('[data-testid="batch-cancel"]');
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="batch-status"]')?.textContent ===
+        '1 exported, 2 cancelled',
+      undefined,
+      { timeout: 30000 },
+    );
+    // The bar and Cancel go away when the batch is over.
+    expect(await page.locator('[data-testid="batch-progress"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="batch-cancel"]').count()).toBe(0);
+    // The photo being written finished; the others were never started.
+    await page.waitForSelector('[data-testid="remove-exported"]');
+    expect(await removeQuestion(page)).toBe('Remove one.jpg from the session?');
+    await answerRemove(page, 'keep');
+    expect((await readdir(dir)).sort()).toEqual([
+      'one.jpg',
+      'one_edit.jpg',
+      'three.jpg',
+      'two.jpg',
+    ]);
+  });
+
   it('can keep working while a batch exports: edits after a photo started do not change that export', async () => {
     const dir = await tmp();
     const file = await photoFile(dir, 'busy.jpg');
@@ -509,6 +611,91 @@ describe('after an export', () => {
     expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
   });
 
+  it("Don't ask again saves the answer given, so the next export does not ask", async () => {
+    const dir = await tmp();
+    const userData = await tmp('pixlad-userdata-');
+    running = await launch({ userData });
+    const { page } = running;
+    await exportOne(page, 'first.jpg', dir);
+    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    await page.check('[data-testid="remove-exported-dont-ask"]');
+    await answerRemove(page, 'remove');
+    await page.waitForSelector('[data-testid="empty"]');
+
+    await page.click('[data-testid="settings"]');
+    expect(await page.isChecked('[data-testid="after-export-remove"]')).toBe(true);
+    await page.keyboard.press('Escape');
+
+    // The next export removes the photo without asking.
+    await exportOne(page, 'second.jpg', dir);
+    await page.waitForSelector('[data-testid="empty"]', { timeout: 30000 });
+    expect(await page.locator('[data-testid="remove-exported"]').count()).toBe(0);
+    expect((await readdir(dir)).sort()).toEqual([
+      'first.jpg',
+      'first_edit.jpg',
+      'second.jpg',
+      'second_edit.jpg',
+    ]);
+    await running.app.close();
+    running = undefined;
+    expect(JSON.parse(await readFile(join(userData, 'settings.json'), 'utf8'))).toMatchObject({
+      afterExport: 'remove',
+    });
+  });
+
+  it("Escape keeps the photo for this export and does not save Don't ask again", async () => {
+    const dir = await tmp();
+    const userData = await tmp('pixlad-userdata-');
+    running = await launch({ userData });
+    const { page } = running;
+    await exportOne(page, 'escape-ticked.jpg', dir);
+    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    await page.check('[data-testid="remove-exported-dont-ask"]');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-testid="remove-exported"]', { state: 'detached' });
+    expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
+
+    await page.click('[data-testid="settings"]');
+    expect(await page.isChecked('[data-testid="after-export-ask"]')).toBe(true);
+    await page.keyboard.press('Escape');
+    await running.app.close();
+    running = undefined;
+    const saved = JSON.parse(await readFile(join(userData, 'settings.json'), 'utf8')) as {
+      afterExport?: string;
+    };
+    expect(saved.afterExport ?? 'ask').toBe('ask');
+  });
+
+  it('keeps the photo without asking when the setting is keep', async () => {
+    const dir = await tmp();
+    const userData = await tmp('pixlad-userdata-');
+    await writeFile(
+      join(userData, 'settings.json'),
+      JSON.stringify({ exportTarget: 'suffix', exportChosen: true, afterExport: 'keep' }),
+    );
+    running = await launch({ userData });
+    const { page } = running;
+    await exportOne(page, 'stays.jpg', dir);
+    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(await page.locator('[data-testid="remove-exported"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
+  });
+
+  it('Don’t ask again does not save anything when it is not ticked', async () => {
+    const dir = await tmp();
+    const userData = await tmp('pixlad-userdata-');
+    running = await launch({ userData });
+    const { page } = running;
+    await exportOne(page, 'plain.jpg', dir);
+    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    expect(await page.isChecked('[data-testid="remove-exported-dont-ask"]')).toBe(false);
+    await answerRemove(page, 'keep');
+    await page.waitForSelector('[data-testid="badge-exported"]');
+    await page.click('[data-testid="settings"]');
+    expect(await page.isChecked('[data-testid="after-export-ask"]')).toBe(true);
+  });
+
   it('Escape keeps the photo, and Delete does not remove anything while the question is open', async () => {
     const dir = await tmp();
     running = await launch();
@@ -520,6 +707,38 @@ describe('after an export', () => {
     await page.keyboard.press('Escape');
     await page.waitForSelector('[data-testid="remove-exported"]', { state: 'detached' });
     expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
+  });
+
+  it('Show in folder reveals the exported file, and only appears once there is one', async () => {
+    const dir = await tmp();
+    const userData = await tmp('pixlad-userdata-');
+    await writeFile(
+      join(userData, 'settings.json'),
+      JSON.stringify({ exportTarget: 'suffix', exportChosen: true, afterExport: 'keep' }),
+    );
+    running = await launch({ userData });
+    const { app, page } = running;
+    await app.evaluate(({ shell }) => {
+      const shown: string[] = [];
+      (globalThis as { __shown?: string[] }).__shown = shown;
+      shell.showItemInFolder = (path: string) => void shown.push(path);
+    });
+    const file = await photoFile(dir, 'reveal.jpg');
+    await dropFiles(page, [file]);
+    await photoReady(page);
+    await pickTool(page, 'rect');
+    await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+    expect(await page.locator('[data-testid="show-in-folder"]').count()).toBe(0);
+
+    await page.keyboard.press('Control+e');
+    await page.waitForSelector('[data-testid="show-in-folder"]', { timeout: 30000 });
+    expect(await page.locator('[data-testid="photo-status"]').innerText()).toContain(
+      'Saved as reveal_edit.jpg',
+    );
+    await page.click('[data-testid="show-in-folder"]');
+    await expect
+      .poll(() => app.evaluate(() => (globalThis as { __shown?: string[] }).__shown))
+      .toEqual([join(dir, 'reveal_edit.jpg')]);
   });
 
   it('does not offer to remove a photo edited while it was exporting', async () => {

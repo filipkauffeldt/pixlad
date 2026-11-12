@@ -206,6 +206,9 @@ input[type='range']::-webkit-slider-thumb {
 .settingsPanel legend + * {
   clear: both;
 }
+.settingsPanel .subLabel {
+  margin-top: 4px;
+}
 .linkButton {
   align-self: flex-start;
   padding: 8px 0 0;
@@ -423,6 +426,13 @@ input[type='range']::-webkit-slider-thumb {
   margin: 0;
   font-size: 15px;
   font-weight: 500;
+}
+.modalButtons {
+  display: flex;
+  gap: 8px;
+}
+.modalFooter .radio {
+  align-items: center;
 }
 .modalFooter.end {
   justify-content: flex-end;
@@ -797,6 +807,40 @@ input[type='range']::-webkit-slider-thumb {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+/* Export all: progress next to the count, and Cancel */
+.footer .batch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.progress {
+  display: block;
+  width: 96px;
+  height: 2px;
+  background: var(--line-strong);
+}
+.progress > span {
+  display: block;
+  height: 100%;
+  background: var(--text);
+}
+.footerButton {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+}
+.footerButton:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration: underline;
+}
+.footer .status .footerButton {
+  margin-left: 8px;
+}
+.footerButton:disabled {
+  color: var(--dim);
 }
 .label {
   color: var(--dim);

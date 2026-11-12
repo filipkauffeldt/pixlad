@@ -17,6 +17,7 @@ import { basename, dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   DEFAULT_SETTINGS,
+  isAfterExport,
   isExportTarget,
   SOURCE_URL,
   type AboutInfo,
@@ -82,6 +83,7 @@ function chromiumLicensesPath(): string | undefined {
 
 const session = new Session();
 const written = new Map<string, WrittenEdit>(); // by source path; this run only, never saved
+const exportedFiles = new Map<string, string>(); // photo id -> the file its last export wrote
 let settings: Settings = { ...DEFAULT_SETTINGS };
 let unexported = 0;
 let forceClose = false;
@@ -218,6 +220,7 @@ function registerIpc(): void {
   ipcMain.handle('session:add', (_e, paths: string[]) => session.add(paths));
   ipcMain.handle('session:remove', (_e, id: string) => {
     session.remove(id);
+    exportedFiles.delete(id);
     thumbCache.delete(id);
     if (openId === id) openId = undefined;
   });
@@ -257,6 +260,7 @@ function registerIpc(): void {
           protectedPaths: [...session.sourcePaths()],
         },
       });
+      exportedFiles.set(id, result.path);
       const overwrote = target === 'overwrite';
       if (overwrote) {
         // The decoded pixels and the thumbnail are of the file that was just replaced.
@@ -302,6 +306,12 @@ function registerIpc(): void {
     return shell.openExternal(`${SOURCE_URL}/releases/tag/v${version}`);
   });
   ipcMain.handle('settings:get', () => settings);
+  // Takes a photo id, never a path: only a file this app exported can be shown.
+  ipcMain.handle('export:show-in-folder', (_e, id: unknown) => {
+    const path = typeof id === 'string' ? exportedFiles.get(id) : undefined;
+    if (!path) throw new Error('That photo has not been exported yet.');
+    shell.showItemInFolder(path);
+  });
   ipcMain.handle('export:names', async (_e, id: string): Promise<ExportNames> => {
     const photo = session.get(id);
     if (!photo) throw new Error('That photo is no longer in the session.');
@@ -315,6 +325,10 @@ function registerIpc(): void {
   ipcMain.handle('settings:set-check-for-updates', async (_e, enabled: unknown) => {
     if (typeof enabled !== 'boolean') throw new Error('Unknown value for the update check');
     await changeSettings({ checkForUpdates: enabled });
+  });
+  ipcMain.handle('settings:set-after-export', async (_e, choice: unknown) => {
+    if (!isAfterExport(choice)) throw new Error('Unknown choice for what happens after an export');
+    await changeSettings({ afterExport: choice });
   });
   ipcMain.handle('update:check-on-start', () =>
     settings.checkForUpdates && updates.enabled ? updates.check() : undefined,

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef, useState } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
-import type { ExportTarget } from '../shared/ipc';
+import type { AfterExport, ExportTarget } from '../shared/ipc';
 import { ExportChoice } from './ExportChoice';
 import { isMac, useFlips } from './flips';
 import { countAreas, withFlips, type Outline } from './retouch';
@@ -149,6 +149,12 @@ const EXPORT_TARGETS: Array<{ target: ExportTarget; label: string; note: string 
   { target: 'overwrite', label: 'Replace original', note: 'Cannot be undone.' },
 ];
 
+const AFTER_EXPORT: Array<{ choice: AfterExport; label: string; note: string }> = [
+  { choice: 'ask', label: 'Ask', note: 'Asks after each export.' },
+  { choice: 'keep', label: 'Keep photos in the session', note: 'The exported photos stay open.' },
+  { choice: 'remove', label: 'Remove them from the session', note: 'The files stay on disk.' },
+];
+
 function Settings({ exporting }: { exporting: boolean }) {
   const app = useApp();
   const [open, setOpen] = useState(false);
@@ -191,6 +197,25 @@ function Settings({ exporting }: { exporting: boolean }) {
                   checked={app.exportTarget === target}
                   onChange={() => void actions.setExportTarget(target)}
                   data-testid={`export-target-${target}`}
+                />
+                <span>
+                  {label}
+                  <small>{note}</small>
+                </span>
+              </label>
+            ))}
+            <div className="label subLabel" id="after-export-label">
+              After export
+            </div>
+            {AFTER_EXPORT.map(({ choice, label, note }) => (
+              <label className="radio" key={choice}>
+                <input
+                  type="radio"
+                  name="after-export"
+                  aria-describedby="after-export-label"
+                  checked={app.afterExport === choice}
+                  onChange={() => void actions.setAfterExport(choice)}
+                  data-testid={`after-export-${choice}`}
                 />
                 <span>
                   {label}

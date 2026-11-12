@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useSyncExternalStore } from 'react';
 import { defaultBlockPx } from '../shared/block-size';
-import type { ExportTarget, PhotoInfo } from '../shared/ipc';
+import type { AfterExport, ExportTarget, PhotoInfo } from '../shared/ipc';
 import type { ReleaseNote } from '../shared/update';
 import { opHasAddedArea, type Rect, type Shape } from '../shared/types';
 import {
@@ -63,6 +63,19 @@ export interface DetectRegion {
   shape: Shape | undefined;
 }
 
+/** An Export all in progress, or the numbers of the last one while the footer still shows them. */
+export interface Batch {
+  done: number;
+  total: number;
+  failed: string[];
+  finished: boolean;
+  ok: number;
+  /** Cancel was pressed: the photo being written finishes, the rest are left alone. */
+  cancelling: boolean;
+  /** Photos that were never started because the batch was cancelled. */
+  cancelled: number;
+}
+
 export interface AppState {
   photos: PhotoState[];
   currentId: string | undefined;
@@ -77,8 +90,7 @@ export interface AppState {
   adding: boolean;
   notices: Notice[];
   toasts: Notice[];
-  batch:
-    { done: number; total: number; failed: string[]; finished: boolean; ok: number } | undefined;
+  batch: Batch | undefined;
   dragging: boolean;
   exportTarget: ExportTarget;
   /** Whether the user has picked an export target. Until then the first export asks. */
@@ -92,6 +104,8 @@ export interface AppState {
   /** False once the user ticked "Don't ask again this session". Never saved, so a restart asks. */
   overwriteAsk: boolean;
   checkForUpdates: boolean;
+  /** What happens to exported photos in the session: ask, keep, or remove. Saved. */
+  afterExport: AfterExport;
   aboutOpen: boolean;
   shortcutsOpen: boolean;
   update: UpdateState;
@@ -127,6 +141,7 @@ const initial: AppState = {
   overwriteConfirm: undefined,
   overwriteAsk: true,
   checkForUpdates: true,
+  afterExport: 'ask',
   aboutOpen: false,
   shortcutsOpen: false,
   update: { phase: 'idle' },
@@ -220,22 +235,26 @@ const newPhoto = (info: PhotoInfo): PhotoState => ({
 let startupCheckDone = false;
 
 let removalPrompts: Promise<void> = Promise.resolve();
-let answerRemoveQuestion: ((remove: boolean) => void) | undefined;
+let answerRemoveQuestion: ((remove: boolean, dontAsk: boolean) => void) | undefined;
 
-/** Show the remove question and wait for the answer. */
-const askRemove = (count: number, name: string | undefined): Promise<boolean> =>
+/** Show the remove question and wait for the answer, and whether to stop asking. */
+const askRemove = (
+  count: number,
+  name: string | undefined,
+): Promise<{ remove: boolean; dontAsk: boolean }> =>
   new Promise((resolve) => {
-    answerRemoveQuestion = (remove) => {
+    answerRemoveQuestion = (remove, dontAsk) => {
       answerRemoveQuestion = undefined;
       set({ removeQuestion: undefined });
-      resolve(remove);
+      resolve({ remove, dontAsk });
     };
     set({ removeQuestion: { count, name } });
   });
 
 /**
- * Ask whether to take these exported photos out of the session. One question at a time, and a
- * photo edited since its export is left out: removing it would lose that edit.
+ * Take these exported photos out of the session, or keep them, as the After export setting says,
+ * asking when it says ask. One question at a time, and a photo edited since its export is left
+ * out: removing it would lose that edit.
  */
 const offerRemoval = (ids: readonly string[]): Promise<void> => {
   const removable = (): PhotoState[] =>
@@ -243,11 +262,16 @@ const offerRemoval = (ids: readonly string[]): Promise<void> => {
   removalPrompts = removalPrompts
     .then(async () => {
       const offered = removable();
-      if (offered.length === 0) return;
-      const name = offered.length === 1 ? offered[0]!.info.name : undefined;
-      if (await askRemove(offered.length, name)) {
-        for (const photo of removable()) actions.remove(photo.info.id);
+      if (offered.length === 0 || state.afterExport === 'keep') return;
+      let remove = true;
+      if (state.afterExport === 'ask') {
+        const name = offered.length === 1 ? offered[0]!.info.name : undefined;
+        const answer = await askRemove(offered.length, name);
+        remove = answer.remove;
+        // The answer just given is the one that is saved.
+        if (answer.dontAsk) void actions.setAfterExport(remove ? 'remove' : 'keep');
       }
+      if (remove) for (const photo of removable()) actions.remove(photo.info.id);
     })
     .catch((cause: unknown) => {
       notify([`Could not remove the exported photos: ${errorText(cause)}`], 'error');
@@ -279,8 +303,11 @@ export const actions = {
   setShortcutsOpen: (shortcutsOpen: boolean): void => set({ shortcutsOpen }),
   setTarget: (target: Target): void => set({ target }),
   setOutline: (outline: Outline): void => set({ outline }),
-  /** The answer to the remove question: true takes the photos out of the session. */
-  answerRemove: (remove: boolean): void => answerRemoveQuestion?.(remove),
+  /**
+   * The answer to the remove question: true takes the photos out of the session. `dontAsk` saves
+   * this answer as the After export setting.
+   */
+  answerRemove: (remove: boolean, dontAsk = false): void => answerRemoveQuestion?.(remove, dontAsk),
   setMode: (mode: RetouchMode): void => set({ mode }),
   dismissNotice: (id: number): void =>
     set((s) => ({
@@ -538,14 +565,36 @@ export const actions = {
   cancelOverwrite: (): void => set({ overwriteConfirm: undefined }),
 
   async loadSettings(): Promise<void> {
-    const { exportTarget, exportChosen, checkForUpdates } = await window.api.settings();
-    set({ exportTarget, exportChosen, checkForUpdates });
+    const { exportTarget, exportChosen, checkForUpdates, afterExport } =
+      await window.api.settings();
+    set({ exportTarget, exportChosen, checkForUpdates, afterExport });
   },
 
   async setCheckForUpdates(checkForUpdates: boolean): Promise<void> {
     set({ checkForUpdates });
     try {
       await window.api.setCheckForUpdates(checkForUpdates);
+    } catch (cause) {
+      notify(
+        [`Could not save the setting, so it lasts until you close the app: ${errorText(cause)}`],
+        'error',
+      );
+    }
+  },
+
+  /** Reveal the exported file in the system file manager. */
+  async showInFolder(id: string): Promise<void> {
+    try {
+      await window.api.showInFolder(id);
+    } catch (cause) {
+      notify([`Could not show the file: ${errorText(cause)}`], 'error');
+    }
+  },
+
+  async setAfterExport(afterExport: AfterExport): Promise<void> {
+    set({ afterExport });
+    try {
+      await window.api.setAfterExport(afterExport);
     } catch (cause) {
       notify(
         [`Could not save the setting, so it lasts until you close the app: ${errorText(cause)}`],
@@ -650,6 +699,15 @@ export const actions = {
   setNotesOpen: (notesOpen: boolean): void =>
     set(notesOpen ? { notesOpen, aboutOpen: false } : { notesOpen }),
 
+  /** Stop Export all after the photo being written. Photos already exported stay exported. */
+  cancelExportAll(): void {
+    set((s) =>
+      s.batch && !s.batch.finished && !s.batch.cancelling
+        ? { batch: { ...s.batch, cancelling: true } }
+        : {},
+    );
+  },
+
   /** Every photo with a mosaic, one after the other, in the background. */
   async exportAll(confirmed = false): Promise<void> {
     if (state.batch && !state.batch.finished) return;
@@ -663,9 +721,26 @@ export const actions = {
       set({ overwriteConfirm: { anchor: 'all' } });
       return;
     }
-    set({ batch: { done: 0, total: ids.length, failed: [], finished: false, ok: 0 } });
+    set({
+      batch: {
+        done: 0,
+        total: ids.length,
+        failed: [],
+        finished: false,
+        ok: 0,
+        cancelling: false,
+        cancelled: 0,
+      },
+    });
     const exported: string[] = [];
-    for (const id of ids) {
+    for (const [index, id] of ids.entries()) {
+      if (state.batch?.cancelling) {
+        const left = ids
+          .slice(index)
+          .filter((rest) => state.photos.some((p) => p.info.id === rest));
+        set((s) => ({ batch: s.batch && { ...s.batch, cancelled: left.length } }));
+        break;
+      }
       const photo = state.photos.find((p) => p.info.id === id);
       const name = photo?.info.name ?? id;
       let ok = false;

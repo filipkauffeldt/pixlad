@@ -39,6 +39,8 @@ select {
 }
 
 button {
+  /* Draw every button ourselves: the native one ignores the square corners above. */
+  appearance: none;
   cursor: default;
 }
 

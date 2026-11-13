@@ -50,6 +50,12 @@ export type Theme = 'system' | 'light' | 'dark';
 export const isTheme = (value: unknown): value is Theme =>
   value === 'system' || value === 'light' || value === 'dark';
 
+/** What happens to the exported photos in the session: ask, keep them, or take them out. */
+export type AfterExport = 'ask' | 'keep' | 'remove';
+
+export const isAfterExport = (value: unknown): value is AfterExport =>
+  value === 'ask' || value === 'keep' || value === 'remove';
+
 /** What the app keeps between runs. */
 export interface Settings {
   exportTarget: ExportTarget;
@@ -58,6 +64,8 @@ export interface Settings {
   /** Whether the app looks for a newer release when it starts. */
   checkForUpdates: boolean;
   theme: Theme;
+  /** What to do with photos in the session once they are exported. Missing in old files: ask. */
+  afterExport: AfterExport;
   /** How the window was left, to open it the same way. Missing before the first close. */
   window?: WindowState;
 }
@@ -76,6 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
   exportChosen: false,
   checkForUpdates: true,
   theme: 'system',
+  afterExport: 'ask',
 };
 
 /** The file names an export of one photo would touch, for the first-export choice. */
@@ -121,9 +130,12 @@ export interface Api {
   settings(): Promise<Settings>;
   /** Also records that the user has chosen, so the first-export choice does not show again. */
   setExportTarget(target: ExportTarget): Promise<void>;
+  /** Reveal the file this photo was last exported to in the system file manager. */
+  showInFolder(id: string): Promise<void>;
   exportNames(id: string): Promise<ExportNames>;
   setCheckForUpdates(enabled: boolean): Promise<void>;
   setTheme(theme: Theme): Promise<void>;
+  setAfterExport(choice: AfterExport): Promise<void>;
   about(): Promise<AboutInfo>;
   openChromiumLicenses(): Promise<void>;
   /** The check at start: undefined when the setting is off or this build does not check. */

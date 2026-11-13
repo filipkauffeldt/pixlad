@@ -11,15 +11,22 @@ export interface Shortcut {
 /** Every shortcut the sheet lists, in the order it shows them. Add a line here to list a new one. */
 export const shortcutList = (mod: string): Shortcut[] => [
   { keys: ['Drag'], does: 'Find faces in a region, or draw an area, depending on the target' },
+  { keys: ['F'], does: 'Find all the faces in the photo' },
   { keys: ['Click'], does: 'Switch the area under the pointer on or off' },
+  { keys: ['Right-click'], does: 'Remove the area under the pointer' },
+  { keys: ['Delete / Backspace'], does: 'Remove the area under the pointer' },
   { keys: ['Alt'], does: 'Hold to draw with the other outline (rectangle or lasso)' },
   { keys: [mod], does: 'Hold to flip Add and Subtract' },
   { keys: [mod, 'Z'], does: 'Undo' },
+  { keys: [mod, 'Shift', 'Z'], does: 'Redo' },
+  // Windows and Linux also take the other common key for redo.
+  ...(mod === '⌘' ? [] : [{ keys: [mod, 'Y'], does: 'Redo' }]),
   { keys: ['← / →'], does: 'Previous / next photo' },
   {
     keys: ['Delete'],
-    does: 'Remove the photo from the session (asks first if it has unexported areas)',
+    does: 'Remove the photo from the session, when not over an area (asks first if it has unexported areas)',
   },
+  { keys: [mod, 'O'], does: 'Add photos to the session' },
   { keys: [mod, 'E'], does: 'Export the photo' },
   { keys: ['Z'], does: 'Toggle Fit and 100%' },
   { keys: [mod, '+'], does: 'Zoom in' },

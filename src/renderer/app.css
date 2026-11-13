@@ -26,17 +26,22 @@
   gap: 8px;
   color: var(--muted);
 }
+.control .label,
+.control .unit {
+  color: var(--muted);
+}
 .control input[type='range'] {
-  width: 110px;
+  width: 80px;
 }
 .spacer {
   flex: 1;
 }
 .counts {
-  color: var(--muted);
-  min-width: 120px;
   display: flex;
   gap: 12px;
+}
+.counts:empty {
+  display: none;
 }
 
 .btn {
@@ -105,6 +110,17 @@
 .dropdownLabel > span[data-current] {
   visibility: visible;
 }
+.curvedArrow {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.curvedArrow.mirrored {
+  transform: scaleX(-1);
+}
 .dropdown svg {
   fill: none;
   stroke: var(--muted);
@@ -164,12 +180,13 @@ input[type='range']::-webkit-slider-runnable-track {
   height: 1px;
   background: var(--line-strong);
 }
+/* The thumb is a 14px grab area that draws a 2px line, so it stays easy to hit and looks the same. */
 input[type='range']::-webkit-slider-thumb {
   appearance: none;
-  width: 2px;
+  width: 14px;
   height: 11px;
   margin-top: -5px;
-  background: var(--text);
+  background: linear-gradient(var(--text), var(--text)) center / 2px 100% no-repeat;
 }
 
 /* Settings */
@@ -241,6 +258,9 @@ input[type='range']::-webkit-slider-thumb {
 }
 .themePicker svg {
   display: block;
+}
+.settingsPanel .subLabel {
+  margin-top: 4px;
 }
 .linkButton {
   align-self: flex-start;
@@ -460,6 +480,13 @@ input[type='range']::-webkit-slider-thumb {
   font-size: 15px;
   font-weight: 500;
 }
+.modalButtons {
+  display: flex;
+  gap: 8px;
+}
+.modalFooter .radio {
+  align-items: center;
+}
 .modalFooter.end {
   justify-content: flex-end;
 }
@@ -618,6 +645,9 @@ input[type='range']::-webkit-slider-thumb {
 .stage.drawing {
   cursor: crosshair;
 }
+.stage.drawing.overArea {
+  cursor: pointer;
+}
 .stage img {
   position: absolute;
   display: block;
@@ -632,25 +662,6 @@ input[type='range']::-webkit-slider-thumb {
   height: 100%;
   pointer-events: none;
 }
-/* The first-use hint: quiet, at the bottom of the stage, and never in the way of a drag. */
-.stageHint {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  z-index: 4;
-  max-width: calc(100% - 24px);
-  transform: translateX(-50%);
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
-}
-.stageHint kbd {
-  padding: 0 5px;
-  border: 1px solid var(--line-strong);
-  font-size: var(--fs-mono);
-}
 /* Holding B shows the photo as it was: no mosaic patch, no outlines. */
 .stage[data-peek] .patch,
 .stage[data-peek] .overlay {
@@ -663,9 +674,9 @@ input[type='range']::-webkit-slider-thumb {
 }
 .areaOff {
   fill: none;
-  stroke: var(--dim);
+  stroke: var(--muted);
   stroke-width: 1;
-  stroke-dasharray: 3 3;
+  stroke-dasharray: 2 4;
 }
 .areaSubtract {
   fill: none;
@@ -678,6 +689,34 @@ input[type='range']::-webkit-slider-thumb {
   stroke: var(--text);
   stroke-width: 1;
   stroke-dasharray: 4 3;
+}
+/* A dark under-stroke behind every outline, so it reads on bright and busy photos alike. It
+   keeps the dash pattern of the outline it sits behind. */
+.overlay .halo {
+  fill: none;
+  stroke: var(--bg);
+  stroke-opacity: 0.75;
+  stroke-width: 3;
+}
+.overlay .haloOff {
+  stroke-dasharray: 2 4;
+}
+.overlay .haloSubtract {
+  stroke-dasharray: 6 3;
+}
+.overlay .haloDraft {
+  stroke-dasharray: 4 3;
+}
+/* The area under the pointer: what a click would switch. Dashes stay, so on and off still read. */
+.overlay .areaHover {
+  stroke: var(--text);
+}
+.overlay path.areaHover {
+  fill: rgba(255, 255, 255, 0.14);
+}
+.overlay .haloHover {
+  stroke-opacity: 0.95;
+  stroke-width: 6;
 }
 /* Next to the region the detector is looking at; a chip so it reads over any photo. */
 .regionLabel {
@@ -821,6 +860,40 @@ input[type='range']::-webkit-slider-thumb {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+/* Export all: progress next to the count, and Cancel */
+.footer .batch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.progress {
+  display: block;
+  width: 96px;
+  height: 2px;
+  background: var(--line-strong);
+}
+.progress > span {
+  display: block;
+  height: 100%;
+  background: var(--text);
+}
+.footerButton {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+}
+.footerButton:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration: underline;
+}
+.footer .status .footerButton {
+  margin-left: 8px;
+}
+.footerButton:disabled {
+  color: var(--dim);
 }
 .label {
   color: var(--dim);

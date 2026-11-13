@@ -1,0 +1,197 @@
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { Page } from '@playwright/test';
+import { afterEach, describe, expect, it } from 'vitest';
+import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
+import { dropFiles, launch, pickTool, stubCloseDialog, type Launched } from './app';
+
+let running: Launched | undefined;
+afterEach(async () => {
+  if (running) await stubCloseDialog(running.app, 0).catch(() => undefined);
+  await running?.app.close().catch(() => undefined);
+  running = undefined;
+});
+
+async function photoBox(page: Page): Promise<{ x: number; y: number; w: number; h: number }> {
+  const box = await page.locator('[data-testid="photo"]').boundingBox();
+  if (!box) throw new Error('no photo on screen');
+  return { x: box.x, y: box.y, w: box.width, h: box.height };
+}
+
+/** A point given as fractions of the photo, in page pixels. */
+async function at(page: Page, x: number, y: number): Promise<[number, number]> {
+  const b = await photoBox(page);
+  return [b.x + x * b.w, b.y + y * b.h];
+}
+
+async function drawRect(page: Page, from: [number, number], to: [number, number]): Promise<void> {
+  await page.mouse.move(...(await at(page, ...from)));
+  await page.mouse.down();
+  await page.mouse.move(...(await at(page, ...to)), { steps: 6 });
+  await page.mouse.up();
+}
+
+/** One photo open with two rectangles: A at x 0.1–0.3 and B at x 0.5–0.7, B drawn last. */
+async function openWithTwoAreas(firstRun = false): Promise<Page> {
+  const dir = await mkdtemp(join(tmpdir(), 'pixlad-e2e-'));
+  const file = join(dir, 'p.jpg');
+  await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
+  running = await launch({ firstRun });
+  const { page } = running;
+  await dropFiles(page, [file]);
+  await page.waitForFunction(() => {
+    const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
+    return !!img && img.complete && img.naturalWidth > 0;
+  });
+  await pickTool(page, 'rect');
+  await drawRect(page, [0.1, 0.3], [0.3, 0.6]);
+  await drawRect(page, [0.5, 0.3], [0.7, 0.6]);
+  expect(await page.locator('[data-testid="area"]').count()).toBe(2);
+  return page;
+}
+
+const cursor = (page: Page): Promise<string> =>
+  page.locator('[data-testid="stage"]').evaluate((el) => getComputedStyle(el).cursor);
+const hoveredCount = (page: Page): Promise<number> =>
+  page.locator('[data-testid="area"].areaHover').count();
+
+describe('hovering an area', () => {
+  it('highlights the area under the pointer and shows a pointer cursor', async () => {
+    const page = await openWithTwoAreas();
+    await page.mouse.move(...(await at(page, 0.9, 0.9)));
+    expect(await cursor(page)).toBe('crosshair');
+    expect(await hoveredCount(page)).toBe(0);
+
+    await page.mouse.move(...(await at(page, 0.2, 0.45)));
+    expect(await cursor(page)).toBe('pointer');
+    expect(await hoveredCount(page)).toBe(1);
+    await expect(
+      page.locator('[data-testid="area"]').first().getAttribute('class'),
+    ).resolves.toContain('areaHover');
+
+    // Only the topmost area is highlighted, and only where it is.
+    await page.mouse.move(...(await at(page, 0.6, 0.45)));
+    await expect(
+      page.locator('[data-testid="area"]').nth(1).getAttribute('class'),
+    ).resolves.toContain('areaHover');
+    expect(await hoveredCount(page)).toBe(1);
+
+    await page.mouse.move(...(await at(page, 0.4, 0.45)));
+    expect(await cursor(page)).toBe('crosshair');
+    expect(await hoveredCount(page)).toBe(0);
+  });
+
+  it('does not highlight during a drag or while Space is held', async () => {
+    const page = await openWithTwoAreas();
+    await page.mouse.move(...(await at(page, 0.2, 0.45)));
+    expect(await hoveredCount(page)).toBe(1);
+
+    // A drag that starts over an area draws a new one: no hover until it ends.
+    await page.mouse.down();
+    await page.mouse.move(...(await at(page, 0.25, 0.5)), { steps: 4 });
+    expect(await hoveredCount(page)).toBe(0);
+    expect(await cursor(page)).toBe('crosshair');
+    await page.mouse.up();
+    expect(await hoveredCount(page)).toBe(1);
+
+    await page.keyboard.down('Space');
+    expect(await hoveredCount(page)).toBe(0);
+    expect(await cursor(page)).toBe('grab');
+    await page.keyboard.up('Space');
+    expect(await hoveredCount(page)).toBe(1);
+  });
+});
+
+const areaCount = (page: Page): Promise<number> => page.locator('[data-testid="area"]').count();
+// The photo's name and size; the area counts beside them change when an area is removed.
+const photosInSession = async (page: Page): Promise<string> =>
+  (
+    await page
+      .locator('[data-testid="photo-status"] > span:not([data-testid="area-counts"])')
+      .allInnerTexts()
+  ).join('\n');
+
+describe('removing an area', () => {
+  it('right-click removes the topmost area under the pointer and Undo restores it', async () => {
+    const page = await openWithTwoAreas();
+    // A right-click on empty photo removes nothing.
+    await page.mouse.click(...(await at(page, 0.4, 0.45)), { button: 'right' });
+    expect(await areaCount(page)).toBe(2);
+
+    await page.mouse.click(...(await at(page, 0.2, 0.45)), { button: 'right' });
+    expect(await areaCount(page)).toBe(1);
+    // What is left is B.
+    const left = (await page.locator('[data-testid="area"]').first().boundingBox())!;
+    const b = await photoBox(page);
+    expect(left.x).toBeGreaterThan(b.x + 0.45 * b.w);
+
+    await page.keyboard.press('Control+z');
+    expect(await areaCount(page)).toBe(2);
+  });
+
+  it('Delete and Backspace remove the area under the pointer and keep the photo', async () => {
+    const page = await openWithTwoAreas();
+    const status = await photosInSession(page);
+    await page.mouse.move(...(await at(page, 0.6, 0.45)));
+    await page.keyboard.press('Delete');
+    expect(await areaCount(page)).toBe(1);
+    await page.mouse.move(...(await at(page, 0.2, 0.45)));
+    await page.keyboard.press('Backspace');
+    expect(await areaCount(page)).toBe(0);
+    // The photo is still in the session.
+    await expect(photosInSession(page)).resolves.toBe(status);
+    await expect(page.locator('[data-testid="photo"]').count()).resolves.toBe(1);
+  });
+
+  it('Delete with the pointer off every area still removes the photo from the session', async () => {
+    const page = await openWithTwoAreas();
+    await page.mouse.move(...(await at(page, 0.4, 0.45)));
+    await page.keyboard.press('Delete');
+    // The areas are not exported, so the photo asks before it goes.
+    await page.locator('[data-testid="remove-photo-remove"]').click();
+    await page.waitForSelector('[data-testid="empty"]');
+    await expect(page.locator('[data-testid="photo"]').count()).resolves.toBe(0);
+  });
+
+  it('leaves areas alone while a dialog is open over a resting pointer', async () => {
+    // A new install: Ctrl+E opens the "how to save" choice, with the pointer still on an area.
+    const page = await openWithTwoAreas(true);
+    await page.mouse.move(...(await at(page, 0.2, 0.45)));
+    expect(await hoveredCount(page)).toBe(1);
+
+    await page.keyboard.press('Control+e');
+    await page.waitForSelector('[data-testid="export-choice"]');
+    expect(await hoveredCount(page)).toBe(0);
+    expect(await cursor(page)).toBe('crosshair');
+    await page.keyboard.press('Delete');
+    await page.keyboard.press('Backspace');
+    expect(await areaCount(page)).toBe(2);
+
+    // Closed again, the pointer is still on the area and it can be removed.
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-testid="export-choice"]', { state: 'detached' });
+    expect(await hoveredCount(page)).toBe(1);
+    await page.keyboard.press('Delete');
+    expect(await areaCount(page)).toBe(1);
+  });
+
+  it('leaves areas alone under the shortcuts sheet', async () => {
+    const page = await openWithTwoAreas();
+    await page.mouse.move(...(await at(page, 0.2, 0.45)));
+    expect(await hoveredCount(page)).toBe(1);
+
+    await page.keyboard.press('?');
+    await page.waitForSelector('[data-testid="shortcuts"]');
+    expect(await hoveredCount(page)).toBe(0);
+    await page.keyboard.press('Delete');
+    await page.keyboard.press('Backspace');
+    expect(await areaCount(page)).toBe(2);
+
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-testid="shortcuts"]', { state: 'detached' });
+    // The sheet covered the stage, so the pointer has to move for the hover to come back.
+    await page.mouse.move(...(await at(page, 0.21, 0.45)));
+    expect(await hoveredCount(page)).toBe(1);
+  });
+});

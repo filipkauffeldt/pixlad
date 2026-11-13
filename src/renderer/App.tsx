@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useCallback, useEffect, useState } from 'react';
 import { About } from './About';
+import { AreaCounts } from './AreaCounts';
 import { OverwriteConfirm } from './OverwriteConfirm';
 import { ReleaseNotes } from './ReleaseNotes';
 import { isMac } from './flips';
@@ -79,15 +80,28 @@ export function App() {
       const typing =
         (target instanceof HTMLInputElement && target.type !== 'range') ||
         target instanceof HTMLTextAreaElement;
-      if (primary && (event.key === 'e' || event.key === 'E')) {
+      const key = event.key.toLowerCase();
+      if (primary && key === 'e') {
         event.preventDefault();
         void actions.exportCurrent();
         return;
       }
-      if (typing) return;
-      if (primary && (event.key === 'z' || event.key === 'Z') && !event.shiftKey) {
+      if (primary && key === 'o') {
         event.preventDefault();
-        actions.undo();
+        void actions.openDialog();
+        return;
+      }
+      if (typing) return;
+      if (primary && key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) actions.redo();
+        else actions.undo();
+      } else if (!primary && !event.shiftKey && key === 'f') {
+        event.preventDefault();
+        void actions.findAllFaces();
+      } else if (primary && key === 'y' && !isMac && !event.shiftKey) {
+        event.preventDefault();
+        actions.redo();
       } else if (!primary && event.key === 'ArrowLeft') {
         event.preventDefault();
         actions.step(-1);
@@ -119,7 +133,14 @@ export function App() {
   const batch = app.batch;
   const batchText = batch
     ? batch.finished
-      ? `${batch.ok} exported, ${batch.failed.length} failed`
+      ? [
+          `${batch.ok} exported`,
+          // "0 failed" stays when nothing was cancelled; after a cancel only real failures show.
+          ...(batch.failed.length > 0 || batch.cancelled === 0
+            ? [`${batch.failed.length} failed`]
+            : []),
+          ...(batch.cancelled > 0 ? [`${batch.cancelled} cancelled`] : []),
+        ].join(', ')
       : `Exporting ${Math.min(batch.done + 1, batch.total)} of ${batch.total}`
     : '';
 
@@ -182,15 +203,6 @@ export function App() {
             {app.adding && <p>Adding…</p>}
           </div>
         )}
-        {photo && !app.firstAreaDrawn && (
-          <div className="stageHint" data-testid="stage-hint">
-            {app.target === 'faces'
-              ? 'Drag around faces to find them'
-              : 'Drag to draw an area to pixelate'}
-            {' · '}
-            <kbd className="mono">?</kbd> lists the shortcuts
-          </div>
-        )}
       </div>
       {app.photos.length > 0 && <Strip />}
       <div className="footer mono" data-testid="footer">
@@ -200,6 +212,7 @@ export function App() {
             <>
               <span>{photo.info.name}</span>
               <span>{`${photo.info.width}×${photo.info.height}`}</span>
+              <AreaCounts photo={photo} />
               {photo.message && (
                 <span>
                   <span
@@ -207,13 +220,64 @@ export function App() {
                     style={{ display: 'inline-block', marginRight: 6 }}
                   />
                   {photo.message}
+                  {photo.status === 'exported' && (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        className="footerButton"
+                        onClick={() => void actions.showInFolder(photo.info.id)}
+                        data-testid="show-in-folder"
+                      >
+                        Show in folder
+                      </button>
+                    </>
+                  )}
                 </span>
               )}
             </>
           )}
         </span>
-        {batchText && <span data-testid="batch-status">{batchText}</span>}
-        {photo && <span>{zoom === undefined ? 'Fit' : `${Math.round(zoom)}%`}</span>}
+        {batchText && (
+          <span className="batch">
+            <span data-testid="batch-status">{batchText}</span>
+            {batch && !batch.finished && (
+              <>
+                <span
+                  className="progress"
+                  role="progressbar"
+                  aria-label="Export progress"
+                  aria-valuemin={0}
+                  aria-valuemax={batch.total}
+                  aria-valuenow={batch.done}
+                  data-testid="batch-progress"
+                >
+                  <span style={{ width: `${(batch.done / Math.max(batch.total, 1)) * 100}%` }} />
+                </span>
+                <button
+                  type="button"
+                  className="footerButton"
+                  disabled={batch.cancelling}
+                  onClick={actions.cancelExportAll}
+                  data-testid="batch-cancel"
+                >
+                  {batch.cancelling ? 'Cancelling…' : 'Cancel'}
+                </button>
+              </>
+            )}
+          </span>
+        )}
+        {photo && (
+          <button
+            type="button"
+            className="footerButton"
+            title="Switch between Fit and 100% (Z)"
+            onClick={() => document.dispatchEvent(new Event('pixlad:toggle-zoom'))}
+            data-testid="zoom-toggle"
+          >
+            {zoom === undefined ? 'Fit' : `${Math.round(zoom)}%`}
+          </button>
+        )}
         <span>
           {app.photos.length > 0 && photo
             ? `${app.photos.indexOf(photo) + 1} / ${app.photos.length}`

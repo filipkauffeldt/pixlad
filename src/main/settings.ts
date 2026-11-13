@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { readFile, rename, writeFile } from 'node:fs/promises';
-import { DEFAULT_SETTINGS, isExportTarget, isTheme, type Settings } from '../shared/ipc';
+import {
+  DEFAULT_SETTINGS,
+  isAfterExport,
+  isExportTarget,
+  isTheme,
+  type Settings,
+} from '../shared/ipc';
 import { isWindowState } from './window-state';
 
 /**
@@ -24,6 +30,7 @@ export async function readSettings(file: string): Promise<Settings> {
     exportChosen?: unknown;
     checkForUpdates?: unknown;
     theme?: unknown;
+    afterExport?: unknown;
     window?: unknown;
   } | null;
   try {
@@ -47,6 +54,10 @@ export async function readSettings(file: string): Promise<Settings> {
         ? parsed.checkForUpdates
         : DEFAULT_SETTINGS.checkForUpdates,
     theme: isTheme(parsed?.theme) ? parsed.theme : DEFAULT_SETTINGS.theme,
+    // A file from before this setting existed, or a value nobody wrote, means "ask".
+    afterExport: isAfterExport(parsed?.afterExport)
+      ? parsed.afterExport
+      : DEFAULT_SETTINGS.afterExport,
     ...(isWindowState(parsed?.window) ? { window: parsed.window } : {}),
   };
 }

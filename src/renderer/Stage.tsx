@@ -7,7 +7,8 @@ import {
   areaIndexAt,
   areaShape,
   clampToPicture,
-  HIT_MARGIN,
+  FIT_MARGIN,
+  isNearPicture,
   isOnPicture,
   flipsHeld,
   withFlips,
@@ -106,7 +107,7 @@ export function Stage({
 
   const fit = Math.max(
     0.01,
-    Math.min(1 / dpr, (size.w - 2 * HIT_MARGIN) / iw, (size.h - 2 * HIT_MARGIN) / ih),
+    Math.min(1 / dpr, (size.w - 2 * FIT_MARGIN) / iw, (size.h - 2 * FIT_MARGIN) / ih),
   );
   const base = { scale: fit, offset: { x: (size.w - iw * fit) / 2, y: (size.h - ih * fit) / 2 } };
   const context: ZoomContext = { base, image, viewport: { width: size.w, height: size.h }, dpr };
@@ -129,9 +130,12 @@ export function Stage({
   // The topmost area under the pointer: what a click would switch. None while drawing, panning,
   // peeking at the bare photo, or with a dialog open.
   let hovered = -1;
+  // Where a drag cannot start, the cursor stays an arrow instead of the drawing crosshair.
+  let outside = false;
   if (hoverAt && !dragging && !panHeld && !panning && !peek && !dialogOpen) {
     const unit = { x: (hoverAt.x - layout.offset.x) / pw, y: (hoverAt.y - layout.offset.y) / ph };
     if (isOnPicture(unit)) hovered = areaIndexAt(photo.areas, unit, photo.facePadding);
+    outside = !isNearPicture(unit, pw, ph);
   }
 
   const latest = useRef({ context, shown, layout, pw, ph, hovered });
@@ -342,12 +346,7 @@ export function Stage({
     }
     const raw = toUnit(event);
     const { pw: w, ph: h } = latest.current;
-    const near =
-      raw.x * w >= -HIT_MARGIN &&
-      raw.x * w <= w + HIT_MARGIN &&
-      raw.y * h >= -HIT_MARGIN &&
-      raw.y * h <= h + HIT_MARGIN;
-    if (!near) return;
+    if (!isNearPicture(raw, w, h)) return;
     event.preventDefault();
     const { outline, mode } = withFlips(app, flipsHeld(event, isMac));
     const lasso = outline === 'lasso';
@@ -495,7 +494,7 @@ export function Stage({
   return (
     <div
       ref={stageRef}
-      className={`stage ${panHeld ? 'panning' : 'drawing'}${hovered >= 0 ? ' overArea' : ''}`}
+      className={`stage ${panHeld ? 'panning' : 'drawing'}${hovered >= 0 ? ' overArea' : ''}${outside ? ' outside' : ''}`}
       style={panning ? { cursor: 'grabbing' } : undefined}
       data-testid="stage"
       data-fit={shown.scale === null ? 'true' : 'false'}

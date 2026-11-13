@@ -648,6 +648,9 @@ input[type='range']::-webkit-slider-thumb {
 .stage.drawing.overArea {
   cursor: pointer;
 }
+.stage.drawing.outside {
+  cursor: default;
+}
 .stage img {
   position: absolute;
   display: block;

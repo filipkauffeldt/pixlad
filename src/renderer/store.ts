@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useSyncExternalStore } from 'react';
 import { defaultBlockPx } from '../shared/block-size';
-import type { AfterExport, ExportTarget, PhotoInfo } from '../shared/ipc';
+import type { AfterExport, ExportTarget, PhotoInfo, Theme } from '../shared/ipc';
 import type { ReleaseNote } from '../shared/update';
 import { opHasAddedArea, type Point, type Rect, type Shape } from '../shared/types';
 import {
@@ -107,6 +107,7 @@ export interface AppState {
   /** False once the user ticked "Don't ask again this session". Never saved, so a restart asks. */
   overwriteAsk: boolean;
   checkForUpdates: boolean;
+  theme: Theme;
   /** What happens to exported photos in the session: ask, keep, or remove. Saved. */
   afterExport: AfterExport;
   aboutOpen: boolean;
@@ -144,6 +145,7 @@ const initial: AppState = {
   overwriteConfirm: undefined,
   overwriteAsk: true,
   checkForUpdates: true,
+  theme: 'system',
   afterExport: 'ask',
   aboutOpen: false,
   shortcutsOpen: false,
@@ -645,9 +647,21 @@ export const actions = {
   cancelOverwrite: (): void => set({ overwriteConfirm: undefined }),
 
   async loadSettings(): Promise<void> {
-    const { exportTarget, exportChosen, checkForUpdates, afterExport } =
+    const { exportTarget, exportChosen, checkForUpdates, afterExport, theme } =
       await window.api.settings();
-    set({ exportTarget, exportChosen, checkForUpdates, afterExport });
+    set({ exportTarget, exportChosen, checkForUpdates, afterExport, theme });
+  },
+
+  async setTheme(theme: Theme): Promise<void> {
+    set({ theme });
+    try {
+      await window.api.setTheme(theme);
+    } catch (cause) {
+      notify(
+        [`Could not save the setting, so it lasts until you close the app: ${errorText(cause)}`],
+        'error',
+      );
+    }
   },
 
   async setCheckForUpdates(checkForUpdates: boolean): Promise<void> {

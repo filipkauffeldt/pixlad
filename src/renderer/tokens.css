@@ -1,6 +1,8 @@
 /*
  * Design tokens. The one place colours, type and sizes are defined. Everything is monochrome:
- * colour exists only in the photo and the status dots.
+ * colour exists only in the photo and the status dots. Dark is the default; the light values
+ * below take over when the theme setting (through Electron's nativeTheme) or the system asks
+ * for light.
  */
 :root {
   color-scheme: dark;
@@ -25,6 +27,13 @@
   /* Overlay on thumbnails */
   --scrim: #000a;
 
+  /* Behind modals and the drop target, and inside drawn areas */
+  --backdrop: rgba(14, 14, 15, 0.72);
+  --backdrop-strong: rgba(14, 14, 15, 0.82);
+  --area-fill: rgba(255, 255, 255, 0.05);
+  --draft-fill: rgba(255, 255, 255, 0.08);
+  --hover-fill: rgba(255, 255, 255, 0.14);
+
   /* Type */
   --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono:
@@ -39,4 +48,32 @@
   --topbar-h: 36px;
   --select-outline: 2px solid var(--text);
   --select-offset: 2px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --bg: #ececea;
+    --panel: #f8f8f7;
+    --raised: #ffffff;
+    --line: #e0e0dd;
+    --line-strong: #cbcbc7;
+
+    --text: #18181a;
+    --muted: #5f5f63;
+    --dim: #a2a2a5;
+    --on-text: #f8f8f7;
+
+    --ok: #3d8a46;
+    --error: #bf4545;
+
+    --scrim: rgba(248, 248, 247, 0.85);
+
+    --backdrop: rgba(236, 236, 234, 0.72);
+    --backdrop-strong: rgba(236, 236, 234, 0.85);
+    --area-fill: rgba(0, 0, 0, 0.05);
+    --draft-fill: rgba(0, 0, 0, 0.08);
+    --hover-fill: rgba(0, 0, 0, 0.14);
+  }
 }

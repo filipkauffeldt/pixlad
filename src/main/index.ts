@@ -6,6 +6,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeTheme,
   protocol,
   session as electronSession,
   screen,
@@ -19,6 +20,7 @@ import {
   DEFAULT_SETTINGS,
   isAfterExport,
   isExportTarget,
+  isTheme,
   SOURCE_URL,
   type AboutInfo,
   type ExportNames,
@@ -130,6 +132,17 @@ function onPhoto<T>(id: string, job: () => Promise<T>): Promise<T> {
   return next;
 }
 
+/** The window's own colour, matching --bg, so it never flashes the other theme while loading. */
+const windowBackground = (): string => (nativeTheme.shouldUseDarkColors ? '#0e0e0f' : '#ececea');
+
+/**
+ * Light or dark for the native parts and, through prefers-color-scheme, for the page. 'system'
+ * hands the choice back to the operating system.
+ */
+function applyTheme(): void {
+  nativeTheme.themeSource = settings.theme;
+}
+
 function createWindow(): BrowserWindow {
   // The first start opens maximized. After that the window opens the way it was left.
   const saved = onScreen(
@@ -144,7 +157,7 @@ function createWindow(): BrowserWindow {
     show: false,
     minWidth: 960,
     minHeight: 600,
-    backgroundColor: '#0e0e0f',
+    backgroundColor: windowBackground(),
     title: 'Pixlad',
     // macOS takes the icon from the app bundle and ignores this.
     icon: iconPath(),
@@ -179,6 +192,10 @@ function createWindow(): BrowserWindow {
     window.on(event as 'resize', saveSoon);
   }
   window.on('close', saveState);
+
+  const onThemeChange = (): void => window.setBackgroundColor(windowBackground());
+  nativeTheme.on('updated', onThemeChange);
+  window.on('closed', () => nativeTheme.off('updated', onThemeChange));
 
   window.on('close', (event) => {
     if (forceClose || unexported === 0) return;
@@ -326,6 +343,13 @@ function registerIpc(): void {
     if (typeof enabled !== 'boolean') throw new Error('Unknown value for the update check');
     await changeSettings({ checkForUpdates: enabled });
   });
+  ipcMain.handle('settings:set-theme', async (_e, theme: unknown) => {
+    if (!isTheme(theme)) throw new Error('Unknown theme');
+    // Switched before the write, so a failed save still changes the look until the next start.
+    const write = changeSettings({ theme });
+    applyTheme();
+    await write;
+  });
   ipcMain.handle('settings:set-after-export', async (_e, choice: unknown) => {
     if (!isAfterExport(choice)) throw new Error('Unknown choice for what happens after an export');
     await changeSettings({ afterExport: choice });
@@ -408,6 +432,7 @@ app.whenReady().then(async () => {
   // macOS keeps its menu: it sits outside the window and carries Quit and Copy/Paste.
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
   settings = await readSettings(settingsFile());
+  applyTheme();
   try {
     updates = createUpdateService();
   } catch (cause) {

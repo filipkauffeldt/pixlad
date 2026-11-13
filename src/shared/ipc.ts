@@ -44,6 +44,12 @@ export type ExportTarget = 'suffix' | 'overwrite';
 export const isExportTarget = (value: unknown): value is ExportTarget =>
   value === 'suffix' || value === 'overwrite';
 
+/** How the app looks: light, dark, or whatever the operating system uses. */
+export type Theme = 'system' | 'light' | 'dark';
+
+export const isTheme = (value: unknown): value is Theme =>
+  value === 'system' || value === 'light' || value === 'dark';
+
 /** What happens to the exported photos in the session: ask, keep them, or take them out. */
 export type AfterExport = 'ask' | 'keep' | 'remove';
 
@@ -57,6 +63,7 @@ export interface Settings {
   exportChosen: boolean;
   /** Whether the app looks for a newer release when it starts. */
   checkForUpdates: boolean;
+  theme: Theme;
   /** What to do with photos in the session once they are exported. Missing in old files: ask. */
   afterExport: AfterExport;
   /** How the window was left, to open it the same way. Missing before the first close. */
@@ -76,6 +83,7 @@ export const DEFAULT_SETTINGS: Settings = {
   exportTarget: 'suffix',
   exportChosen: false,
   checkForUpdates: true,
+  theme: 'system',
   afterExport: 'ask',
 };
 
@@ -126,6 +134,7 @@ export interface Api {
   showInFolder(id: string): Promise<void>;
   exportNames(id: string): Promise<ExportNames>;
   setCheckForUpdates(enabled: boolean): Promise<void>;
+  setTheme(theme: Theme): Promise<void>;
   setAfterExport(choice: AfterExport): Promise<void>;
   about(): Promise<AboutInfo>;
   openChromiumLicenses(): Promise<void>;

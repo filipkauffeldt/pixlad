@@ -223,6 +223,42 @@ input[type='range']::-webkit-slider-thumb {
 .settingsPanel legend + * {
   clear: both;
 }
+.appearance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.themePicker {
+  display: flex;
+  border: 1px solid var(--line-strong);
+}
+.themePicker button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+}
+.themePicker button + button {
+  border-left: 1px solid var(--line-strong);
+}
+.themePicker button:hover {
+  color: var(--text);
+}
+.themePicker button[aria-checked='true'] {
+  background: var(--text);
+  color: var(--on-text);
+}
+.themePicker button:focus-visible {
+  outline: 1px solid var(--text);
+  outline-offset: 1px;
+}
+.themePicker svg {
+  display: block;
+}
 .settingsPanel .subLabel {
   margin-top: 4px;
 }
@@ -312,7 +348,7 @@ input[type='range']::-webkit-slider-thumb {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(14, 14, 15, 0.72);
+  background: var(--backdrop);
 }
 .modal {
   display: flex;
@@ -632,7 +668,7 @@ input[type='range']::-webkit-slider-thumb {
   visibility: hidden;
 }
 .areaOn {
-  fill: rgba(255, 255, 255, 0.05);
+  fill: var(--area-fill);
   stroke: var(--text);
   stroke-width: 1;
 }
@@ -649,7 +685,7 @@ input[type='range']::-webkit-slider-thumb {
   stroke-dasharray: 6 3;
 }
 .draft {
-  fill: rgba(255, 255, 255, 0.08);
+  fill: var(--draft-fill);
   stroke: var(--text);
   stroke-width: 1;
   stroke-dasharray: 4 3;
@@ -676,7 +712,7 @@ input[type='range']::-webkit-slider-thumb {
   stroke: var(--text);
 }
 .overlay path.areaHover {
-  fill: rgba(255, 255, 255, 0.14);
+  fill: var(--hover-fill);
 }
 .overlay .haloHover {
   stroke-opacity: 0.95;
@@ -721,7 +757,7 @@ input[type='range']::-webkit-slider-thumb {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(14, 14, 15, 0.82);
+  background: var(--backdrop-strong);
   border: 2px solid var(--text);
   font-size: 15px;
   pointer-events: none;

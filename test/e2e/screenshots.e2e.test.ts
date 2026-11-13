@@ -62,6 +62,14 @@ function scene(width: number, height: number, seed: number): Rgb {
   return { width, height, data };
 }
 
+/** Pick a theme in Settings and close the panel again. */
+async function useTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
+  await page.click('[data-testid="settings"]');
+  await page.click(`[data-testid="theme-${theme}"]`);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('[data-testid="settings-panel"]', { state: 'detached' });
+}
+
 async function drag(page: Page, points: Array<[number, number]>): Promise<void> {
   const img = (await page.locator('[data-testid="photo"]').boundingBox())!;
   const at = (p: [number, number]): [number, number] => [
@@ -88,6 +96,7 @@ it.skipIf(!out)(
     running = await launch();
     const { page } = running;
     await page.setViewportSize({ width: 1440, height: 900 });
+    await useTheme(page, 'dark');
     await page.screenshot({ path: join(out!, 'empty-drop-state.png') });
 
     await dropFiles(page, files);
@@ -118,6 +127,13 @@ it.skipIf(!out)(
     await page.waitForTimeout(1200);
     await page.screenshot({ path: join(out!, 'app-with-mosaics.png') });
     expect(await page.locator('[data-testid="area"]').count()).toBe(3);
+
+    await useTheme(page, 'light');
+    await page.screenshot({ path: join(out!, 'app-with-mosaics-light.png') });
+    await page.click('[data-testid="settings"]');
+    await page.screenshot({ path: join(out!, 'settings-light.png') });
+    await page.click('[data-testid="theme-dark"]');
+    await page.screenshot({ path: join(out!, 'settings-dark.png') });
   },
   120_000,
 );

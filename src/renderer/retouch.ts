@@ -173,8 +173,18 @@ export function withFlips(
 export const areaBounds = (area: RetouchArea, facePadding: number): Rect =>
   shapeBounds(areaShape(area, facePadding));
 
+/** The breathing room kept around the picture when it is fitted to the stage, in CSS pixels. */
+export const FIT_MARGIN = 40;
+
 /** The strip around the picture where a drag may start, in CSS pixels. */
-export const HIT_MARGIN = 40;
+export const HIT_MARGIN = 100;
+
+/** Whether a point (unit picture coordinates) is on the picture or in the strip around it. */
+export const isNearPicture = (p: { x: number; y: number }, w: number, h: number): boolean =>
+  p.x * w >= -HIT_MARGIN &&
+  p.x * w <= w + HIT_MARGIN &&
+  p.y * h >= -HIT_MARGIN &&
+  p.y * h <= h + HIT_MARGIN;
 
 export const clampToPicture = (p: { x: number; y: number }): { x: number; y: number } => ({
   x: clamp(p.x, 0, 1),

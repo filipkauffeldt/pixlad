@@ -40,3 +40,42 @@ describe('the update check setting', () => {
     await running.page.waitForSelector('[data-testid="check-for-updates"]:checked');
   });
 });
+
+describe('the theme setting', () => {
+  const prefersLight = (launched: Launched): Promise<boolean> =>
+    launched.page.evaluate(() => matchMedia('(prefers-color-scheme: light)').matches);
+  const background = (launched: Launched): Promise<string> =>
+    launched.page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+
+  it('follows the system by default, switches at once, and lasts across a restart', async () => {
+    const userData = await mkdtemp(join(tmpdir(), 'pixlad-userdata-'));
+
+    running = await launch({ userData });
+    await running.page.click('[data-testid="settings"]');
+    await running.page.waitForSelector('[data-testid="theme-system"][aria-checked="true"]');
+
+    await running.page.click('[data-testid="theme-light"]');
+    await running.page.waitForSelector('[data-testid="theme-light"][aria-checked="true"]');
+    await expect.poll(() => prefersLight(running!)).toBe(true);
+    expect(await background(running)).toBe('rgb(236, 236, 234)');
+
+    await running.page.click('[data-testid="theme-dark"]');
+    await expect.poll(() => prefersLight(running!)).toBe(false);
+    expect(await background(running)).toBe('rgb(14, 14, 15)');
+
+    // Arrow keys move the choice and stay inside the picker.
+    await running.page.keyboard.press('ArrowLeft');
+    await running.page.waitForSelector('[data-testid="theme-light"][aria-checked="true"]');
+    await running.app.close();
+    running = undefined;
+
+    expect(JSON.parse(await readFile(join(userData, 'settings.json'), 'utf8'))).toMatchObject({
+      theme: 'light',
+    });
+
+    running = await launch({ userData });
+    expect(await prefersLight(running)).toBe(true);
+    await running.page.click('[data-testid="settings"]');
+    await running.page.waitForSelector('[data-testid="theme-light"][aria-checked="true"]');
+  });
+});

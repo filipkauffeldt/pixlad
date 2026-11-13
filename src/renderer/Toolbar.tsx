@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
-import type { ExportTarget } from '../shared/ipc';
+import type { ExportTarget, Theme } from '../shared/ipc';
 import { ExportChoice } from './ExportChoice';
 import { isMac, useFlips } from './flips';
 import { countAreas, withFlips, type Outline } from './retouch';
@@ -149,6 +149,96 @@ const EXPORT_TARGETS: Array<{ target: ExportTarget; label: string; note: string 
   { target: 'overwrite', label: 'Replace original', note: 'Cannot be undone.' },
 ];
 
+const THEMES: Array<{ theme: Theme; label: string; icon: ReactNode }> = [
+  {
+    theme: 'light',
+    label: 'Light',
+    icon: (
+      <g strokeLinecap="round">
+        <circle cx="8" cy="8" r="3" />
+        <path d="M8 1.5V3M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1.06 1.06M11.54 11.54l1.06 1.06M3.4 12.6l1.06-1.06M11.54 4.46l1.06-1.06" />
+      </g>
+    ),
+  },
+  {
+    theme: 'dark',
+    label: 'Dark',
+    icon: (
+      <path d="M13.5 9.6A5.6 5.6 0 0 1 6.4 2.5a5.6 5.6 0 1 0 7.1 7.1Z" strokeLinejoin="round" />
+    ),
+  },
+  {
+    theme: 'system',
+    label: 'Match system',
+    icon: (
+      <g strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1.75" y="2.5" width="12.5" height="8.5" />
+        <path d="M5.5 14h5M8 11v3" />
+      </g>
+    ),
+  },
+];
+
+/** Light, dark or the system's choice, as three icon buttons that act as one radio group. */
+function ThemePicker() {
+  const app = useApp();
+  const buttons = useRef<Array<HTMLButtonElement | null>>([]);
+  const current = THEMES.findIndex(({ theme }) => theme === app.theme);
+  const pick = (index: number): void => {
+    void actions.setTheme(THEMES[index]!.theme);
+    buttons.current[index]?.focus();
+  };
+  return (
+    <div className="appearance">
+      <span className="label" id="appearance-label">
+        Appearance
+      </span>
+      <div
+        className="themePicker"
+        role="radiogroup"
+        aria-labelledby="appearance-label"
+        onKeyDown={(e) => {
+          const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+          if (step === undefined) return;
+          // Kept from the window, where Left and Right step through the photos.
+          e.preventDefault();
+          e.stopPropagation();
+          pick((current + step + THEMES.length) % THEMES.length);
+        }}
+      >
+        {THEMES.map(({ theme, label, icon }, index) => (
+          <button
+            key={theme}
+            ref={(el) => {
+              buttons.current[index] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={app.theme === theme}
+            aria-label={label}
+            title={label}
+            tabIndex={app.theme === theme ? 0 : -1}
+            onClick={() => pick(index)}
+            data-testid={`theme-${theme}`}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              aria-hidden="true"
+            >
+              {icon}
+            </svg>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Settings({ exporting }: { exporting: boolean }) {
   const app = useApp();
   const [open, setOpen] = useState(false);
@@ -199,6 +289,7 @@ function Settings({ exporting }: { exporting: boolean }) {
               </label>
             ))}
           </fieldset>
+          <ThemePicker />
           <fieldset>
             <legend className="label">Updates</legend>
             <label className="radio">

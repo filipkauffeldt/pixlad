@@ -123,6 +123,7 @@ export interface Api {
   setExportTarget(target: ExportTarget): Promise<void>;
   exportNames(id: string): Promise<ExportNames>;
   setCheckForUpdates(enabled: boolean): Promise<void>;
+  setTheme(theme: Theme): Promise<void>;
   about(): Promise<AboutInfo>;
   openChromiumLicenses(): Promise<void>;
   /** The check at start: undefined when the setting is off or this build does not check. */

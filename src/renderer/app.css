@@ -206,6 +206,42 @@ input[type='range']::-webkit-slider-thumb {
 .settingsPanel legend + * {
   clear: both;
 }
+.appearance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.themePicker {
+  display: flex;
+  border: 1px solid var(--line-strong);
+}
+.themePicker button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+}
+.themePicker button + button {
+  border-left: 1px solid var(--line-strong);
+}
+.themePicker button:hover {
+  color: var(--text);
+}
+.themePicker button[aria-checked='true'] {
+  background: var(--text);
+  color: var(--on-text);
+}
+.themePicker button:focus-visible {
+  outline: 1px solid var(--text);
+  outline-offset: 1px;
+}
+.themePicker svg {
+  display: block;
+}
 .linkButton {
   align-self: flex-start;
   padding: 8px 0 0;

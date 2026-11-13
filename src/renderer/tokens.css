@@ -32,6 +32,7 @@
   --backdrop-strong: rgba(14, 14, 15, 0.82);
   --area-fill: rgba(255, 255, 255, 0.05);
   --draft-fill: rgba(255, 255, 255, 0.08);
+  --hover-fill: rgba(255, 255, 255, 0.14);
 
   /* Type */
   --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -73,5 +74,6 @@
     --backdrop-strong: rgba(236, 236, 234, 0.85);
     --area-fill: rgba(0, 0, 0, 0.05);
     --draft-fill: rgba(0, 0, 0, 0.08);
+    --hover-fill: rgba(0, 0, 0, 0.14);
   }
 }

@@ -712,7 +712,7 @@ input[type='range']::-webkit-slider-thumb {
   stroke: var(--text);
 }
 .overlay path.areaHover {
-  fill: rgba(255, 255, 255, 0.14);
+  fill: var(--hover-fill);
 }
 .overlay .haloHover {
   stroke-opacity: 0.95;

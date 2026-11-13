@@ -45,6 +45,9 @@ export async function launch(
       ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
     ],
     env: { ...process.env, ...options.env } as Record<string, string>,
+    // Playwright pretends the system is light unless told not to, which would hide the theme
+    // setting: the app sets light or dark through nativeTheme, and the page follows that.
+    colorScheme: null,
   });
   const page = await app.firstWindow();
   await page.setViewportSize({ width: 1440, height: 900 }).catch(() => undefined);

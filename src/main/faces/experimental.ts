@@ -417,7 +417,7 @@ function overlap(a: Box, b: Box): number {
 }
 
 /** A head with no face of its own needs at least this score. */
-const LONE_HEAD_SCORE = 0.35;
+const LONE_HEAD_SCORE = 0.5;
 
 async function detect(
   img: Img,
@@ -520,7 +520,9 @@ async function detect(
         .filter(
           (h) =>
             !faceInside(h) &&
-            h.score >= LONE_HEAD_SCORE &&
+            // A faceless head scoring low is mostly an arm or a shoulder; with eyes inside it is
+            // a balaclava and counts.
+            (h.score >= LONE_HEAD_SCORE || eyes.some((e) => inside(e, h.box))) &&
             !faces.some((f) => overlap(f.box, h.box) > 0.25 * f.box.w * f.box.h),
         )
         .map((h): Det => {
@@ -843,6 +845,14 @@ function outlineFromLabels(
   for (const v of component) area += v;
   const faceW = det.box.w * perPx;
   const faceH = det.box.h * perPx;
+  // A head nothing confirmed as a face, showing only a little skin (light or smoke hides the
+  // rest, the face is turned away): the trace cannot be trusted, cover the head with an oval.
+  if (head && !det.confirmed && area < 0.35 * faceW * faceH) {
+    return Array.from({ length: 40 }, (_, k) => {
+      const t = (2 * Math.PI * k) / 40;
+      return c.toImage(SEG / 2 + Math.cos(t) * faceW * 0.55, SEG / 2 + Math.sin(t) * faceH * 0.55);
+    });
+  }
   if (area < 0.3 * faceW * faceH) {
     component = dilate(component, Math.max(4, Math.round(0.15 * Math.max(faceW, faceH))));
   }

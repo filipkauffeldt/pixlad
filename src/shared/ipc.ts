@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import type { UpdateCheck, UpdateDownload } from './update';
-import type { FaceDetection, MosaicOp, Rect } from './types';
+import type { DetectOptions, FaceDetection, MosaicOp, Rect } from './types';
 
 /** What the renderer knows about a photo in the session. Never the pixels. */
 export interface PhotoInfo {
@@ -125,7 +125,7 @@ export interface Api {
   removePhoto(id: string): Promise<void>;
   openPhoto(id: string): Promise<void>;
   preview(id: string, op: MosaicOp): Promise<PreviewPatch | null>;
-  detect(id: string, region: Rect): Promise<FaceDetection[]>;
+  detect(id: string, region: Rect, options?: DetectOptions): Promise<FaceDetection[]>;
   exportPhoto(id: string, op: MosaicOp): Promise<ExportOutcome>;
   settings(): Promise<Settings>;
   /** Also records that the user has chosen, so the first-export choice does not show again. */

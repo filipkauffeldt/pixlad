@@ -4,12 +4,20 @@ import { useSyncExternalStore } from 'react';
 import { defaultBlockPx } from '../shared/block-size';
 import type { AfterExport, ExportTarget, PhotoInfo, Theme } from '../shared/ipc';
 import type { ReleaseNote } from '../shared/update';
-import { opHasAddedArea, type Point, type Rect, type Shape } from '../shared/types';
+import {
+  opHasAddedArea,
+  type FaceDetector,
+  type FaceStyle,
+  type Point,
+  type Rect,
+  type Shape,
+} from '../shared/types';
 import {
   facesInLasso,
   opFromAreas,
   withDetectedFaces,
   withoutFacesInside,
+  type FaceData,
   type RetouchArea,
   type Outline,
   type RetouchMode,
@@ -121,12 +129,15 @@ export interface AppState {
   aboutCheck: AboutCheck;
   /** The question after an export: take these photos out of the session? */
   removeQuestion: { count: number; name: string | undefined } | undefined;
+  /** EXPERIMENTAL: which detector and outline the next detection uses, and how the last went. */
+  experiment: { detector: FaceDetector; style: FaceStyle; last: string | undefined };
 }
 
 const initial: AppState = {
   photos: [],
   currentId: undefined,
   target: 'faces',
+  experiment: { detector: 'yunet', style: 'box', last: undefined },
   outline: 'rect',
   mode: 'add',
   detecting: false,
@@ -435,7 +446,7 @@ export const actions = {
     });
   },
 
-  addFaces(id: string, faces: { box: Rect; score?: number }[], mode: RetouchMode): void {
+  addFaces(id: string, faces: FaceData[], mode: RetouchMode): void {
     editAreas(id, (areas) => {
       const next = withDetectedFaces(areas, faces, mode);
       return next.length === areas.length ? areas : next;
@@ -482,13 +493,17 @@ export const actions = {
         : region;
     actions.setDetecting(true, shape);
     try {
-      const found = await window.api.detect(id, region);
+      const { detector, style } = state.experiment;
+      const started = performance.now();
+      const found = await window.api.detect(id, region, { detector, style });
+      const ms = Math.round(performance.now() - started);
       const inside = lasso ? facesInLasso(found, lasso) : found;
+      set({ experiment: { ...state.experiment, last: `${inside.length} found in ${ms} ms` } });
       // Nothing found is not an error, but the user should see it, where the detector looked.
       if (inside.length === 0) actions.noFacesFound();
       actions.addFaces(
         id,
-        inside.map((f) => ({ box: f.box, score: f.score })),
+        inside.map(({ landmarks: _landmarks, ...f }) => ({ ...f, style })),
         'add',
       );
     } catch (cause) {
@@ -500,6 +515,18 @@ export const actions = {
     } finally {
       actions.setDetecting(false);
     }
+  },
+
+  /** EXPERIMENTAL: pick the detector or outline for the next detection. */
+  setExperiment(change: Partial<{ detector: FaceDetector; style: FaceStyle }>): void {
+    set({ experiment: { ...state.experiment, ...change } });
+  },
+
+  /** EXPERIMENTAL: give the faces already found on the current photo another outline style. */
+  restyleFaces(style: FaceStyle): void {
+    const id = state.currentId;
+    if (!id) return;
+    editAreas(id, (areas) => areas.map((a) => (a.face ? { ...a, face: { ...a.face, style } } : a)));
   },
 
   /** The whole current photo, for the Find all faces button and its shortcut. */

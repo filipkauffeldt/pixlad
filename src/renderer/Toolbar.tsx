@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
+import { FACE_DETECTORS, FACE_STYLES, type FaceDetector, type FaceStyle } from '../shared/types';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
 import type { AfterExport, ExportTarget, Theme } from '../shared/ipc';
@@ -435,6 +436,46 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       >
         Find all faces
       </button>
+      {/* EXPERIMENTAL: detector and outline picker for trying the options out. */}
+      <label
+        className="control experiment"
+        title="Experimental: which model the next detection uses"
+      >
+        <span className="label">Detector</span>
+        <select
+          value={app.experiment.detector}
+          onChange={(e) => actions.setExperiment({ detector: e.target.value as FaceDetector })}
+        >
+          {FACE_DETECTORS.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label
+        className="control experiment"
+        title="Experimental: the outline of found faces. Box, Oval and Tilted oval also restyle faces already found; the mesh and face-skin outlines are traced when faces are found, so find them again after picking one."
+      >
+        <span className="label">Outline</span>
+        <select
+          value={app.experiment.style}
+          onChange={(e) => {
+            const style = e.target.value as FaceStyle;
+            actions.setExperiment({ style });
+            actions.restyleFaces(style);
+          }}
+        >
+          {FACE_STYLES.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {app.experiment.last && (
+        <span className="label mono experiment-last">{app.experiment.last}</span>
+      )}
       <label
         className="control"
         title="Block edge in pixels of the full-resolution photo. Small selections get larger blocks, so a face stays unrecognisable."

@@ -5,9 +5,10 @@
 import { readFile } from 'node:fs/promises';
 import { parentPort, workerData } from 'node:worker_threads';
 import { renderMosaic } from '../shared/mosaic';
-import type { FaceDetection, MosaicOp, Rect } from '../shared/types';
+import type { DetectOptions, FaceDetection, MosaicOp, Rect } from '../shared/types';
 import { exportEdit, ExportFailure, type ExportRequest } from './export-photo';
 import { detectFaces } from './faces/detect';
+import { detectExperimental } from './faces/experimental';
 import { decodeCoefficients } from './jpeg/decode';
 import { iccProfile } from './jpeg/parse';
 import { dcThumbnail, decodePlanes, planesToRgba } from './jpeg/pixels';
@@ -16,7 +17,7 @@ import { encodePng } from './png';
 export type WorkerRequest =
   | { id: number; type: 'open'; path: string }
   | { id: number; type: 'preview'; op: MosaicOp }
-  | { id: number; type: 'detect'; region: Rect }
+  | { id: number; type: 'detect'; region: Rect; options?: DetectOptions | undefined }
   | { id: number; type: 'thumb'; path: string }
   | { id: number; type: 'export'; request: ExportRequest };
 
@@ -55,6 +56,8 @@ async function handle(request: WorkerRequest): Promise<unknown> {
     }
     case 'detect': {
       if (!current) throw new Error('no photo is open');
+      if (request.options)
+        return detectExperimental(current, request.region, request.options, modelPath);
       const found: FaceDetection[] = await detectFaces(
         current.rgba,
         current.width,

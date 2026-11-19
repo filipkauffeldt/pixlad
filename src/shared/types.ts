@@ -44,6 +44,39 @@ export interface FaceDetection {
   box: Rect;
   score: number;
   landmarks?: Point[];
+  /** Experimental: a head detector's box holds hair and ears; a face box does not. */
+  kind?: 'face' | 'head';
+  /** Experimental: head roll in radians, in pixel space (from the eye landmarks). */
+  angle?: number;
+  /** Experimental: photo width / height, to draw tilted ovals in normalized coordinates. */
+  aspect?: number;
+  /** Experimental: a traced outline (face mesh or face skin), normalized. */
+  outline?: Point[];
+}
+
+/** Experimental detector and outline picker, for trying the options out. */
+export const FACE_DETECTORS = [
+  { id: 'yunet', label: 'YuNet (today)' },
+  { id: 'yolo-n', label: 'YOLOv8n-face' },
+  { id: 'yolo-s', label: 'YOLOv8s-face' },
+  { id: 'deim-n', label: 'DEIMv2-N heads' },
+  { id: 'deim-s', label: 'DEIMv2-S heads (slow)' },
+  { id: 'hybrid', label: 'DEIMv2-S heads, 1 pass + YuNet' },
+] as const;
+export type FaceDetector = (typeof FACE_DETECTORS)[number]['id'];
+
+export const FACE_STYLES = [
+  { id: 'box', label: 'Box' },
+  { id: 'oval', label: 'Oval' },
+  { id: 'tilt', label: 'Tilted oval' },
+  { id: 'mesh', label: 'Face mesh outline' },
+  { id: 'skin', label: 'Face skin only' },
+] as const;
+export type FaceStyle = (typeof FACE_STYLES)[number]['id'];
+
+export interface DetectOptions {
+  detector: FaceDetector;
+  style: FaceStyle;
 }
 
 export const isAdded = (area: MosaicArea): boolean =>

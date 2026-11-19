@@ -56,6 +56,31 @@ const FILES = {
 
 const sessions = new Map<string, Promise<ort.InferenceSession>>();
 const THREADS = Math.max(1, Math.min(4, Math.floor(availableParallelism() / 2)));
+/** The models are freed this long after the last detection or trace that used them. */
+const IDLE_RELEASE_MS = Number(process.env.PIXLAD_MODEL_IDLE_MS ?? 90_000);
+let busy = 0;
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Run `job` with the models kept loaded; once nothing has used them for a while, free them. */
+async function holdingModels<T>(job: () => Promise<T>): Promise<T> {
+  busy++;
+  clearTimeout(idleTimer);
+  try {
+    return await job();
+  } finally {
+    busy--;
+    if (busy === 0) {
+      idleTimer = setTimeout(() => {
+        if (busy > 0) return;
+        const all = [...sessions.values()];
+        sessions.clear();
+        for (const s of all) void s.then((x) => x.release()).catch(() => undefined);
+        if (all.length > 0) console.log(`[experimental] released ${all.length} models after idle`);
+      }, IDLE_RELEASE_MS);
+    }
+  }
+}
+
 export function session(
   yunetPath: string,
   key: keyof typeof FILES,
@@ -76,6 +101,10 @@ export function session(
       // Measured faster than the default (all cores) for these models, and leaves room for the
       // JavaScript work that overlaps the next run.
       intraOpNumThreads: THREADS,
+      // No memory pool: the pool grows to the largest run so far and keeps it (about +500 MB
+      // after a big detection). Without it memory follows the current run, at no measured cost.
+      enableCpuMemArena: false,
+      enableMemPattern: false,
     });
     sessions.set(cacheKey, s);
     s.catch(() => sessions.delete(cacheKey));
@@ -1256,7 +1285,11 @@ function radialOutline(mask: Uint8Array): Point[] {
  * Experimental detection. With `deferOutlines`, traced outlines (face mesh, face and hair) are
  * left to a second call, `traceExperimental`, so the faces can show (as ovals) right away.
  */
-export async function detectExperimental(
+export const detectExperimental = (
+  ...args: Parameters<typeof detectAll>
+): ReturnType<typeof detectAll> => holdingModels(() => detectAll(...args));
+
+async function detectAll(
   img: Img,
   region: Rect,
   options: DetectOptions,
@@ -1320,7 +1353,11 @@ export async function detectExperimental(
  * no face skin or hair at all (a balaclava: leave it unblurred), or undefined to keep the oval
  * (too small to trace, or nothing came of it).
  */
-export async function traceExperimental(
+export const traceExperimental = (
+  ...args: Parameters<typeof traceAll>
+): ReturnType<typeof traceAll> => holdingModels(() => traceAll(...args));
+
+async function traceAll(
   img: Img,
   faces: readonly TraceFace[],
   style: FaceStyle,

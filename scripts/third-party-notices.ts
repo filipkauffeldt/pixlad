@@ -49,6 +49,21 @@ const EXTRA: Array<{ title: string; note: string; files: string[] }> = [
     files: ['third_party/yunet/LICENSE'],
   },
   {
+    title: 'Face outline models (Apache-2.0)',
+    note: [
+      'deimv2-s-wholebody34.onnx and deimv2-n-wholebody34.onnx, downloaded at install.',
+      'DEIMv2 Wholebody34 (S and N), by Katsuya Hyodo (PINTO0309), built on DEIMv2 by Intellindust AI Lab.',
+      'Source: https://github.com/PINTO0309/PINTO_model_zoo/tree/main/472_DEIMv2-Wholebody34',
+      "Changes: none. The two files were taken from the folder's release archive and renamed.",
+      '',
+      'selfie-multiclass.onnx, downloaded at install.',
+      'MediaPipe selfie multiclass segmentation (256x256), by Google.',
+      'Source: https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite',
+      'Changes: converted from TFLite to ONNX with tf2onnx (opset 13). Weights unchanged.',
+    ].join('\n'),
+    files: ['third_party/face-outline-models/LICENSE'],
+  },
+  {
     title: 'Independent JPEG Group',
     note: 'This software is based in part on the work of the Independent JPEG Group.',
     files: [],

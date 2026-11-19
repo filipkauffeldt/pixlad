@@ -19,9 +19,10 @@ describe('the notices shown in About', () => {
 
   it('includes the parts that are not npm packages, last', () => {
     const titles = notices.map((n) => n.title);
-    expect(titles.slice(-4)).toEqual([
+    expect(titles.slice(-5)).toEqual([
       'ONNX Runtime native library (third-party components)',
       'YuNet face detection model (MIT)',
+      'Face outline models (Apache-2.0)',
       'Independent JPEG Group',
       'Electron and Chromium (MIT and others)',
     ]);

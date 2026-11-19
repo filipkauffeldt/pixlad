@@ -30,6 +30,19 @@ const modelPath = (workerData as { modelPath: string }).modelPath;
 let current:
   { width: number; height: number; rgba: Uint8Array; icc: Buffer | undefined } | undefined;
 
+/**
+ * The region plus a margin of 8% of the photo's long edge, so a face the region cuts through is
+ * seen whole.
+ */
+function withMargin(region: Rect, width: number, height: number): Rect {
+  const margin = 0.08 * Math.max(width, height);
+  const x0 = Math.max(0, region.x - margin / width);
+  const y0 = Math.max(0, region.y - margin / height);
+  const x1 = Math.min(1, region.x + region.w + margin / width);
+  const y1 = Math.min(1, region.y + region.h + margin / height);
+  return { type: 'rect', x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
 async function handle(request: WorkerRequest): Promise<unknown> {
   switch (request.type) {
     case 'open': {
@@ -55,11 +68,12 @@ async function handle(request: WorkerRequest): Promise<unknown> {
     }
     case 'detect': {
       if (!current) throw new Error('no photo is open');
+      const { width, height } = current;
       const found: FaceDetection[] = await detectFaces(
         current.rgba,
-        current.width,
-        current.height,
-        request.region,
+        width,
+        height,
+        withMargin(request.region, width, height),
         { modelPath },
       );
       return found;

@@ -85,19 +85,29 @@ function tensor(img: Img, win: Box, scale: number, norm: Norm, stretch: boolean)
 }
 
 /** Like the app's YuNet pass: full-resolution tiles with 20% overlap, plus the whole region. */
-function windows(region: Box, tiles = true): { win: Box; scale: number; whole: boolean }[] {
+/**
+ * Like the app's YuNet pass: tiles with 20% overlap, plus the whole region. Tiles are full
+ * resolution, or of a copy shrunk so its long edge is at most `maxEdge`.
+ */
+function windows(
+  region: Box,
+  tiles = true,
+  maxEdge = Infinity,
+): { win: Box; scale: number; whole: boolean }[] {
   const out: { win: Box; scale: number; whole: boolean }[] = [];
   const longest = Math.max(region.w, region.h);
+  const scale = Math.min(1, maxEdge / longest);
+  const tile = Math.floor(N / scale);
   if (tiles || longest <= N) {
-    const step = Math.floor(N * 0.8);
+    const step = Math.floor(tile * 0.8);
     for (let y = 0; y < region.h; y += step) {
       for (let x = 0; x < region.w; x += step) {
-        const w = Math.min(N, region.w - x);
-        const h = Math.min(N, region.h - y);
-        out.push({ win: { x: region.x + x, y: region.y + y, w, h }, scale: 1, whole: false });
+        const w = Math.min(tile, region.w - x);
+        const h = Math.min(tile, region.h - y);
+        out.push({ win: { x: region.x + x, y: region.y + y, w, h }, scale, whole: false });
         if (x + w >= region.w) break;
       }
-      if (y + Math.min(N, region.h - y) >= region.h) break;
+      if (y + Math.min(tile, region.h - y) >= region.h) break;
     }
   }
   if (longest > N) out.push({ win: region, scale: N / longest, whole: true });
@@ -139,10 +149,11 @@ async function deim(
   region: Box,
   s: ort.InferenceSession,
   tiles: boolean,
+  maxEdge = Infinity,
 ): Promise<{ heads: Det[]; hands: Box[] }> {
   const all: Det[] = [];
   const hands: Box[] = [];
-  for (const { win, scale, whole } of windows(region, tiles)) {
+  for (const { win, scale, whole } of windows(region, tiles, maxEdge)) {
     // Tiles keep their aspect and are padded; the whole region is stretched, as the model was trained.
     const { t, tw, th } = tensor(img, win, scale, 'imagenet', whole);
     const out = (await s.run({ images: t })).label_xyxy_score!;
@@ -227,9 +238,17 @@ async function detect(
       const { heads, hands } = await deim(img, px, await session(yunetPath, detector), true);
       return notHands(heads, hands);
     }
-    case 'hybrid': {
-      // One whole-region DEIMv2-S pass for heads big enough to see, YuNet tiles for the small faces.
-      const { heads, hands } = await deim(img, px, await session(yunetPath, 'deim-s'), false);
+    case 'hybrid':
+    case 'hybrid-tiled': {
+      // DEIMv2-S for heads: one whole-region pass, or tiles over a copy at most 2560 px long. YuNet
+      // tiles at full resolution add the small faces the head pass did not see.
+      const { heads, hands } = await deim(
+        img,
+        px,
+        await session(yunetPath, 'deim-s'),
+        detector === 'hybrid-tiled',
+        2560,
+      );
       const faces = await yunet(img, region, yunetPath);
       const loose = faces.filter((f) => {
         const cx = f.box.x + f.box.w / 2;

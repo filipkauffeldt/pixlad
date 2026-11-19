@@ -62,6 +62,7 @@ export const FACE_DETECTORS = [
   { id: 'deim-n', label: 'DEIMv2-N heads' },
   { id: 'deim-s', label: 'DEIMv2-S heads (slow)' },
   { id: 'hybrid', label: 'DEIMv2-S heads, 1 pass + YuNet' },
+  { id: 'hybrid-tiled', label: 'DEIMv2-S heads, tiled at 2560 + YuNet' },
 ] as const;
 export type FaceDetector = (typeof FACE_DETECTORS)[number]['id'];
 

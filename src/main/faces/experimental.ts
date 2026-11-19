@@ -336,6 +336,125 @@ export function shrink(img: Img, maxEdge: number): Img {
   return { rgba: out, width: outW, height: outH };
 }
 
+/**
+ * Haze removal for smoke: per tile, the local mean and spread of brightness, interpolated between
+ * tiles, stretch each pixel so the tile spans the full range. Faces behind flare smoke get their
+ * contrast back. Colour ratios are kept (all channels get the same gain and offset).
+ */
+export function dehaze(
+  img: Img,
+  tile = 96,
+  spread = 2.2,
+  mode: 'channel' | 'grey' = 'channel',
+): Img {
+  const { width: W, height: H, rgba } = img;
+  const tx = Math.ceil(W / tile);
+  const ty = Math.ceil(H / tile);
+  const C = mode === 'grey' ? 1 : 3;
+  const mean = new Float32Array(tx * ty * C);
+  const sd = new Float32Array(tx * ty * C);
+  const sum = new Float64Array(tx * ty * C);
+  const sq = new Float64Array(tx * ty * C);
+  const n = new Float64Array(tx * ty);
+  const value = (i: number, k: number): number =>
+    C === 1 ? 0.299 * rgba[i]! + 0.587 * rgba[i + 1]! + 0.114 * rgba[i + 2]! : rgba[i + k]!;
+  for (let y = 0; y < H; y += 2) {
+    const row = Math.floor(y / tile) * tx;
+    for (let x = 0; x < W; x += 2) {
+      const i = (y * W + x) * 4;
+      const t = row + Math.floor(x / tile);
+      for (let k = 0; k < C; k++) {
+        const v = value(i, k);
+        sum[t * C + k] = sum[t * C + k]! + v;
+        sq[t * C + k] = sq[t * C + k]! + v * v;
+      }
+      n[t] = n[t]! + 1;
+    }
+  }
+  for (let t = 0; t < tx * ty; t++) {
+    for (let k = 0; k < C; k++) {
+      const m = sum[t * C + k]! / n[t]!;
+      mean[t * C + k] = m;
+      sd[t * C + k] = Math.max(6, Math.sqrt(Math.max(0, sq[t * C + k]! / n[t]! - m * m)));
+    }
+  }
+  const out = new Uint8Array(rgba.length);
+  const lerp = (
+    arr: Float32Array,
+    a: number,
+    b: number,
+    c: number,
+    d: number,
+    wx: number,
+    wy: number,
+    k: number,
+  ): number =>
+    (arr[a * C + k]! * (1 - wx) + arr[b * C + k]! * wx) * (1 - wy) +
+    (arr[c * C + k]! * (1 - wx) + arr[d * C + k]! * wx) * wy;
+  for (let y = 0; y < H; y++) {
+    const fy = Math.min(ty - 1, Math.max(0, (y + 0.5) / tile - 0.5));
+    const y0 = Math.floor(fy);
+    const y1 = Math.min(ty - 1, y0 + 1);
+    const wy = fy - y0;
+    for (let x = 0; x < W; x++) {
+      const fx = Math.min(tx - 1, Math.max(0, (x + 0.5) / tile - 0.5));
+      const x0 = Math.floor(fx);
+      const x1 = Math.min(tx - 1, x0 + 1);
+      const wx = fx - x0;
+      const a = y0 * tx + x0;
+      const b = y0 * tx + x1;
+      const c = y1 * tx + x0;
+      const d = y1 * tx + x1;
+      const i = (y * W + x) * 4;
+      for (let k = 0; k < C; k++) {
+        const m = lerp(mean, a, b, c, d, wx, wy, k);
+        const s = lerp(sd, a, b, c, d, wx, wy, k);
+        const v = Math.max(0, Math.min(255, 128 + ((value(i, k) - m) * 128) / (spread * s)));
+        if (C === 1) out[i] = out[i + 1] = out[i + 2] = v;
+        else out[i + k] = v;
+      }
+      out[i + 3] = 255;
+    }
+  }
+  return { rgba: out, width: W, height: H };
+}
+
+/** A copy of `box` (plus a margin), with the offset to map its coordinates back. */
+function cropImg(img: Img, box: Box, margin: number): { img: Img; x: number; y: number } {
+  const x0 = Math.max(0, Math.floor(box.x - margin));
+  const y0 = Math.max(0, Math.floor(box.y - margin));
+  const x1 = Math.min(img.width, Math.ceil(box.x + box.w + margin));
+  const y1 = Math.min(img.height, Math.ceil(box.y + box.h + margin));
+  const w = x1 - x0;
+  const h = y1 - y0;
+  if (x0 === 0 && y0 === 0 && w === img.width && h === img.height) return { img, x: 0, y: 0 };
+  const out = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    const start = ((y0 + y) * img.width + x0) * 4;
+    out.set(img.rgba.subarray(start, start + w * 4), y * w * 4);
+  }
+  return { img: { rgba: out, width: w, height: h }, x: x0, y: y0 };
+}
+
+/** YuNet (0.6 and up) over a dehazed copy of `box`; boxes in `img` pixels, inside `box`. */
+async function hazyFaces(img: Img, box: Box, yunetPath: string): Promise<Det[]> {
+  const part = cropImg(img, box, 128);
+  const clear = dehaze(part.img);
+  // Full-resolution tiles only: the faces smoke hides are small; big ones show anyway.
+  const found = await yunet(clear, { type: 'rect', x: 0, y: 0, w: 1, h: 1 }, yunetPath);
+  return found
+    .map((f) => ({
+      ...f,
+      box: { ...f.box, x: f.box.x + part.x, y: f.box.y + part.y },
+      landmarks: f.landmarks.map((p) => ({ x: p.x + part.x, y: p.y + part.y })),
+    }))
+    .filter((f) => {
+      const cx = f.box.x + f.box.w / 2;
+      const cy = f.box.y + f.box.h / 2;
+      return cx >= box.x && cx <= box.x + box.w && cy >= box.y && cy <= box.y + box.h;
+    });
+}
+
 /** YuNet as the app runs it, optionally on a copy at most `maxEdge` long. Boxes in `img` pixels. */
 export async function yunet(
   img: Img,
@@ -519,9 +638,20 @@ async function detect(
             h.box.w * h.box.h <= 6 * f.box.w * f.box.h,
         );
       };
-      const yunetFaces = (await yunetPyramid(img, region, yunetPath, WEAK_FACE)).filter(
+      const plainFaces = (await yunetPyramid(img, region, yunetPath, WEAK_FACE)).filter(
         (f) => f.score >= 0.6 || inHead(f),
       );
+      // Flare smoke washes faces out: a pass over a dehazed copy of the area finds them again.
+      const hazy = await hazyFaces(img, px, yunetPath);
+      const yunetFaces = [
+        ...plainFaces,
+        ...hazy.filter(
+          (f) =>
+            !plainFaces.some(
+              (p) => overlap(p.box, f.box) > 0.3 * Math.min(p.box.w * p.box.h, f.box.w * f.box.h),
+            ),
+        ),
+      ];
       const faces = onePerPerson([
         ...yunetFaces,
         ...deimFaces.map((f): Det => ({

@@ -342,10 +342,12 @@ export async function yunet(
   region: Rect,
   yunetPath: string,
   maxEdge = Infinity,
+  scoreThreshold = 0.6,
 ): Promise<Det[]> {
   const src = shrink(img, maxEdge);
   const found = await detectFaces(src.rgba, src.width, src.height, region, {
     modelPath: yunetPath,
+    scoreThreshold,
   });
   const W = img.width;
   const H = img.height;
@@ -364,12 +366,17 @@ export async function yunet(
  * only ~15 px in the whole-photo pass, so in haze it is missed. Copies at 2560 and 1280 px see those
  * faces whole.
  */
-export async function yunetPyramid(img: Img, region: Rect, yunetPath: string): Promise<Det[]> {
+export async function yunetPyramid(
+  img: Img,
+  region: Rect,
+  yunetPath: string,
+  scoreThreshold = 0.6,
+): Promise<Det[]> {
   const longest = Math.max(img.width, img.height);
   const levels = [Infinity, 2560, 1280].filter((edge) => edge === Infinity || edge < longest / 1.5);
   const all: Det[] = [];
   for (const edge of levels) {
-    const found = await yunet(img, region, yunetPath, edge);
+    const found = await yunet(img, region, yunetPath, edge, scoreThreshold);
     // The shrunk copies are there for big faces the tiles cut apart; small finds there are
     // mostly noise (a hand, a dark patch), and the full-resolution tiles see small faces anyway.
     const scale = edge === Infinity ? 1 : edge / longest;
@@ -418,6 +425,8 @@ function overlap(a: Box, b: Box): number {
 
 /** A head with no face of its own needs at least this score. */
 const LONE_HEAD_SCORE = 0.5;
+const CLIP = 0.5;
+const WEAK_FACE = 0.4;
 
 async function detect(
   img: Img,
@@ -495,7 +504,24 @@ async function detect(
       }
       // Faces anchor people: YuNet's and DEIMv2's own face boxes are tight, where head boxes in a
       // crowd are loose and overlap the neighbours. A face's outline still reaches up for hair.
-      const yunetFaces = await yunetPyramid(img, region, yunetPath);
+      // YuNet down to 0.4: a partly hidden face (behind a hand, a flag edge, another head) scores
+      // low. A weak face counts only where DEIMv2 found a head around it.
+      const inHead = (f: Det): boolean => {
+        const cx = f.box.x + f.box.w / 2;
+        const cy = f.box.y + f.box.h / 2;
+        return heads.some(
+          (h) =>
+            h.score >= 0.4 &&
+            cx >= h.box.x &&
+            cx <= h.box.x + h.box.w &&
+            cy >= h.box.y &&
+            cy <= h.box.y + h.box.h &&
+            h.box.w * h.box.h <= 6 * f.box.w * f.box.h,
+        );
+      };
+      const yunetFaces = (await yunetPyramid(img, region, yunetPath, WEAK_FACE)).filter(
+        (f) => f.score >= 0.6 || inHead(f),
+      );
       const faces = onePerPerson([
         ...yunetFaces,
         ...deimFaces.map((f): Det => ({
@@ -523,7 +549,7 @@ async function detect(
             // A faceless head scoring low is mostly an arm or a shoulder; with eyes inside it is
             // a balaclava and counts.
             (h.score >= LONE_HEAD_SCORE || eyes.some((e) => inside(e, h.box))) &&
-            !faces.some((f) => overlap(f.box, h.box) > 0.25 * f.box.w * f.box.h),
+            !faces.some((f) => overlap(f.box, h.box) > CLIP * f.box.w * f.box.h),
         )
         .map((h): Det => {
           // Eyes inside a faceless head: a balaclava, whose eyeholes get covered.

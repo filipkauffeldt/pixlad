@@ -133,13 +133,15 @@ async function yolo(img: Img, region: Box, s: ort.InferenceSession): Promise<Det
 }
 
 const HEAD = 7;
+const HANDS = new Set([26, 27, 28]); // hand, hand_left, hand_right
 async function deim(
   img: Img,
   region: Box,
   s: ort.InferenceSession,
   tiles: boolean,
-): Promise<Det[]> {
+): Promise<{ heads: Det[]; hands: Box[] }> {
   const all: Det[] = [];
+  const hands: Box[] = [];
   for (const { win, scale, whole } of windows(region, tiles)) {
     // Tiles keep their aspect and are padded; the whole region is stretched, as the model was trained.
     const { t, tw, th } = tensor(img, win, scale, 'imagenet', whole);
@@ -150,11 +152,16 @@ async function deim(
     const fy = (N / th) * win.h;
     const found: Det[] = [];
     for (let i = 0; i < q; i++) {
-      if (Math.round(d[i * 6]!) !== HEAD || d[i * 6 + 5]! < 0.35) continue;
+      const cls = Math.round(d[i * 6]!);
+      if ((cls !== HEAD && !HANDS.has(cls)) || d[i * 6 + 5]! < 0.35) continue;
       const x0 = d[i * 6 + 1]! * fx;
       const y0 = d[i * 6 + 2]! * fy;
       const x1 = d[i * 6 + 3]! * fx;
       const y1 = d[i * 6 + 4]! * fy;
+      if (cls !== HEAD) {
+        hands.push({ x: win.x + x0, y: win.y + y0, w: x1 - x0, h: y1 - y0 });
+        continue;
+      }
       found.push({
         box: { x: win.x + x0, y: win.y + y0, w: x1 - x0, h: y1 - y0 },
         score: d[i * 6 + 5]!,
@@ -165,7 +172,22 @@ async function deim(
     all.push(...nonMaximumSuppression(found, 0.5));
   }
   // Heads in a crowd overlap a lot: plain NMS across tiles, not the union merge.
-  return nonMaximumSuppression(all, 0.5);
+  return { heads: nonMaximumSuppression(all, 0.5), hands };
+}
+
+/**
+ * Drop detections that are really a hand (a raised fist): mostly inside a detected hand box. A face
+ * with a hand over the mouth stays, since most of its box is outside the hand.
+ */
+function notHands(dets: Det[], hands: readonly Box[]): Det[] {
+  return dets.filter((det) => {
+    const area = det.box.w * det.box.h;
+    return !hands.some((h) => {
+      const w = Math.min(det.box.x + det.box.w, h.x + h.w) - Math.max(det.box.x, h.x);
+      const hh = Math.min(det.box.y + det.box.h, h.y + h.h) - Math.max(det.box.y, h.y);
+      return w > 0 && hh > 0 && (w * hh) / area >= 0.5;
+    });
+  });
 }
 
 async function yunet(img: Img, region: Rect, yunetPath: string): Promise<Det[]> {
@@ -201,11 +223,13 @@ async function detect(
     case 'yolo-s':
       return yolo(img, px, await session(yunetPath, detector));
     case 'deim-n':
-    case 'deim-s':
-      return deim(img, px, await session(yunetPath, detector), true);
+    case 'deim-s': {
+      const { heads, hands } = await deim(img, px, await session(yunetPath, detector), true);
+      return notHands(heads, hands);
+    }
     case 'hybrid': {
       // One whole-region DEIMv2-S pass for heads big enough to see, YuNet tiles for the small faces.
-      const heads = await deim(img, px, await session(yunetPath, 'deim-s'), false);
+      const { heads, hands } = await deim(img, px, await session(yunetPath, 'deim-s'), false);
       const faces = await yunet(img, region, yunetPath);
       const loose = faces.filter((f) => {
         const cx = f.box.x + f.box.w / 2;
@@ -215,7 +239,7 @@ async function detect(
             cx >= h.box.x && cx <= h.box.x + h.box.w && cy >= h.box.y && cy <= h.box.y + h.box.h,
         );
       });
-      return [...heads, ...loose];
+      return notHands([...heads, ...loose], hands);
     }
   }
 }
@@ -445,6 +469,8 @@ function trace(mask: Uint8Array): Point[] {
   return ring;
 }
 
+const MIN_TRACE_PX = 60;
+
 // ---- Entry -------------------------------------------------------------------------------------
 
 export async function detectExperimental(
@@ -472,8 +498,12 @@ export async function detectExperimental(
     const [re, le] = det.landmarks;
     const angle = re && le ? Math.atan2(le.y - re.y, le.x - re.x) : 0;
     let outline: Point[] | undefined;
-    if (refine && options.style === 'mesh') outline = await meshOutline(img, det, angle, refine);
-    if (refine && options.style === 'skin') outline = await skinOutline(img, det, angle, refine);
+    // Under ~60 px a traced outline is mostly guesswork and costs the same: the oval it is.
+    const traceable = Math.max(det.box.w, det.box.h) >= MIN_TRACE_PX;
+    if (traceable && refine && options.style === 'mesh')
+      outline = await meshOutline(img, det, angle, refine);
+    if (traceable && refine && options.style === 'skin')
+      outline = await skinOutline(img, det, angle, refine);
     out.push({
       box: { type: 'rect', x: x / W, y: y / H, w: (right - x) / W, h: (bottom - y) / H },
       score: det.score,

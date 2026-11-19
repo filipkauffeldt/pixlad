@@ -275,9 +275,12 @@ export function notOversized(dets: Det[], witnesses: readonly Det[] = dets): Det
  * Drop detections that are really a hand (a raised fist): mostly inside a detected hand box. A face
  * with a hand over the mouth stays, since most of its box is outside the hand.
  */
-export function notHands(dets: Det[], hands: readonly Box[]): Det[] {
+export function notHands(dets: Det[], hands: readonly Box[], faces: readonly Box[] = []): Det[] {
   return dets.filter((det) => {
     const area = det.box.w * det.box.h;
+    // DEIMv2 sometimes calls a face behind a raised fist a hand too; if it also calls it a face,
+    // it is one.
+    if (faces.some((f) => overlap(f, det.box) >= 0.5 * Math.min(area, f.w * f.h))) return true;
     return !hands.some((h) => {
       const w = Math.min(det.box.x + det.box.w, h.x + h.w) - Math.max(det.box.x, h.x);
       const hh = Math.min(det.box.y + det.box.h, h.y + h.h) - Math.max(det.box.y, h.y);
@@ -376,18 +379,45 @@ export async function yunetPyramid(img: Img, region: Rect, yunetPath: string): P
 }
 
 /**
- * Heads and faces of the same person: the face lies mostly (60%+) inside the head box, and the
- * head box is at most 4x the face's area. A loose head box over two people keeps both faces.
+ * One detection per person: largest first, a detection mostly (60%+) inside a kept one, or
+ * overlapping it by IoU 0.45+, is the same person when the kept one is at most 4x its area. It is
+ * dropped, and the kept one inherits its confirmation and eyes. A loose box over two people (more
+ * than 4x a face) keeps both.
  */
-function samePerson(face: Det, head: Det): boolean {
-  const w =
-    Math.min(face.box.x + face.box.w, head.box.x + head.box.w) - Math.max(face.box.x, head.box.x);
-  const h =
-    Math.min(face.box.y + face.box.h, head.box.y + head.box.h) - Math.max(face.box.y, head.box.y);
-  if (w <= 0 || h <= 0) return false;
-  const faceArea = face.box.w * face.box.h;
-  return (w * h) / faceArea >= 0.6 && head.box.w * head.box.h <= 4 * faceArea;
+function onePerPerson(dets: Det[]): Det[] {
+  const area = (b: Box): number => b.w * b.h;
+  const kept: Det[] = [];
+  for (const d of [...dets].sort((a, b) => area(b.box) - area(a.box))) {
+    const k = kept.findIndex((o) => {
+      const w = Math.min(d.box.x + d.box.w, o.box.x + o.box.w) - Math.max(d.box.x, o.box.x);
+      const h = Math.min(d.box.y + d.box.h, o.box.y + o.box.h) - Math.max(d.box.y, o.box.y);
+      if (w <= 0 || h <= 0 || area(o.box) > 4 * area(d.box)) return false;
+      const inter = w * h;
+      return inter / area(d.box) >= 0.6 || inter / (area(d.box) + area(o.box) - inter) >= 0.45;
+    });
+    if (k < 0) {
+      kept.push(d);
+      continue;
+    }
+    const o = kept[k]!;
+    kept[k] = {
+      ...o,
+      ...(o.confirmed || d.confirmed ? { confirmed: true } : {}),
+      ...(o.landmarks.length === 0 && d.landmarks.length > 0 ? { landmarks: d.landmarks } : {}),
+      ...(o.eyes || d.eyes ? { eyes: [...(o.eyes ?? []), ...(d.eyes ?? [])] } : {}),
+    };
+  }
+  return kept;
 }
+
+function overlap(a: Box, b: Box): number {
+  const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  return w > 0 && h > 0 ? w * h : 0;
+}
+
+/** A head with no face of its own needs at least this score. */
+const LONE_HEAD_SCORE = 0.35;
 
 async function detect(
   img: Img,
@@ -401,6 +431,10 @@ async function detect(
   const y1 = clamp(Math.ceil((region.y + region.h) * img.height), y0, img.height);
   const px = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   if (px.w <= 0 || px.h <= 0) return [];
+  // "A copy at most 2560 px long" means a copy of the whole photo: on a region the same scale
+  // applies, so heads come out the same size whatever was selected.
+  const cap = (edge: number): number =>
+    (edge * Math.max(px.w, px.h)) / Math.max(img.width, img.height);
   switch (detector) {
     case 'yunet':
       return yunet(img, region, yunetPath);
@@ -427,7 +461,7 @@ async function detect(
         px,
         await session(yunetPath, 'deim-s'),
         detector === 'hybrid-tiled',
-        2560,
+        cap(2560),
       );
       const iou = (a: Box, b: Box): number => {
         const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
@@ -442,7 +476,14 @@ async function detect(
       if (detector === 'hybrid-n') {
         // DEIMv2-N is ~8x cheaper than S, so it can afford tiles over a 2560 px copy: it catches
         // heads the whole-photo S pass sees too small (in smoke, half hidden by a fist).
-        const more = await deim(img, px, await session(yunetPath, 'deim-n'), true, 2560, false);
+        const more = await deim(
+          img,
+          px,
+          await session(yunetPath, 'deim-n'),
+          true,
+          cap(2560),
+          false,
+        );
         heads.push(
           ...more.heads.filter(
             (h) => !heads.some((k) => iou(h.box, k.box) > 0.3 || inside(h.box, k.box)),
@@ -452,17 +493,44 @@ async function detect(
         deimFaces.push(...more.faces);
         eyes.push(...more.eyes);
       }
-      const faces = await yunetPyramid(img, region, yunetPath);
-      // A head that YuNet also saw is confirmed; YuNet faces not matched to a head stay as faces.
-      // DEIMv2's own face box inside a head confirms it too. Its eyes inside a head are kept, so a
-      // balaclava with no visible skin still gets its eyeholes covered.
-      const confirmedHeads = heads.map((h): Det => {
-        const own = eyes.filter((e) => inside(e, h.box));
-        const seen = faces.some((f) => samePerson(f, h)) || deimFaces.some((f) => inside(f, h.box));
-        return { ...h, ...(seen ? { confirmed: true } : {}), ...(own.length ? { eyes: own } : {}) };
-      });
-      const loose = faces.filter((f) => !heads.some((h) => samePerson(f, h)));
-      return notHands(notOversized([...confirmedHeads, ...loose], [...heads, ...faces]), hands);
+      // Faces anchor people: YuNet's and DEIMv2's own face boxes are tight, where head boxes in a
+      // crowd are loose and overlap the neighbours. A face's outline still reaches up for hair.
+      const yunetFaces = await yunetPyramid(img, region, yunetPath);
+      const faces = onePerPerson([
+        ...yunetFaces,
+        ...deimFaces.map((f): Det => ({
+          box: f,
+          score: 0.5,
+          landmarks: [],
+          kind: 'face',
+          confirmed: true,
+        })),
+      ]);
+      // Heads add the people with no visible face: the back of a head, a balaclava. A head with a
+      // face inside is that person (already in) or a loose box over several; either way it goes.
+      const faceInside = (h: Det): boolean =>
+        faces.some((f) => {
+          const cx = f.box.x + f.box.w / 2;
+          const cy = f.box.y + f.box.h / 2;
+          return (
+            cx >= h.box.x && cx <= h.box.x + h.box.w && cy >= h.box.y && cy <= h.box.y + h.box.h
+          );
+        });
+      const lone = heads
+        .filter(
+          (h) =>
+            !faceInside(h) &&
+            h.score >= LONE_HEAD_SCORE &&
+            !faces.some((f) => overlap(f.box, h.box) > 0.25 * f.box.w * f.box.h),
+        )
+        .map((h): Det => {
+          // Eyes inside a faceless head: a balaclava, whose eyeholes get covered.
+          const own = eyes.filter((e) => inside(e, h.box));
+          return own.length ? { ...h, eyes: own } : h;
+        });
+      return onePerPerson(
+        notHands(notOversized([...faces, ...lone], [...heads, ...faces]), hands, deimFaces),
+      );
     }
   }
 }
@@ -587,7 +655,9 @@ export async function skinOutlines(
   items: readonly { det: Det; angle: number }[],
   lanes: readonly ort.InferenceSession[],
   group: number,
+  everyone: readonly Det[] = items.map((it) => it.det),
 ): Promise<(Point[] | undefined)[]> {
+  const rivalsOf = (j: number): Det[] => everyone.filter((d) => d !== items[j]!.det);
   const frames = items.map(({ det, angle }) => skinFraming(det, angle));
   interface Job {
     cx: number;
@@ -651,7 +721,14 @@ export async function skinOutlines(
         const tile = await segment(img, job.cx, job.cy, job.side, job.angle, s);
         if (job.members.length === 1) {
           const j = job.members[0]!;
-          out[j] = outlineFromLabels(items[j]!.det, frames[j]!.side, tile.labels, tile.crop);
+          out[j] = outlineFromLabels(
+            items[j]!.det,
+            frames[j]!.side,
+            tile.labels,
+            tile.crop,
+            frames[j]!.angle,
+            rivalsOf(j),
+          );
           continue;
         }
         for (const j of job.members) {
@@ -680,7 +757,14 @@ export async function skinOutlines(
             const dy = (v - SEG / 2) * step;
             return { x: fj.cx + dx * cos - dy * sin, y: fj.cy + dx * sin + dy * cos };
           };
-          out[j] = outlineFromLabels(items[j]!.det, fj.side, labels, { toImage });
+          out[j] = outlineFromLabels(
+            items[j]!.det,
+            fj.side,
+            labels,
+            { toImage },
+            fj.angle,
+            rivalsOf(j),
+          );
         }
       }
     }),
@@ -688,10 +772,39 @@ export async function skinOutlines(
   return out;
 }
 
-function outlineFromLabels(det: Det, side: number, labels: Uint8Array, c: Crop) {
+function outlineFromLabels(
+  det: Det,
+  side: number,
+  labels: Uint8Array,
+  c: Crop,
+  angle = 0,
+  others: readonly Det[] = [],
+) {
   // Only this person: an oval around the detection, reaching higher for hair on a face box. In a
   // crowd the neighbours' hair would otherwise join up into one blob.
   const perPx = SEG / side;
+  // ...and only this person's territory: a pixel nearer (relative to face size) to a neighbour's
+  // centre belongs to the neighbour, so outlines in a dense crowd never overlap.
+  const ownSize = Math.max(det.box.w, det.box.h) * perPx;
+  const ccx = det.box.x + det.box.w / 2;
+  const ccy = det.box.y + det.box.h / 2;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const rivals = others
+    .map((o) => {
+      const dx = o.box.x + o.box.w / 2 - ccx;
+      const dy = o.box.y + o.box.h / 2 - ccy;
+      return {
+        u: SEG / 2 + (dx * cos + dy * sin) * perPx,
+        v: SEG / 2 + (-dx * sin + dy * cos) * perPx,
+        size: Math.max(o.box.w, o.box.h) * perPx,
+      };
+    })
+    .filter((r) => r.u > -SEG && r.u < 2 * SEG && r.v > -SEG && r.v < 2 * SEG);
+  const ours = (u: number, v: number): boolean => {
+    const own = Math.hypot(u - SEG / 2, v - SEG / 2) / ownSize;
+    return rivals.every((r) => Math.hypot(u - r.u, v - r.v) / r.size >= own);
+  };
   const head = det.kind === 'head';
   const rx = det.box.w * perPx * (head ? 0.6 : 0.85);
   const ryUp = det.box.h * perPx * (head ? 0.6 : 1.05);
@@ -703,7 +816,7 @@ function outlineFromLabels(det: Det, side: number, labels: Uint8Array, c: Crop) 
   };
   let mask: Uint8Array<ArrayBuffer> = new Uint8Array(SEG * SEG);
   for (let p = 0; p < SEG * SEG; p++) {
-    if (!near(p % SEG, Math.floor(p / SEG))) continue;
+    if (!near(p % SEG, Math.floor(p / SEG)) || !ours(p % SEG, Math.floor(p / SEG))) continue;
     // Face and hair; hats, glasses, hands (body skin) and clothes stay out.
     const label = labels[p]!;
     mask[p] = label === FACE_SKIN || label === HAIR ? 1 : 0;
@@ -975,7 +1088,7 @@ function eyeholes(eyes: readonly Box[]): Point[] {
 }
 
 /** Faces under this size keep the oval: a traced outline there is mostly guesswork. */
-const MIN_TRACE_PX = 60;
+const MIN_TRACE_PX = 100;
 /** Neighbours share a segmenter run when their crops fit in 1.5x one crop. */
 const SKIN_GROUP = 1.5;
 /** Segmenter sessions run side by side. */
@@ -1003,7 +1116,13 @@ async function trace(
       Array.from({ length: SKIN_LANES - 1 }, (_, k) => session(yunetPath, style, k + 1)),
     )),
   ];
-  const outlines = await skinOutlines(img, big, lanes, SKIN_GROUP);
+  const outlines = await skinOutlines(
+    img,
+    big,
+    lanes,
+    SKIN_GROUP,
+    items.map((it) => it.det),
+  );
   // No face skin or hair: a balaclava, left unblurred, unless YuNet saw a face there (the
   // segmenter can also miss a face in smoke or odd light): then the oval stays.
   big.forEach(({ i, det }, k) => {

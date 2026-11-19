@@ -591,6 +591,11 @@ export const actions = {
     }
   },
 
+  /** Load the Outlines models ahead of use; a no-op when they are already loaded. */
+  warmFaces(): void {
+    void window.api.warmFaces().catch(() => undefined);
+  },
+
   /**
    * How faces are covered. Rectangles and Ovals also reshape the faces already found on the
    * current photo; Outlines puts back the outlines of faces that were traced before, and is
@@ -598,6 +603,8 @@ export const actions = {
    */
   setFaceShape(shape: FaceShape): void {
     set({ faceShape: shape });
+    // Load the models now, while the user picks an area, so the first Outlines run has no wait.
+    if (shape === 'outlines') actions.warmFaces();
     const id = state.currentId;
     if (!id) return;
     const style = SHAPE_SETTINGS[shape].style;

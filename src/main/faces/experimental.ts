@@ -1285,6 +1285,16 @@ function radialOutline(mask: Uint8Array): Point[] {
  * Experimental detection. With `deferOutlines`, traced outlines (face mesh, face and hair) are
  * left to a second call, `traceExperimental`, so the faces can show (as ovals) right away.
  */
+/** Load the Outlines models ahead of use (when Outlines is picked), so the first run has no wait. */
+export const warmExperimental = (yunetPath: string): Promise<void> =>
+  holdingModels(async () => {
+    await Promise.all([
+      session(yunetPath, 'deim-s'),
+      session(yunetPath, 'deim-n'),
+      session(yunetPath, 'skin'),
+    ]);
+  });
+
 export const detectExperimental = (
   ...args: Parameters<typeof detectAll>
 ): ReturnType<typeof detectAll> => holdingModels(() => detectAll(...args));

@@ -15,7 +15,7 @@ import type {
 } from '../shared/types';
 import { exportEdit, ExportFailure, type ExportRequest } from './export-photo';
 import { detectFaces } from './faces/detect';
-import { detectExperimental, traceExperimental } from './faces/experimental';
+import { detectExperimental, traceExperimental, warmExperimental } from './faces/experimental';
 import { decodeCoefficients } from './jpeg/decode';
 import { iccProfile } from './jpeg/parse';
 import { dcThumbnail, decodePlanes, planesToRgba } from './jpeg/pixels';
@@ -26,6 +26,7 @@ export type WorkerRequest =
   | { id: number; type: 'preview'; op: MosaicOp }
   | { id: number; type: 'detect'; region: Rect; options?: DetectOptions | undefined }
   | { id: number; type: 'trace'; faces: TraceFace[]; style: FaceStyle }
+  | { id: number; type: 'warm' }
   | { id: number; type: 'thumb'; path: string }
   | { id: number; type: 'export'; request: ExportRequest };
 
@@ -84,6 +85,8 @@ async function handle(request: WorkerRequest): Promise<unknown> {
       });
     }
 
+    case 'warm':
+      return warmExperimental(modelPath);
     case 'trace': {
       if (!current) throw new Error('no photo is open');
       return traceExperimental(current, request.faces, request.style, modelPath);

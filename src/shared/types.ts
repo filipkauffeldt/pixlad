@@ -52,6 +52,10 @@ export interface FaceDetection {
   aspect?: number;
   /** Experimental: a traced outline (face mesh or face skin), normalized. */
   outline?: Point[];
+  /** Experimental: YuNet saw a face here, so it is never taken for a balaclava. */
+  confirmed?: boolean;
+  /** Experimental: eyes found inside a head, covered when nothing else is (balaclava eyeholes). */
+  eyes?: Rect[];
 }
 
 /** Experimental detector and outline picker, for trying the options out. */
@@ -62,6 +66,7 @@ export const FACE_DETECTORS = [
   { id: 'deim-n', label: 'DEIMv2-N heads' },
   { id: 'deim-s', label: 'DEIMv2-S heads (slow)' },
   { id: 'hybrid', label: 'DEIMv2-S heads, 1 pass + YuNet' },
+  { id: 'hybrid-n', label: 'DEIMv2-S 1 pass + N tiles + YuNet' },
   { id: 'hybrid-tiled', label: 'DEIMv2-S heads, tiled at 2560 + YuNet' },
 ] as const;
 export type FaceDetector = (typeof FACE_DETECTORS)[number]['id'];
@@ -78,6 +83,17 @@ export type FaceStyle = (typeof FACE_STYLES)[number]['id'];
 export interface DetectOptions {
   detector: FaceDetector;
   style: FaceStyle;
+  /** Leave traced outlines to a second request, so the faces show (as ovals) right away. */
+  deferOutlines?: boolean;
+}
+
+/** A face to trace an outline for (experimental): its normalized box, kind and roll. */
+export interface TraceFace {
+  box: Rect;
+  kind?: 'face' | 'head';
+  angle?: number;
+  confirmed?: boolean;
+  eyes?: Rect[];
 }
 
 export const isAdded = (area: MosaicArea): boolean =>

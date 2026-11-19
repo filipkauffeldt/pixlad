@@ -130,14 +130,19 @@ export interface AppState {
   /** The question after an export: take these photos out of the session? */
   removeQuestion: { count: number; name: string | undefined } | undefined;
   /** EXPERIMENTAL: which detector and outline the next detection uses, and how the last went. */
-  experiment: { detector: FaceDetector; style: FaceStyle; last: string | undefined };
+  experiment: {
+    mode: FaceMode;
+    detector: FaceDetector;
+    style: FaceStyle;
+    last: string | undefined;
+  };
 }
 
 const initial: AppState = {
   photos: [],
   currentId: undefined,
   target: 'faces',
-  experiment: { detector: 'yunet', style: 'box', last: undefined },
+  experiment: { mode: 'fast', detector: 'yunet', style: 'box', last: undefined },
   outline: 'rect',
   mode: 'add',
   detecting: false,
@@ -322,6 +327,65 @@ const removeNow = (id: string): void => {
   });
 };
 
+/** EXPERIMENTAL: Fast is today's YuNet with tilted ovals; High fidelity finds heads too and traces face and hair. */
+export type FaceMode = 'fast' | 'fidelity' | 'custom';
+const modeSettings = (e: AppState['experiment']): { detector: FaceDetector; style: FaceStyle } =>
+  e.mode === 'fast'
+    ? { detector: 'yunet', style: 'tilt' }
+    : e.mode === 'fidelity'
+      ? { detector: 'hybrid-n', style: 'skin' }
+      : { detector: e.detector, style: e.style };
+
+const sameBox = (a: Rect, b: Rect): boolean =>
+  a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+
+/**
+ * Trace outlines for faces just added (shown as ovals meanwhile) and put them in place, without a
+ * separate Undo step. A face with no skin or hair at all (a balaclava) is taken out again.
+ */
+async function traceOutlines(
+  id: string,
+  faces: readonly FaceData[],
+  style: FaceStyle,
+  status: string,
+): Promise<void> {
+  const started = performance.now();
+  try {
+    const outlines = await window.api.trace(
+      id,
+      faces.map((f) => ({
+        box: f.box,
+        kind: f.kind,
+        angle: f.angle,
+        confirmed: f.confirmed,
+        eyes: f.eyes,
+      })),
+      style,
+    );
+    updatePhoto(id, (p) => ({
+      ...p,
+      areas: p.areas.flatMap((a) => {
+        if (!a.face) return [a];
+        const k = faces.findIndex((f) => sameBox(f.box, a.face!.box));
+        if (k < 0) return [a];
+        const outline = outlines[k];
+        if (outline === null) return [];
+        return outline ? [{ ...a, face: { ...a.face, style, outline } }] : [a];
+      }),
+      rev: p.rev + 1,
+    }));
+    const ms = Math.round(performance.now() - started);
+    set({ experiment: { ...state.experiment, last: `${status}, outlines in ${ms} ms` } });
+  } catch (cause) {
+    set({ experiment: { ...state.experiment, last: `${status}, tracing failed` } });
+    document.dispatchEvent(
+      new CustomEvent('pixlad:detect-failed', {
+        detail: cause instanceof Error ? cause.message : String(cause),
+      }),
+    );
+  }
+}
+
 export const actions = {
   setDragging: (dragging: boolean): void => set({ dragging }),
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
@@ -493,19 +557,30 @@ export const actions = {
         : region;
     actions.setDetecting(true, shape);
     try {
-      const { detector, style } = state.experiment;
+      const { detector, style } = modeSettings(state.experiment);
+      // Traced outlines come in a second request, so the faces show (as ovals) right away.
+      const traced = style === 'skin' || style === 'mesh';
       const started = performance.now();
-      const found = await window.api.detect(id, region, { detector, style });
+      const found = await window.api.detect(id, region, {
+        detector,
+        style,
+        deferOutlines: traced,
+      });
       const ms = Math.round(performance.now() - started);
       const inside = lasso ? facesInLasso(found, lasso) : found;
-      set({ experiment: { ...state.experiment, last: `${inside.length} found in ${ms} ms` } });
+      const status = `${inside.length} found in ${ms} ms`;
+      set({ experiment: { ...state.experiment, last: traced ? `${status}, tracing…` : status } });
       // Nothing found is not an error, but the user should see it, where the detector looked.
       if (inside.length === 0) actions.noFacesFound();
-      actions.addFaces(
-        id,
-        inside.map(({ landmarks: _landmarks, ...f }) => ({ ...f, style })),
-        'add',
-      );
+      const faces = inside.map(({ landmarks: _landmarks, ...f }) => ({
+        ...f,
+        style: traced ? ('tilt' as const) : style,
+      }));
+      actions.addFaces(id, faces, 'add');
+      if (traced && faces.length > 0) {
+        actions.setDetecting(false);
+        void traceOutlines(id, faces, style, status);
+      }
     } catch (cause) {
       document.dispatchEvent(
         new CustomEvent('pixlad:detect-failed', {
@@ -518,7 +593,9 @@ export const actions = {
   },
 
   /** EXPERIMENTAL: pick the detector or outline for the next detection. */
-  setExperiment(change: Partial<{ detector: FaceDetector; style: FaceStyle }>): void {
+  setExperiment(
+    change: Partial<{ mode: FaceMode; detector: FaceDetector; style: FaceStyle }>,
+  ): void {
     set({ experiment: { ...state.experiment, ...change } });
   },
 

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
 import type { AfterExport, ExportTarget, Theme } from '../shared/ipc';
 import { ExportChoice } from './ExportChoice';
+import type { FaceMode } from './store';
 import { isMac, useFlips } from './flips';
 import { withFlips, type Outline } from './retouch';
 import {
@@ -436,43 +437,61 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       >
         Find all faces
       </button>
-      {/* EXPERIMENTAL: detector and outline picker for trying the options out. */}
+      {/* EXPERIMENTAL: face detection mode, and under Custom the detector and outline pickers. */}
       <label
         className="control experiment"
-        title="Experimental: which model the next detection uses"
+        title="Fast: today's detector, tilted ovals, near instant. High fidelity: also finds heads turned away, and traces face and hair (hats, hands and balaclavas stay sharp); faces show as ovals first and their outlines follow."
       >
-        <span className="label">Detector</span>
+        <span className="label">Faces</span>
         <select
-          value={app.experiment.detector}
-          onChange={(e) => actions.setExperiment({ detector: e.target.value as FaceDetector })}
+          value={app.experiment.mode}
+          onChange={(e) => actions.setExperiment({ mode: e.target.value as FaceMode })}
         >
-          {FACE_DETECTORS.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.label}
-            </option>
-          ))}
+          <option value="fast">Fast</option>
+          <option value="fidelity">High fidelity</option>
+          <option value="custom">Custom…</option>
         </select>
       </label>
-      <label
-        className="control experiment"
-        title="Experimental: the outline of found faces. Box, Oval and Tilted oval also restyle faces already found; the mesh and face-skin outlines are traced when faces are found, so find them again after picking one."
-      >
-        <span className="label">Outline</span>
-        <select
-          value={app.experiment.style}
-          onChange={(e) => {
-            const style = e.target.value as FaceStyle;
-            actions.setExperiment({ style });
-            actions.restyleFaces(style);
-          }}
+      {app.experiment.mode === 'custom' && (
+        <label
+          className="control experiment"
+          title="Experimental: which model the next detection uses"
         >
-          {FACE_STYLES.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.label}
-            </option>
-          ))}
-        </select>
-      </label>
+          <span className="label">Detector</span>
+          <select
+            value={app.experiment.detector}
+            onChange={(e) => actions.setExperiment({ detector: e.target.value as FaceDetector })}
+          >
+            {FACE_DETECTORS.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {app.experiment.mode === 'custom' && (
+        <label
+          className="control experiment"
+          title="Experimental: the outline of found faces. Box, Oval and Tilted oval also restyle faces already found; the mesh and face-skin outlines are traced when faces are found, so find them again after picking one."
+        >
+          <span className="label">Outline</span>
+          <select
+            value={app.experiment.style}
+            onChange={(e) => {
+              const style = e.target.value as FaceStyle;
+              actions.setExperiment({ style });
+              actions.restyleFaces(style);
+            }}
+          >
+            {FACE_STYLES.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {app.experiment.last && (
         <span className="label mono experiment-last">{app.experiment.last}</span>
       )}

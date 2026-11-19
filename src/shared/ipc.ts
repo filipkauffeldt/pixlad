@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import type { UpdateCheck, UpdateDownload } from './update';
-import type { DetectOptions, FaceDetection, MosaicOp, Rect } from './types';
+import type {
+  DetectOptions,
+  FaceDetection,
+  FaceStyle,
+  MosaicOp,
+  Point,
+  Rect,
+  TraceFace,
+} from './types';
 
 /** What the renderer knows about a photo in the session. Never the pixels. */
 export interface PhotoInfo {
@@ -126,6 +134,8 @@ export interface Api {
   openPhoto(id: string): Promise<void>;
   preview(id: string, op: MosaicOp): Promise<PreviewPatch | null>;
   detect(id: string, region: Rect, options?: DetectOptions): Promise<FaceDetection[]>;
+  /** Experimental: outlines for faces already found; null = no face or hair, undefined = keep the oval. */
+  trace(id: string, faces: TraceFace[], style: FaceStyle): Promise<(Point[] | null | undefined)[]>;
   exportPhoto(id: string, op: MosaicOp): Promise<ExportOutcome>;
   settings(): Promise<Settings>;
   /** Also records that the user has chosen, so the first-export choice does not show again. */

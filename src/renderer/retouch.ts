@@ -27,6 +27,8 @@ export interface FaceData {
   angle?: number;
   aspect?: number;
   outline?: Point[];
+  confirmed?: boolean;
+  eyes?: Rect[];
 }
 
 /**

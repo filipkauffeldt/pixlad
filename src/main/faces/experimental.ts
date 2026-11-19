@@ -367,8 +367,19 @@ async function skinOutline(img: Img, det: Det, angle: number, s: ort.InferenceSe
   }
   // Close small gaps (glasses frames, a strand of hair) so the face stays one piece.
   mask = erode(dilate(mask, 4), 4);
-  const component = componentNearCentre(mask);
+  let component = componentNearCentre(mask);
   if (!component) return undefined;
+  // Little skin for the size of the face (a balaclava's eyeholes, a scarf over the face): grow it
+  // so the whole opening is covered, not just the skin seen through it.
+  let area = 0;
+  for (const v of component) area += v;
+  const faceW = det.box.w * perPx;
+  const faceH = det.box.h * perPx;
+  // Hardly any (a speck): the oval is the better guess.
+  if (area < 0.05 * faceW * faceH) return undefined;
+  if (area < 0.3 * faceW * faceH) {
+    component = dilate(component, Math.max(4, Math.round(0.15 * Math.max(faceW, faceH))));
+  }
   const ring = trace(component);
   if (ring.length < 3) return undefined;
   return simplifyPolygon(ring, 1.2).map((p) => c.toImage(p.x + 0.5, p.y + 0.5));
@@ -405,7 +416,7 @@ function morph(mask: Uint8Array<ArrayBuffer>, r: number, value: 0 | 1): Uint8Arr
 }
 
 /** The connected face-skin region closest to the crop centre. */
-function componentNearCentre(mask: Uint8Array): Uint8Array | undefined {
+function componentNearCentre(mask: Uint8Array): Uint8Array<ArrayBuffer> | undefined {
   let start = -1;
   let best = Infinity;
   for (let p = 0; p < mask.length; p++) {

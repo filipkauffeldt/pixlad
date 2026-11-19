@@ -31,6 +31,7 @@ import {
 import { opHasAddedArea, type MosaicOp, type Rect } from '../shared/types';
 import { parseVersion } from '../shared/version';
 import { chooseEditPath, type WrittenEdit } from './edit-path';
+import type { ModelPaths } from './faces/models';
 import { Limiter, WorkerClient } from './pool';
 import { parseNotices } from './notices';
 import { Session } from './session';
@@ -41,7 +42,6 @@ import { UpdateService } from './update-sources';
 
 declare const __APP_VERSION__: string;
 
-const MODEL_FILE = 'face_detection_yunet_2026may.onnx';
 const PARTITION = 'pixlad'; // no "persist:" prefix: Chromium keeps nothing on disk for it
 
 app.setName('Pixlad');
@@ -68,8 +68,15 @@ function shippedFile(packaged: string, fromSource: string): string {
 /** The app icon: the title bar and taskbar on Windows and Linux, the Dock when run from source. */
 const iconPath = (): string => shippedFile('icon.png', join('build', 'icon.png'));
 
-const modelPath = (): string =>
-  shippedFile(join('models', MODEL_FILE), join('resources', 'models', MODEL_FILE));
+const modelFile = (file: string): string =>
+  shippedFile(join('models', file), join('resources', 'models', file));
+
+const modelPaths = (): ModelPaths => ({
+  yunet: modelFile('face_detection_yunet_2026may.onnx'),
+  deimS: modelFile('deimv2-s-wholebody34.onnx'),
+  deimN: modelFile('deimv2-n-wholebody34.onnx'),
+  segmenter: modelFile('selfie-multiclass.onnx'),
+});
 
 /**
  * Electron ships Chromium's licences next to its executable. electron-builder leaves them there on
@@ -441,9 +448,9 @@ app.whenReady().then(async () => {
     updates = new UpdateService(undefined);
   }
   const workerFile = new URL('./worker.js', import.meta.url);
-  photoWorker = new WorkerClient(workerFile, modelPath());
-  exportWorker = new WorkerClient(workerFile, modelPath());
-  thumbWorker = new WorkerClient(workerFile, modelPath());
+  photoWorker = new WorkerClient(workerFile, modelPaths());
+  exportWorker = new WorkerClient(workerFile, modelPaths());
+  thumbWorker = new WorkerClient(workerFile, modelPaths());
   registerProtocol();
   registerIpc();
   createWindow();

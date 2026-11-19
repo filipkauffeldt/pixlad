@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { Worker } from 'node:worker_threads';
+import type { ModelPaths } from './faces/models';
 import type { WorkerReply, WorkerRequest } from './worker';
 
 type Distribute<T> = T extends { id: number } ? Omit<T, 'id'> : never;
@@ -15,8 +16,8 @@ export class WorkerClient {
     { resolve(v: unknown): void; reject(e: Error): void }
   >();
 
-  constructor(file: URL, modelPath: string) {
-    this.worker = new Worker(file, { workerData: { modelPath } });
+  constructor(file: URL, models: ModelPaths) {
+    this.worker = new Worker(file, { workerData: { models } });
     this.worker.on('message', (reply: WorkerReply) => {
       const entry = this.pending.get(reply.id);
       if (!entry) return;

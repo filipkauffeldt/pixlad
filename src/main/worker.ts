@@ -8,6 +8,7 @@ import { renderMosaic } from '../shared/mosaic';
 import type { FaceDetection, MosaicOp, Rect } from '../shared/types';
 import { exportEdit, ExportFailure, type ExportRequest } from './export-photo';
 import { detectFaces } from './faces/detect';
+import type { ModelPaths } from './faces/models';
 import { decodeCoefficients } from './jpeg/decode';
 import { iccProfile } from './jpeg/parse';
 import { dcThumbnail, decodePlanes, planesToRgba } from './jpeg/pixels';
@@ -24,7 +25,7 @@ export type WorkerReply =
   | { id: number; ok: true; value: unknown }
   | { id: number; ok: false; message: string; failure: boolean };
 
-const modelPath = (workerData as { modelPath: string }).modelPath;
+const models = (workerData as { models: ModelPaths }).models;
 
 /** The only decoded photo: upright RGBA plus the profile its preview patches carry. */
 let current:
@@ -81,7 +82,7 @@ async function handle(request: WorkerRequest): Promise<unknown> {
         width,
         height,
         withMargin(request.region, width, height),
-        { modelPath },
+        { modelPath: models.yunet },
       );
       return found.filter((face) => centredIn(face.box, request.region));
     }

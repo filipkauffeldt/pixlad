@@ -50,6 +50,13 @@ extraResources:
     to: icon.png
   - from: resources/models/face_detection_yunet_2026may.onnx
     to: models/face_detection_yunet_2026may.onnx
+  # The models that find heads and outline faces (Outlines in the face shape menu).
+  - from: resources/models/deimv2-s-wholebody34.onnx
+    to: models/deimv2-s-wholebody34.onnx
+  - from: resources/models/deimv2-n-wholebody34.onnx
+    to: models/deimv2-n-wholebody34.onnx
+  - from: resources/models/selfie-multiclass.onnx
+    to: models/selfie-multiclass.onnx
 
 # Only the target platform's ONNX Runtime binaries go into each package.
 mac:

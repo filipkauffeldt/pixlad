@@ -43,6 +43,13 @@ function withMargin(region: Rect, width: number, height: number): Rect {
   return { type: 'rect', x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
+/** Only faces whose centre is in the region count: the others belong to what lies beside it. */
+function centredIn(box: Rect, region: Rect): boolean {
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  return cx >= region.x && cx <= region.x + region.w && cy >= region.y && cy <= region.y + region.h;
+}
+
 async function handle(request: WorkerRequest): Promise<unknown> {
   switch (request.type) {
     case 'open': {
@@ -76,7 +83,7 @@ async function handle(request: WorkerRequest): Promise<unknown> {
         withMargin(request.region, width, height),
         { modelPath },
       );
-      return found;
+      return found.filter((face) => centredIn(face.box, request.region));
     }
     case 'thumb': {
       const decoded = decodeCoefficients(await readFile(request.path), { dcOnly: true });

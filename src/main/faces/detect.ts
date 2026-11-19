@@ -108,6 +108,10 @@ function toDetection(
     x: clamp(point.x / width, 0, 1),
     y: clamp(point.y / height, 0, 1),
   }));
+  // The first two landmarks are the eyes, the one on the left of the photo first.
+  const [firstEye, secondEye] = candidate.landmarks;
+  const angle =
+    firstEye && secondEye ? Math.atan2(secondEye.y - firstEye.y, secondEye.x - firstEye.x) : 0;
   return {
     box: {
       type: 'rect',
@@ -118,6 +122,8 @@ function toDetection(
     },
     score: candidate.score,
     landmarks,
+    angle,
+    aspect: width / height,
   };
 }
 

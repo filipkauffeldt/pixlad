@@ -289,21 +289,38 @@ async function meshOutline(img: Img, det: Det, angle: number, s: ort.InferenceSe
   return OVAL.map((k) => c.toImage(lm[k * 3]!, lm[k * 3 + 1]!));
 }
 
+// Selfie multiclass labels: 0 background, 1 hair, 2 body skin, 3 face skin, 4 clothes, 5 other.
+const HAIR = 1;
 const FACE_SKIN = 3;
 const SEG = 256;
 
 async function skinOutline(img: Img, det: Det, angle: number, s: ort.InferenceSession) {
-  const f = framing(det, angle, 1.1);
+  // Wide enough that hair above the face box is in the crop.
+  const f = framing(det, angle, 1.35);
   const { data, crop: c } = crop(img, f.cx, f.cy, f.side, f.angle, SEG);
   const out = await s.run({
     [s.inputNames[0]!]: new ort.Tensor('float32', data, [1, SEG, SEG, 3]),
   });
   const scores = out[s.outputNames[0]!]!.data as Float32Array;
+  // Only this person: an oval around the detection, reaching higher for hair on a face box. In a
+  // crowd the neighbours' hair would otherwise join up into one blob.
+  const perPx = SEG / f.side;
+  const head = det.kind === 'head';
+  const rx = det.box.w * perPx * (head ? 0.6 : 0.85);
+  const ryUp = det.box.h * perPx * (head ? 0.6 : 1.05);
+  const ryDown = det.box.h * perPx * (head ? 0.6 : 0.65);
+  const near = (u: number, v: number): boolean => {
+    const dx = (u - SEG / 2) / rx;
+    const dy = (v - SEG / 2) / (v < SEG / 2 ? ryUp : ryDown);
+    return dx * dx + dy * dy <= 1;
+  };
   let mask: Uint8Array<ArrayBuffer> = new Uint8Array(SEG * SEG);
   for (let p = 0; p < SEG * SEG; p++) {
+    if (!near(p % SEG, Math.floor(p / SEG))) continue;
     let best = 0;
     for (let k = 1; k < 6; k++) if (scores[p * 6 + k]! > scores[p * 6 + best]!) best = k;
-    mask[p] = best === FACE_SKIN ? 1 : 0;
+    // Face and hair; hats, glasses, hands (body skin) and clothes stay out.
+    mask[p] = best === FACE_SKIN || best === HAIR ? 1 : 0;
   }
   // Close small gaps (glasses frames, a strand of hair) so the face stays one piece.
   mask = erode(dilate(mask, 4), 4);

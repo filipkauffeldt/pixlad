@@ -70,7 +70,7 @@ export const FACE_STYLES = [
   { id: 'oval', label: 'Oval' },
   { id: 'tilt', label: 'Tilted oval' },
   { id: 'mesh', label: 'Face mesh outline' },
-  { id: 'skin', label: 'Face skin only' },
+  { id: 'skin', label: 'Face and hair only' },
 ] as const;
 export type FaceStyle = (typeof FACE_STYLES)[number]['id'];
 

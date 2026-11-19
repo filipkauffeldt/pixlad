@@ -37,6 +37,10 @@ export interface Det {
   kind: 'face' | 'head';
   /** YuNet saw a face here, so it is never taken for a balaclava. */
   confirmed?: boolean;
+  /** Debug: which pass found it. */
+  src?: string;
+  /** Which YuNet pyramid level found it (long edge, Infinity = full resolution). */
+  level?: number;
   /** Eyes DEIMv2 found inside a head: covered when nothing else is (a balaclava's eyeholes). */
   eyes?: Box[];
 }
@@ -281,6 +285,8 @@ export function notHands(dets: Det[], hands: readonly Box[], faces: readonly Box
     // DEIMv2 sometimes calls a face behind a raised fist a hand too; if it also calls it a face,
     // it is one.
     if (faces.some((f) => overlap(f, det.box) >= 0.5 * Math.min(area, f.w * f.h))) return true;
+    // A clear face YuNet is sure of is a face, whatever hand is in front of it.
+    if (det.kind === 'face' && det.src === undefined && det.score >= 0.8) return true;
     return !hands.some((h) => {
       const w = Math.min(det.box.x + det.box.w, h.x + h.w) - Math.max(det.box.x, h.x);
       const hh = Math.min(det.box.y + det.box.h, h.y + h.h) - Math.max(det.box.y, h.y);
@@ -445,15 +451,43 @@ async function hazyFaces(img: Img, box: Box, yunetPath: string): Promise<Det[]> 
   return found
     .map((f) => ({
       ...f,
+      src: 'haze',
       box: { ...f.box, x: f.box.x + part.x, y: f.box.y + part.y },
       landmarks: f.landmarks.map((p) => ({ x: p.x + part.x, y: p.y + part.y })),
     }))
     .filter((f) => {
       const cx = f.box.x + f.box.w / 2;
       const cy = f.box.y + f.box.h / 2;
-      return cx >= box.x && cx <= box.x + box.w && cy >= box.y && cy <= box.y + box.h;
+      if (cx < box.x || cx > box.x + box.w || cy < box.y || cy > box.y + box.h) return false;
+      // Only where the original is washed out: in clear light the plain pass sees everything,
+      // and what the dehazed copy adds there is a hand, a tattoo or a printed face.
+      return contrast(img, f.box) < HAZE_CONTRAST;
     });
 }
+
+/** Spread (standard deviation) of brightness inside a box. */
+function contrast(img: Img, b: Box): number {
+  const x0 = Math.max(0, Math.floor(b.x));
+  const y0 = Math.max(0, Math.floor(b.y));
+  const x1 = Math.min(img.width, Math.ceil(b.x + b.w));
+  const y1 = Math.min(img.height, Math.ceil(b.y + b.h));
+  let sum = 0;
+  let sq = 0;
+  let n = 0;
+  for (let y = y0; y < y1; y += 2) {
+    for (let x = x0; x < x1; x += 2) {
+      const i = (y * img.width + x) * 4;
+      const l = 0.299 * img.rgba[i]! + 0.587 * img.rgba[i + 1]! + 0.114 * img.rgba[i + 2]!;
+      sum += l;
+      sq += l * l;
+      n++;
+    }
+  }
+  if (n === 0) return 0;
+  const m = sum / n;
+  return Math.sqrt(Math.max(0, sq / n - m * m));
+}
+const HAZE_CONTRAST = 30;
 
 /** YuNet as the app runs it, optionally on a copy at most `maxEdge` long. Boxes in `img` pixels. */
 export async function yunet(
@@ -499,9 +533,46 @@ export async function yunetPyramid(
     // The shrunk copies are there for big faces the tiles cut apart; small finds there are
     // mostly noise (a hand, a dark patch), and the full-resolution tiles see small faces anyway.
     const scale = edge === Infinity ? 1 : edge / longest;
-    all.push(...found.filter((f) => edge === Infinity || Math.max(f.box.w, f.box.h) * scale >= 40));
+    all.push(
+      ...found
+        .filter((f) => edge === Infinity || Math.max(f.box.w, f.box.h) * scale >= 40)
+        .map((f) => ({ ...f, level: edge })),
+    );
   }
-  return withoutFragments(nonMaximumSuppression(all, 0.4));
+  const kept = withoutFragments(nonMaximumSuppression(all, 0.4));
+  // The tile merge can join two neighbouring faces into one tall or wide box; when another face
+  // fills a good part of it, the box is that union, not a face.
+  return kept.filter((f) => {
+    const ratio = f.box.h / f.box.w;
+    if (ratio <= 1.55 && ratio >= 0.65) return true;
+    return !kept.some((o) => o !== f && overlap(o.box, f.box) >= 0.35 * f.box.w * f.box.h);
+  });
+}
+
+/**
+ * Faces that clash: a face mostly (50%+) covered by stronger faces is a stray box between people;
+ * a big face holding the centres of two or more other faces is a loose box over several people.
+ * What is left goes through `onePerPerson`.
+ */
+function oneFacePerPerson(dets: Det[]): Det[] {
+  const area = (b: Box): number => b.w * b.h;
+  const centreIn = (a: Det, b: Det): boolean => {
+    const cx = a.box.x + a.box.w / 2;
+    const cy = a.box.y + a.box.h / 2;
+    return cx >= b.box.x && cx <= b.box.x + b.box.w && cy >= b.box.y && cy <= b.box.y + b.box.h;
+  };
+  const loose = dets.filter(
+    (d) =>
+      dets.filter((o) => o !== d && area(o.box) < area(d.box) / 2 && centreIn(o, d)).length >= 2,
+  );
+  const rest = dets.filter((d) => !loose.includes(d));
+  const kept = rest.filter((d) => {
+    const covered = rest
+      .filter((o) => o !== d && o.score > d.score && area(o.box) < 4 * area(d.box))
+      .reduce((sum, o) => sum + overlap(d.box, o.box), 0);
+    return covered < 0.5 * area(d.box);
+  });
+  return onePerPerson(kept);
 }
 
 /**
@@ -631,10 +702,11 @@ async function detect(
         return heads.some(
           (h) =>
             h.score >= 0.4 &&
-            cx >= h.box.x &&
-            cx <= h.box.x + h.box.w &&
-            cy >= h.box.y &&
-            cy <= h.box.y + h.box.h &&
+            // Where a face sits in a head: the middle half across, the 20-70% band down. A
+            // weak box lower down is a chin and a scarf, not the face.
+            Math.abs(cx - (h.box.x + h.box.w / 2)) <= h.box.w * 0.25 &&
+            cy >= h.box.y + h.box.h * 0.2 &&
+            cy <= h.box.y + h.box.h * 0.7 &&
             h.box.w * h.box.h <= 6 * f.box.w * f.box.h,
         );
       };
@@ -652,7 +724,7 @@ async function detect(
             ),
         ),
       ];
-      const faces = onePerPerson([
+      const faces = oneFacePerPerson([
         ...yunetFaces,
         ...deimFaces.map((f): Det => ({
           box: f,
@@ -660,6 +732,7 @@ async function detect(
           landmarks: [],
           kind: 'face',
           confirmed: true,
+          src: 'deimface',
         })),
       ]);
       // Heads add the people with no visible face: the back of a head, a balaclava. A head with a
@@ -681,6 +754,7 @@ async function detect(
             (h.score >= LONE_HEAD_SCORE || eyes.some((e) => inside(e, h.box))) &&
             !faces.some((f) => overlap(f.box, h.box) > CLIP * f.box.w * f.box.h),
         )
+        .map((h): Det => ({ ...h, src: 'head' }))
         .map((h): Det => {
           // Eyes inside a faceless head: a balaclava, whose eyeholes get covered.
           const own = eyes.filter((e) => inside(e, h.box));
@@ -764,7 +838,10 @@ async function meshOutline(img: Img, det: Det, angle: number, s: ort.InferenceSe
 
 // Selfie multiclass labels: 0 background, 1 hair, 2 body skin, 3 face skin, 4 clothes, 5 other.
 const HAIR = 1;
+const BODY_SKIN = 2;
 const FACE_SKIN = 3;
+const CLOTHES = 4;
+const OTHER = 5;
 const SEG = 256;
 
 /** The per-face crop the outline is worked out in: wide enough for hair above a face box. */
@@ -814,7 +891,7 @@ export async function skinOutlines(
   lanes: readonly ort.InferenceSession[],
   group: number,
   everyone: readonly Det[] = items.map((it) => it.det),
-): Promise<(Point[] | undefined)[]> {
+): Promise<(Point[] | null | undefined)[]> {
   const rivalsOf = (j: number): Det[] => everyone.filter((d) => d !== items[j]!.det);
   const frames = items.map(({ det, angle }) => skinFraming(det, angle));
   interface Job {
@@ -870,7 +947,7 @@ export async function skinOutlines(
         : { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, side: T, angle: 0, members },
     );
   }
-  const out: (Point[] | undefined)[] = new Array(items.length).fill(undefined);
+  const out: (Point[] | null | undefined)[] = new Array(items.length).fill(undefined);
   let next = 0;
   await Promise.all(
     lanes.map(async (s) => {
@@ -972,12 +1049,32 @@ function outlineFromLabels(
     const dy = (v - SEG / 2) / (v < SEG / 2 ? ryUp : ryDown);
     return dx * dx + dy * dy <= 1;
   };
+  // A "face" the segmenter sees as body skin with no face skin at all is a face tattoo on a
+  // chest or an arm: not a face (null).
+  if (det.kind === 'face') {
+    let faceSkin = 0;
+    let bodySkin = 0;
+    let n = 0;
+    const hw = (det.box.w * perPx) / 2;
+    const hh = (det.box.h * perPx) / 2;
+    for (let v = Math.max(0, Math.floor(SEG / 2 - hh)); v < Math.min(SEG, SEG / 2 + hh); v++) {
+      for (let u = Math.max(0, Math.floor(SEG / 2 - hw)); u < Math.min(SEG, SEG / 2 + hw); u++) {
+        const l = labels[v * SEG + u];
+        if (l === FACE_SKIN) faceSkin++;
+        else if (l === BODY_SKIN) bodySkin++;
+        n++;
+      }
+    }
+    if (n > 0 && faceSkin < 0.03 * n && bodySkin > 0.3 * n) return null;
+  }
   let mask: Uint8Array<ArrayBuffer> = new Uint8Array(SEG * SEG);
   for (let p = 0; p < SEG * SEG; p++) {
     if (!near(p % SEG, Math.floor(p / SEG)) || !ours(p % SEG, Math.floor(p / SEG))) continue;
     // Face and hair; hats, glasses, hands (body skin) and clothes stay out.
     const label = labels[p]!;
-    mask[p] = label === FACE_SKIN || label === HAIR ? 1 : 0;
+    // Hair only down to the jaw: below it, "hair" is mostly a black scarf or a collar.
+    const hairOk = Math.floor(p / SEG) <= SEG / 2 + det.box.h * perPx * (head ? 0.3 : 0.4);
+    mask[p] = label === FACE_SKIN || (label === HAIR && hairOk) ? 1 : 0;
   }
   // Close small gaps (glasses frames, a strand of hair) so the face stays one piece.
   mask = erode(dilate(mask, 4), 4);
@@ -990,7 +1087,8 @@ function outlineFromLabels(
     for (let p = 0; p < SEG * SEG; p++) {
       const dx = ((p % SEG) - SEG / 2) / crx;
       const dy = (Math.floor(p / SEG) - ccy) / cry;
-      if (dx * dx + dy * dy <= 1) mask[p] = 1;
+      // Not over clothes or a held object (a scarf held up in front of the face).
+      if (dx * dx + dy * dy <= 1 && labels[p] !== CLOTHES && labels[p] !== OTHER) mask[p] = 1;
     }
   }
   let component = componentNearCentre(mask);
@@ -1004,6 +1102,20 @@ function outlineFromLabels(
   // A head nothing confirmed as a face, showing only a little skin (light or smoke hides the
   // rest, the face is turned away): the trace cannot be trusted, cover the head with an oval.
   if (head && !det.confirmed && area < 0.35 * faceW * faceH) {
+    // The head's oval, less clothes (a scarf held up, a collar): those stay sharp.
+    const oval = new Uint8Array(SEG * SEG);
+    for (let p = 0; p < SEG * SEG; p++) {
+      const dx = ((p % SEG) - SEG / 2) / (faceW * 0.55);
+      const dy = (Math.floor(p / SEG) - SEG / 2) / (faceH * 0.55);
+      if (dx * dx + dy * dy <= 1 && labels[p] !== CLOTHES) oval[p] = 1;
+    }
+    let ovalArea = 0;
+    for (const v of oval) ovalArea += v;
+    const full = Math.PI * faceW * 0.55 * faceH * 0.55;
+    // Mostly clothes (a hood, a cap the model calls clothes): the whole oval, not a fragment.
+    const kept = ovalArea >= 0.4 * full ? componentNearCentre(oval) : undefined;
+    const ring = kept ? radialOutline(kept) : [];
+    if (ring.length >= 3) return ring.map((q) => c.toImage(q.x, q.y));
     return Array.from({ length: 40 }, (_, k) => {
       const t = (2 * Math.PI * k) / 40;
       return c.toImage(SEG / 2 + Math.cos(t) * faceW * 0.55, SEG / 2 + Math.sin(t) * faceH * 0.55);
@@ -1180,6 +1292,7 @@ export async function detectExperimental(
       landmarks: det.landmarks.map((p) => ({ x: p.x / W, y: p.y / H })),
       kind: det.kind,
       ...(det.confirmed ? { confirmed: true } : {}),
+      ...(det.src ? { src: det.src } : {}),
       ...(det.eyes
         ? {
             eyes: det.eyes.map((e) => ({
@@ -1292,7 +1405,9 @@ async function trace(
   // No face skin or hair: a balaclava, left unblurred, unless YuNet saw a face there (the
   // segmenter can also miss a face in smoke or odd light): then the oval stays.
   big.forEach(({ i, det }, k) => {
-    out[i] = outlines[k] ?? (det.confirmed ? undefined : det.eyes ? eyeholes(det.eyes) : null);
+    const o = outlines[k];
+    out[i] =
+      o === null ? null : (o ?? (det.confirmed ? undefined : det.eyes ? eyeholes(det.eyes) : null));
   });
   return out;
 }

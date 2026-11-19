@@ -64,17 +64,26 @@ async function handle(request: WorkerRequest): Promise<unknown> {
     }
     case 'detect': {
       if (!current) throw new Error('no photo is open');
-      if (request.options)
-        return detectExperimental(current, request.region, request.options, modelPath);
-      const found: FaceDetection[] = await detectFaces(
-        current.rgba,
-        current.width,
-        current.height,
-        request.region,
-        { modelPath },
-      );
-      return found;
+      // A face the selection cuts through is found whole: detect over the selection plus a
+      // margin, then keep the faces whose centre lies inside the selection.
+      const { width, height } = current;
+      const margin = 0.08 * Math.max(width, height);
+      const r = request.region;
+      const x0 = Math.max(0, r.x - margin / width);
+      const y0 = Math.max(0, r.y - margin / height);
+      const x1 = Math.min(1, r.x + r.w + margin / width);
+      const y1 = Math.min(1, r.y + r.h + margin / height);
+      const wider: Rect = { type: 'rect', x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+      const found: FaceDetection[] = request.options
+        ? await detectExperimental(current, wider, request.options, modelPath)
+        : await detectFaces(current.rgba, width, height, wider, { modelPath });
+      return found.filter((f) => {
+        const cx = f.box.x + f.box.w / 2;
+        const cy = f.box.y + f.box.h / 2;
+        return cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h;
+      });
     }
+
     case 'trace': {
       if (!current) throw new Error('no photo is open');
       return traceExperimental(current, request.faces, request.style, modelPath);

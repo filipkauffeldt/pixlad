@@ -187,19 +187,26 @@ async function deim(
 }
 
 /**
- * Drop heads far bigger than the crowd's (a drum skin, a round banner): over 5x the median area,
- * unless YuNet found a face inside. Only with enough heads for the median to mean something.
+ * Drop detections far bigger than the crowd's (a drum skin, a face "seen" in flare smoke): over 5x
+ * the median area, unless the other detector found something of a matching size there (a head and
+ * a face that overlap, the smaller filling at least 15% of the larger). Only with enough
+ * detections for the median to mean something.
  */
-function notOversized(heads: Det[], faces: readonly Det[]): Det[] {
-  if (heads.length < 8) return heads;
-  const areas = heads.map((h) => h.box.w * h.box.h).sort((p, q) => p - q);
+function notOversized(dets: Det[], witnesses: readonly Det[] = dets): Det[] {
+  if (dets.length < 8) return dets;
+  const area = (d: Det): number => d.box.w * d.box.h;
+  const areas = dets.map(area).sort((p, q) => p - q);
   const median = areas[areas.length >> 1]!;
-  return heads.filter((h) => {
-    if (h.box.w * h.box.h <= 5 * median) return true;
-    return faces.some((f) => {
-      const cx = f.box.x + f.box.w / 2;
-      const cy = f.box.y + f.box.h / 2;
-      return cx >= h.box.x && cx <= h.box.x + h.box.w && cy >= h.box.y && cy <= h.box.y + h.box.h;
+  return dets.filter((d) => {
+    if (area(d) <= 5 * median) return true;
+    return witnesses.some((o) => {
+      if (o.kind === d.kind) return false;
+      const w = Math.min(d.box.x + d.box.w, o.box.x + o.box.w) - Math.max(d.box.x, o.box.x);
+      const h = Math.min(d.box.y + d.box.h, o.box.y + o.box.h) - Math.max(d.box.y, o.box.y);
+      if (w <= 0 || h <= 0) return false;
+      return (
+        w * h >= 0.15 * Math.max(area(d), area(o)) && w * h >= 0.5 * Math.min(area(d), area(o))
+      );
     });
   });
 }
@@ -254,7 +261,7 @@ async function detect(
     case 'deim-n':
     case 'deim-s': {
       const { heads, hands } = await deim(img, px, await session(yunetPath, detector), true);
-      return notHands(notOversized(heads, []), hands);
+      return notHands(notOversized(heads), hands);
     }
     case 'hybrid':
     case 'hybrid-tiled': {
@@ -276,7 +283,7 @@ async function detect(
             cx >= h.box.x && cx <= h.box.x + h.box.w && cy >= h.box.y && cy <= h.box.y + h.box.h,
         );
       });
-      return notHands([...notOversized(heads, faces), ...loose], hands);
+      return notHands(notOversized([...heads, ...loose], [...heads, ...faces]), hands);
     }
   }
 }
@@ -393,8 +400,6 @@ async function skinOutline(img: Img, det: Det, angle: number, s: ort.InferenceSe
   for (const v of component) area += v;
   const faceW = det.box.w * perPx;
   const faceH = det.box.h * perPx;
-  // Hardly any (a speck): the oval is the better guess.
-  if (area < 0.05 * faceW * faceH) return undefined;
   if (area < 0.3 * faceW * faceH) {
     component = dilate(component, Math.max(4, Math.round(0.15 * Math.max(faceW, faceH))));
   }
@@ -552,8 +557,11 @@ export async function detectExperimental(
     const traceable = Math.max(det.box.w, det.box.h) >= MIN_TRACE_PX;
     if (traceable && refine && options.style === 'mesh')
       outline = await meshOutline(img, det, angle, refine);
-    if (traceable && refine && options.style === 'skin')
+    if (traceable && refine && options.style === 'skin') {
       outline = await skinOutline(img, det, angle, refine);
+      // No face skin or hair at all: a balaclava or a mask with no holes. Leave it unblurred.
+      if (!outline) continue;
+    }
     out.push({
       box: { type: 'rect', x: x / W, y: y / H, w: (right - x) / W, h: (bottom - y) / H },
       score: det.score,

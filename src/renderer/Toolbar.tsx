@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-import { FACE_DETECTORS, FACE_STYLES, type FaceDetector, type FaceStyle } from '../shared/types';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
 import type { AfterExport, ExportTarget, Theme } from '../shared/ipc';
 import { ExportChoice } from './ExportChoice';
-import type { FaceMode } from './store';
 import { isMac, useFlips } from './flips';
 import { withFlips, type Outline } from './retouch';
 import {
@@ -14,6 +12,7 @@ import {
   longEdgeOf,
   unexportedCount,
   useApp,
+  type FaceShape,
   type PhotoState,
   type Target,
 } from './store';
@@ -105,6 +104,107 @@ function TargetMenu() {
               }}
             >
               {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const SHAPES: Array<{ shape: FaceShape; label: string; hint: string; icon: ReactNode }> = [
+  {
+    shape: 'rectangles',
+    label: 'Rectangles',
+    hint: 'Instant',
+    icon: <rect x="2.5" y="1.5" width="9" height="11" />,
+  },
+  {
+    shape: 'ovals',
+    label: 'Ovals',
+    hint: 'Instant',
+    icon: <ellipse cx="7" cy="7" rx="4.5" ry="5.6" />,
+  },
+  {
+    shape: 'outlines',
+    label: 'Outlines',
+    hint: 'Face and hair, slower',
+    icon: (
+      <path d="M7 1.3c2.8 0 4.4 1.6 4.3 4.1-.1 1.5-1 2.5-1.2 3.6-.3 2-1.5 3.5-3.1 3.5S4.2 11 3.9 9C3.7 7.9 2.8 7 2.7 5.4 2.6 2.9 4.3 1.3 7 1.3z" />
+    ),
+  },
+];
+
+function ShapeIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg className="shapeIcon" viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+/** Picks how found faces are covered. */
+function ShapeMenu() {
+  const app = useApp();
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+  const current = SHAPES.find((s) => s.shape === app.faceShape)!;
+  return (
+    <div className="targetMenu" ref={root}>
+      <button
+        type="button"
+        className="btn dropdown"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Shape of found faces"
+        data-testid="face-shape"
+        onClick={() => setOpen(!open)}
+      >
+        <ShapeIcon>{current.icon}</ShapeIcon>
+        <span className="dropdownLabel">
+          {SHAPES.map(({ shape, label }) => (
+            <span key={shape} data-current={shape === app.faceShape ? '' : undefined}>
+              {label}
+            </span>
+          ))}
+        </span>
+        <svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true">
+          <path d="M1 3l4 4 4-4" />
+        </svg>
+      </button>
+      {open && (
+        <div className="menu" role="menu">
+          {SHAPES.map(({ shape, label, hint, icon }) => (
+            <button
+              key={shape}
+              type="button"
+              role="menuitemradio"
+              aria-checked={app.faceShape === shape}
+              className="menuItem shapeItem"
+              data-shape={shape}
+              onClick={() => {
+                actions.setFaceShape(shape);
+                setOpen(false);
+              }}
+            >
+              <ShapeIcon>{icon}</ShapeIcon>
+              <span>{label}</span>
+              <span className="hint">{hint}</span>
             </button>
           ))}
         </div>
@@ -437,64 +537,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       >
         Find all faces
       </button>
-      {/* EXPERIMENTAL: face detection mode, and under Custom the detector and outline pickers. */}
-      <label
-        className="control experiment"
-        title="Fast: today's detector, tilted ovals, near instant. High fidelity: also finds heads turned away, and traces face and hair (hats, hands and balaclavas stay sharp); faces show as ovals first and their outlines follow."
-      >
-        <span className="label">Faces</span>
-        <select
-          value={app.experiment.mode}
-          onChange={(e) => actions.setExperiment({ mode: e.target.value as FaceMode })}
-        >
-          <option value="fast">Fast</option>
-          <option value="fidelity">High fidelity</option>
-          <option value="custom">Custom…</option>
-        </select>
-      </label>
-      {app.experiment.mode === 'custom' && (
-        <label
-          className="control experiment"
-          title="Experimental: which model the next detection uses"
-        >
-          <span className="label">Detector</span>
-          <select
-            value={app.experiment.detector}
-            onChange={(e) => actions.setExperiment({ detector: e.target.value as FaceDetector })}
-          >
-            {FACE_DETECTORS.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {app.experiment.mode === 'custom' && (
-        <label
-          className="control experiment"
-          title="Experimental: the outline of found faces. Box, Oval and Tilted oval also restyle faces already found; the mesh and face-skin outlines are traced when faces are found, so find them again after picking one."
-        >
-          <span className="label">Outline</span>
-          <select
-            value={app.experiment.style}
-            onChange={(e) => {
-              const style = e.target.value as FaceStyle;
-              actions.setExperiment({ style });
-              actions.restyleFaces(style);
-            }}
-          >
-            {FACE_STYLES.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {app.experiment.last && (
-        <span className="label mono experiment-last">{app.experiment.last}</span>
-      )}
+      <ShapeMenu />
       <label
         className="control"
         title="Block edge in pixels of the full-resolution photo. Small selections get larger blocks, so a face stays unrecognisable."

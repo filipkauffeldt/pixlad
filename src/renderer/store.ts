@@ -130,19 +130,18 @@ export interface AppState {
   /** The question after an export: take these photos out of the session? */
   removeQuestion: { count: number; name: string | undefined } | undefined;
   /** EXPERIMENTAL: which detector and outline the next detection uses, and how the last went. */
-  experiment: {
-    mode: FaceMode;
-    detector: FaceDetector;
-    style: FaceStyle;
-    last: string | undefined;
-  };
+  /** How found faces are covered: the detector's boxes, ovals, or traced face and hair. */
+  faceShape: FaceShape;
+  /** Outlines being traced after a detection, for the status bar. */
+  tracing: { photoId: string; done: number; total: number } | undefined;
 }
 
 const initial: AppState = {
   photos: [],
   currentId: undefined,
   target: 'faces',
-  experiment: { mode: 'fast', detector: 'yunet', style: 'box', last: undefined },
+  faceShape: 'rectangles',
+  tracing: undefined,
   outline: 'rect',
   mode: 'add',
   detecting: false,
@@ -327,62 +326,66 @@ const removeNow = (id: string): void => {
   });
 };
 
-/** EXPERIMENTAL: Fast is today's YuNet with tilted ovals; High fidelity finds heads too and traces face and hair. */
-export type FaceMode = 'fast' | 'fidelity' | 'custom';
-const modeSettings = (e: AppState['experiment']): { detector: FaceDetector; style: FaceStyle } =>
-  e.mode === 'fast'
-    ? { detector: 'yunet', style: 'tilt' }
-    : e.mode === 'fidelity'
-      ? { detector: 'hybrid-n', style: 'skin' }
-      : { detector: e.detector, style: e.style };
+export type FaceShape = 'rectangles' | 'ovals' | 'outlines';
+const SHAPE_SETTINGS: Record<FaceShape, { detector: FaceDetector; style: FaceStyle }> = {
+  rectangles: { detector: 'yunet', style: 'box' },
+  ovals: { detector: 'yunet', style: 'tilt' },
+  outlines: { detector: 'hybrid-n', style: 'skin' },
+};
 
 const sameBox = (a: Rect, b: Rect): boolean =>
   a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 
+/** Faces traced per request, so outlines appear (and the count moves) as they finish. */
+const TRACE_BATCH = 8;
+
 /**
- * Trace outlines for faces just added (shown as ovals meanwhile) and put them in place, without a
- * separate Undo step. A face with no skin or hair at all (a balaclava) is taken out again.
+ * Trace outlines for faces just added (shown as ovals meanwhile) and put each batch in place as it
+ * comes, without a separate Undo step. A face with no skin or hair at all (a balaclava) is taken
+ * out again.
  */
 async function traceOutlines(
   id: string,
   faces: readonly FaceData[],
   style: FaceStyle,
-  status: string,
 ): Promise<void> {
-  const started = performance.now();
+  set({ tracing: { photoId: id, done: 0, total: faces.length } });
   try {
-    const outlines = await window.api.trace(
-      id,
-      faces.map((f) => ({
-        box: f.box,
-        kind: f.kind,
-        angle: f.angle,
-        confirmed: f.confirmed,
-        eyes: f.eyes,
-      })),
-      style,
-    );
-    updatePhoto(id, (p) => ({
-      ...p,
-      areas: p.areas.flatMap((a) => {
-        if (!a.face) return [a];
-        const k = faces.findIndex((f) => sameBox(f.box, a.face!.box));
-        if (k < 0) return [a];
-        const outline = outlines[k];
-        if (outline === null) return [];
-        return outline ? [{ ...a, face: { ...a.face, style, outline } }] : [a];
-      }),
-      rev: p.rev + 1,
-    }));
-    const ms = Math.round(performance.now() - started);
-    set({ experiment: { ...state.experiment, last: `${status}, outlines in ${ms} ms` } });
+    for (let start = 0; start < faces.length; start += TRACE_BATCH) {
+      const batch = faces.slice(start, start + TRACE_BATCH);
+      const outlines = await window.api.trace(
+        id,
+        batch.map((f) => ({
+          box: f.box,
+          kind: f.kind,
+          angle: f.angle,
+          confirmed: f.confirmed,
+          eyes: f.eyes,
+        })),
+        style,
+      );
+      updatePhoto(id, (p) => ({
+        ...p,
+        areas: p.areas.flatMap((a) => {
+          if (!a.face) return [a];
+          const k = batch.findIndex((f) => sameBox(f.box, a.face!.box));
+          if (k < 0) return [a];
+          const outline = outlines[k];
+          if (outline === null) return [];
+          return outline ? [{ ...a, face: { ...a.face, style, outline } }] : [a];
+        }),
+        rev: p.rev + 1,
+      }));
+      set({ tracing: { photoId: id, done: start + batch.length, total: faces.length } });
+    }
   } catch (cause) {
-    set({ experiment: { ...state.experiment, last: `${status}, tracing failed` } });
     document.dispatchEvent(
       new CustomEvent('pixlad:detect-failed', {
         detail: cause instanceof Error ? cause.message : String(cause),
       }),
     );
+  } finally {
+    set({ tracing: undefined });
   }
 }
 
@@ -557,19 +560,15 @@ export const actions = {
         : region;
     actions.setDetecting(true, shape);
     try {
-      const { detector, style } = modeSettings(state.experiment);
+      const { detector, style } = SHAPE_SETTINGS[state.faceShape];
       // Traced outlines come in a second request, so the faces show (as ovals) right away.
-      const traced = style === 'skin' || style === 'mesh';
-      const started = performance.now();
+      const traced = style === 'skin';
       const found = await window.api.detect(id, region, {
         detector,
         style,
         deferOutlines: traced,
       });
-      const ms = Math.round(performance.now() - started);
       const inside = lasso ? facesInLasso(found, lasso) : found;
-      const status = `${inside.length} found in ${ms} ms`;
-      set({ experiment: { ...state.experiment, last: traced ? `${status}, tracing…` : status } });
       // Nothing found is not an error, but the user should see it, where the detector looked.
       if (inside.length === 0) actions.noFacesFound();
       const faces = inside.map(({ landmarks: _landmarks, ...f }) => ({
@@ -579,7 +578,7 @@ export const actions = {
       actions.addFaces(id, faces, 'add');
       if (traced && faces.length > 0) {
         actions.setDetecting(false);
-        void traceOutlines(id, faces, style, status);
+        void traceOutlines(id, faces, style);
       }
     } catch (cause) {
       document.dispatchEvent(
@@ -592,18 +591,23 @@ export const actions = {
     }
   },
 
-  /** EXPERIMENTAL: pick the detector or outline for the next detection. */
-  setExperiment(
-    change: Partial<{ mode: FaceMode; detector: FaceDetector; style: FaceStyle }>,
-  ): void {
-    set({ experiment: { ...state.experiment, ...change } });
-  },
-
-  /** EXPERIMENTAL: give the faces already found on the current photo another outline style. */
-  restyleFaces(style: FaceStyle): void {
+  /**
+   * How faces are covered. Rectangles and Ovals also reshape the faces already found on the
+   * current photo; Outlines puts back the outlines of faces that were traced before, and is
+   * traced for new detections.
+   */
+  setFaceShape(shape: FaceShape): void {
+    set({ faceShape: shape });
     const id = state.currentId;
     if (!id) return;
-    editAreas(id, (areas) => areas.map((a) => (a.face ? { ...a, face: { ...a.face, style } } : a)));
+    const style = SHAPE_SETTINGS[shape].style;
+    editAreas(id, (areas) =>
+      areas.map((a) => {
+        if (!a.face) return a;
+        if (shape === 'outlines' && !a.face.outline) return a;
+        return { ...a, face: { ...a.face, style } };
+      }),
+    );
   },
 
   /** The whole current photo, for the Find all faces button and its shortcut. */

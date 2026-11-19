@@ -36,7 +36,12 @@ async function fromTarball(url: string, wanted: Record<string, string>): Promise
   const controller = new AbortController();
   const response = await fetch(url, { signal: controller.signal });
   if (!response.ok || !response.body) throw new Error(`${url}: HTTP ${response.status}`);
-  const gunzip = Readable.fromWeb(response.body as never).pipe(createGunzip());
+  const source = Readable.fromWeb(response.body as never);
+  const gunzip = source.pipe(createGunzip());
+  // Stopping early aborts the download; that is not an error.
+  const ignore = (): void => {};
+  source.on('error', ignore);
+  gunzip.on('error', ignore);
   let buffer = Buffer.alloc(0);
   let member: { name: string; size: number; chunks: Buffer[]; got: number } | undefined;
   let skip = 0;
@@ -78,6 +83,8 @@ async function fromTarball(url: string, wanted: Record<string, string>): Promise
     throw new Error(`not in the tarball: ${[...left.keys()].join(', ')}`);
   } finally {
     controller.abort();
+    source.destroy();
+    gunzip.destroy();
   }
 }
 

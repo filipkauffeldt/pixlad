@@ -5,7 +5,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import * as ort from 'onnxruntime-node';
-import { clamp, simplifyPolygon } from '../../shared/geometry';
+import { clamp } from '../../shared/geometry';
 import type { DetectOptions, FaceDetection, FaceDetector, Point, Rect } from '../../shared/types';
 import { detectFaces } from './detect';
 import { mergeOverlappingDetections, nonMaximumSuppression } from './nms';
@@ -187,6 +187,24 @@ async function deim(
 }
 
 /**
+ * Drop heads far bigger than the crowd's (a drum skin, a round banner): over 5x the median area,
+ * unless YuNet found a face inside. Only with enough heads for the median to mean something.
+ */
+function notOversized(heads: Det[], faces: readonly Det[]): Det[] {
+  if (heads.length < 8) return heads;
+  const areas = heads.map((h) => h.box.w * h.box.h).sort((p, q) => p - q);
+  const median = areas[areas.length >> 1]!;
+  return heads.filter((h) => {
+    if (h.box.w * h.box.h <= 5 * median) return true;
+    return faces.some((f) => {
+      const cx = f.box.x + f.box.w / 2;
+      const cy = f.box.y + f.box.h / 2;
+      return cx >= h.box.x && cx <= h.box.x + h.box.w && cy >= h.box.y && cy <= h.box.y + h.box.h;
+    });
+  });
+}
+
+/**
  * Drop detections that are really a hand (a raised fist): mostly inside a detected hand box. A face
  * with a hand over the mouth stays, since most of its box is outside the hand.
  */
@@ -236,7 +254,7 @@ async function detect(
     case 'deim-n':
     case 'deim-s': {
       const { heads, hands } = await deim(img, px, await session(yunetPath, detector), true);
-      return notHands(heads, hands);
+      return notHands(notOversized(heads, []), hands);
     }
     case 'hybrid':
     case 'hybrid-tiled': {
@@ -258,7 +276,7 @@ async function detect(
             cx >= h.box.x && cx <= h.box.x + h.box.w && cy >= h.box.y && cy <= h.box.y + h.box.h,
         );
       });
-      return notHands([...heads, ...loose], hands);
+      return notHands([...notOversized(heads, faces), ...loose], hands);
     }
   }
 }
@@ -380,9 +398,9 @@ async function skinOutline(img: Img, det: Det, angle: number, s: ort.InferenceSe
   if (area < 0.3 * faceW * faceH) {
     component = dilate(component, Math.max(4, Math.round(0.15 * Math.max(faceW, faceH))));
   }
-  const ring = trace(component);
+  const ring = radialOutline(component);
   if (ring.length < 3) return undefined;
-  return simplifyPolygon(ring, 1.2).map((p) => c.toImage(p.x + 0.5, p.y + 0.5));
+  return ring.map((p) => c.toImage(p.x, p.y));
 }
 
 function dilate(mask: Uint8Array<ArrayBuffer>, r: number): Uint8Array<ArrayBuffer> {
@@ -454,49 +472,51 @@ function componentNearCentre(mask: Uint8Array): Uint8Array<ArrayBuffer> | undefi
   return out;
 }
 
-// Clockwise with y down: W, NW, N, NE, E, SE, S, SW.
-const DIRS = [
-  [-1, 0],
-  [-1, -1],
-  [0, -1],
-  [1, -1],
-  [1, 0],
-  [1, 1],
-  [0, 1],
-  [-1, 1],
-] as const;
-const dirOf = (dx: number, dy: number): number => DIRS.findIndex(([x, y]) => x === dx && y === dy);
+const RAYS = 72;
 
-/** Moore-neighbour tracing of the outer boundary, in pixel coordinates. */
-function trace(mask: Uint8Array): Point[] {
-  const on = (x: number, y: number): boolean =>
-    x >= 0 && y >= 0 && x < SEG && y < SEG && mask[y * SEG + x] === 1;
-  const first = mask.indexOf(1);
-  if (first < 0) return [];
-  const start = { x: first % SEG, y: Math.floor(first / SEG) };
-  const ring: Point[] = [start];
-  let cur = start;
-  let back = 0; // the pixel west of the start is background
-  for (let step = 0; step < SEG * SEG * 2; step++) {
-    let found = -1;
-    for (let k = 1; k <= 8; k++) {
-      const d = (back + k) % 8;
-      if (on(cur.x + DIRS[d]![0], cur.y + DIRS[d]![1])) {
-        found = d;
+/**
+ * A star-shaped outline around the mask: on rays from its centre, the farthest pixel that is on.
+ * It never crosses itself (a traced boundary can, and the even-odd fill then punches holes in the
+ * mosaic), and a hand in front of the face stays inside it.
+ */
+function radialOutline(mask: Uint8Array): Point[] {
+  let cx = 0;
+  let cy = 0;
+  let n = 0;
+  for (let p = 0; p < mask.length; p++) {
+    if (!mask[p]) continue;
+    cx += p % SEG;
+    cy += Math.floor(p / SEG);
+    n++;
+  }
+  if (n === 0) return [];
+  cx = cx / n + 0.5;
+  cy = cy / n + 0.5;
+  const radii: number[] = [];
+  for (let k = 0; k < RAYS; k++) {
+    const angle = (2 * Math.PI * k) / RAYS;
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    let radius = 0;
+    for (let r = SEG; r > 0; r -= 0.5) {
+      const x = Math.floor(cx + dx * r);
+      const y = Math.floor(cy + dy * r);
+      if (x >= 0 && y >= 0 && x < SEG && y < SEG && mask[y * SEG + x]) {
+        radius = r + 0.75;
         break;
       }
     }
-    if (found < 0) break; // a single pixel
-    const prev = (found + 7) % 8;
-    const next = { x: cur.x + DIRS[found]![0], y: cur.y + DIRS[found]![1] };
-    const bx = cur.x + DIRS[prev]![0];
-    const by = cur.y + DIRS[prev]![1];
-    back = dirOf(bx - next.x, by - next.y);
-    cur = next;
-    if (cur.x === start.x && cur.y === start.y) break;
-    ring.push(cur);
+    radii.push(radius);
   }
-  return ring;
+  // A median of three takes the spikes (a strand of hair) off.
+  return radii.map((_, k) => {
+    const three = [radii[(k + RAYS - 1) % RAYS]!, radii[k]!, radii[(k + 1) % RAYS]!].sort(
+      (p, q) => p - q,
+    );
+    const r = three[1]!;
+    const angle = (2 * Math.PI * k) / RAYS;
+    return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
+  });
 }
 
 const MIN_TRACE_PX = 60;

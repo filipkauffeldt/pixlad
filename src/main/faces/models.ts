@@ -16,6 +16,11 @@ export type OutlineModel = Exclude<keyof ModelPaths, 'yunet'>;
 
 const sessions = new Map<string, Promise<ort.InferenceSession>>();
 
+/** The models are freed this long after the last job that used them. */
+const IDLE_RELEASE_MS = 90_000;
+let busy = 0;
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
 // Measured faster than all cores for these models, and leaves room for the JavaScript work that
 // overlaps the next run.
 const THREADS = Math.max(1, Math.min(4, Math.floor(availableParallelism() / 2)));
@@ -38,4 +43,27 @@ export function loadModel(paths: ModelPaths, model: OutlineModel): Promise<ort.I
     session.catch(() => sessions.delete(path));
   }
   return session;
+}
+
+/** Frees every loaded model. */
+function releaseModels(): void {
+  const loaded = [...sessions.values()];
+  sessions.clear();
+  for (const session of loaded) void session.then((s) => s.release()).catch(() => undefined);
+}
+
+/** Run `job` with the models kept loaded; once nothing has used them for a while, free them. */
+export async function holdingModels<T>(job: () => Promise<T>): Promise<T> {
+  busy++;
+  clearTimeout(idleTimer);
+  try {
+    return await job();
+  } finally {
+    busy--;
+    if (busy === 0) {
+      idleTimer = setTimeout(() => {
+        if (busy === 0) releaseModels();
+      }, IDLE_RELEASE_MS);
+    }
+  }
 }

@@ -10,6 +10,8 @@ import {
   opFromAreas,
   withDetectedFaces,
   withoutFacesInside,
+  type FaceData,
+  type FaceShape,
   type RetouchArea,
   type Outline,
   type RetouchMode,
@@ -83,6 +85,8 @@ export interface AppState {
   photos: PhotoState[];
   currentId: string | undefined;
   target: Target;
+  /** How found faces are covered. */
+  faceShape: FaceShape;
   outline: Outline;
   mode: RetouchMode;
   detecting: boolean;
@@ -127,6 +131,7 @@ const initial: AppState = {
   photos: [],
   currentId: undefined,
   target: 'faces',
+  faceShape: 'rectangles',
   outline: 'rect',
   mode: 'add',
   detecting: false,
@@ -316,6 +321,7 @@ export const actions = {
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
   setShortcutsOpen: (shortcutsOpen: boolean): void => set({ shortcutsOpen }),
   setTarget: (target: Target): void => set({ target }),
+  setFaceShape: (faceShape: FaceShape): void => set({ faceShape }),
   setOutline: (outline: Outline): void => set({ outline }),
   /**
    * The answer to the remove question: true takes the photos out of the session. `dontAsk` saves
@@ -435,7 +441,7 @@ export const actions = {
     });
   },
 
-  addFaces(id: string, faces: { box: Rect; score?: number }[], mode: RetouchMode): void {
+  addFaces(id: string, faces: FaceData[], mode: RetouchMode): void {
     editAreas(id, (areas) => {
       const next = withDetectedFaces(areas, faces, mode);
       return next.length === areas.length ? areas : next;
@@ -488,7 +494,13 @@ export const actions = {
       if (inside.length === 0) actions.noFacesFound();
       actions.addFaces(
         id,
-        inside.map((f) => ({ box: f.box, score: f.score })),
+        inside.map((f) => ({
+          box: f.box,
+          score: f.score,
+          angle: f.angle,
+          aspect: f.aspect,
+          shape: state.faceShape,
+        })),
         'add',
       );
     } catch (cause) {

@@ -321,7 +321,6 @@ export const actions = {
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
   setShortcutsOpen: (shortcutsOpen: boolean): void => set({ shortcutsOpen }),
   setTarget: (target: Target): void => set({ target }),
-  setFaceShape: (faceShape: FaceShape): void => set({ faceShape }),
   setOutline: (outline: Outline): void => set({ outline }),
   /**
    * The answer to the remove question: true takes the photos out of the session. `dontAsk` saves
@@ -512,6 +511,19 @@ export const actions = {
     } finally {
       actions.setDetecting(false);
     }
+  },
+
+  /** How faces are covered: those already found on the current photo change shape too. */
+  setFaceShape(faceShape: FaceShape): void {
+    set({ faceShape });
+    const id = state.currentId;
+    if (!id) return;
+    editAreas(id, (areas) => {
+      if (!areas.some((area) => area.face && area.face.shape !== faceShape)) return areas;
+      return areas.map((area) =>
+        area.face ? { ...area, face: { ...area.face, shape: faceShape } } : area,
+      );
+    });
   },
 
   /** The whole current photo, for the Find all faces button and its shortcut. */

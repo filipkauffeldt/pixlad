@@ -53,6 +53,8 @@ export function padFaceBox(box: Rect, padding: number): Rect {
 
 const EXPONENT = 2.5;
 const POINTS = 48;
+const superNorm = (dx: number, dy: number, a: number, b: number): number =>
+  (Math.abs(dx / a) ** EXPONENT + Math.abs(dy / b) ** EXPONENT) ** (1 / EXPONENT);
 
 /** A superellipse (|x/a|^2.5 + |y/b|^2.5 = 1), rounder than a box, fuller than an ellipse. */
 function superellipse(
@@ -82,7 +84,8 @@ function superellipse(
 
 /**
  * An oval around a face, tilted with the head. It is worked out in pixel proportions (x scaled by
- * the photo's aspect) so a tilted one keeps its shape, with the same padding as the rectangle.
+ * the photo's aspect) so a tilted one keeps its shape. It has the same padding as the rectangle and
+ * is grown until every corner of the detector box is inside.
  */
 export function faceOval(face: FaceData, padding: number): Polygon {
   const aspect = face.aspect ?? 1;
@@ -98,7 +101,15 @@ export function faceOval(face: FaceData, padding: number): Polygon {
   const shift = (vertical - up) / 2 - up / 2;
   const cx = (face.box.x + face.box.w / 2) * aspect - shift * Math.sin(angle);
   const cy = face.box.y + face.box.h / 2 + shift * Math.cos(angle);
-  return superellipse(cx, cy, a, b, angle, aspect);
+  // In the head's own axes a corner of the box is inside the oval when its superellipse norm is
+  // at most 1. With little padding it is not, so the oval grows until all four corners are.
+  const k = Math.max(
+    1,
+    ...[-1, 1].flatMap((sx) =>
+      [-1, 1].map((sy) => superNorm((sx * w) / 2, (sy * h) / 2 - shift, a, b)),
+    ),
+  );
+  return superellipse(cx, cy, a * k, b * k, angle, aspect);
 }
 
 /** The shape that covers a found face. */

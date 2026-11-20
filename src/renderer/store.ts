@@ -316,6 +316,52 @@ const removeNow = (id: string): void => {
   });
 };
 
+const sameBox = (a: Rect, b: Rect): boolean =>
+  a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+
+/** Faces traced per request, so outlines appear as they finish. */
+const TRACE_BATCH = 8;
+
+/**
+ * Trace outlines for faces just added and put each batch in place as it comes, without a separate
+ * Undo step. A face the tracing drops (a balaclava with nothing showing, a tattoo) is taken out.
+ */
+async function traceOutlines(id: string, faces: readonly FaceData[]): Promise<void> {
+  try {
+    for (let start = 0; start < faces.length; start += TRACE_BATCH) {
+      const batch = faces.slice(start, start + TRACE_BATCH);
+      const outlines = await window.api.trace(
+        id,
+        batch.map(({ box, kind, angle, confirmed, eyes }) => ({
+          box,
+          kind,
+          angle,
+          confirmed,
+          eyes,
+        })),
+      );
+      updatePhoto(id, (p) => ({
+        ...p,
+        areas: p.areas.flatMap((a) => {
+          if (!a.face) return [a];
+          const k = batch.findIndex((f) => sameBox(f.box, a.face!.box));
+          if (k < 0) return [a];
+          const outline = outlines[k];
+          if (outline === null) return [];
+          return outline ? [{ ...a, face: { ...a.face, outline } }] : [a];
+        }),
+        rev: p.rev + 1,
+      }));
+    }
+  } catch (cause) {
+    document.dispatchEvent(
+      new CustomEvent('pixlad:detect-failed', {
+        detail: cause instanceof Error ? cause.message : String(cause),
+      }),
+    );
+  }
+}
+
 export const actions = {
   setDragging: (dragging: boolean): void => set({ dragging }),
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
@@ -500,16 +546,19 @@ export const actions = {
         ? { type: 'polygon', points: [...lasso] }
         : region;
     actions.setDetecting(true, shape);
+    const faceShape = state.faceShape;
     try {
-      const found = await window.api.detect(id, region, { people: state.faceShape === 'outline' });
+      const found = await window.api.detect(id, region, { people: faceShape === 'outline' });
       const inside = lasso ? facesInLasso(found, lasso) : found;
       // Nothing found is not an error, but the user should see it, where the detector looked.
       if (inside.length === 0) actions.noFacesFound();
-      actions.addFaces(
-        id,
-        inside.map(({ landmarks: _landmarks, ...f }) => ({ ...f, shape: state.faceShape })),
-        'add',
-      );
+      const faces = inside.map(({ landmarks: _landmarks, ...f }) => ({ ...f, shape: faceShape }));
+      actions.addFaces(id, faces, 'add');
+      // The faces show (as ovals) right away; their outlines follow.
+      if (faceShape === 'outline' && faces.length > 0) {
+        actions.setDetecting(false);
+        void traceOutlines(id, faces);
+      }
     } catch (cause) {
       document.dispatchEvent(
         new CustomEvent('pixlad:detect-failed', {

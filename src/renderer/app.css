@@ -34,7 +34,10 @@
   display: block;
   flex: none;
 }
+/* The name gives way last: the export result beside it shortens first. */
 .fileName {
+  flex: 0 1 auto;
+  min-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -45,6 +48,7 @@
 /* The last export's result beside the name */
 .photoStatus {
   display: flex;
+  flex: 0 1000 auto;
   align-items: center;
   gap: 8px;
   min-width: 0;

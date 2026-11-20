@@ -385,22 +385,97 @@ export async function traceOutlines(
   modelsDir: string,
 ): Promise<(Point[] | null | undefined)[]> {
   const session = await outlineModel(modelsDir, 'segmenter');
-  const out: (Point[] | null | undefined)[] = [];
-  for (const item of items) {
-    if (Math.max(item.box.w, item.box.h) < MIN_TRACE_PX) {
-      out.push(undefined);
-      continue;
+  const out: (Point[] | null | undefined)[] = items.map(() => undefined);
+  const traced = items
+    .map((item, i) => ({ item, i, crop: framing(item.box, item.kind, item.angle) }))
+    .filter(({ item }) => Math.max(item.box.w, item.box.h) >= MIN_TRACE_PX);
+  for (const job of sharedCrops(traced.map((t) => t.crop))) {
+    const labels = await segment(img, job.crop, session);
+    for (const k of job.members) {
+      const { item, i, crop } = traced[k]!;
+      const own = job.members.length === 1 ? labels : resample(labels, job.crop, crop);
+      const outline = outlineFromLabels(
+        item,
+        crop,
+        own,
+        items.filter((o) => o !== item),
+      );
+      out[i] =
+        outline === null
+          ? null
+          : (outline ?? (item.confirmed ? undefined : item.eyes ? eyeholes(item.eyes) : null));
     }
-    const crop = framing(item.box, item.kind, item.angle);
-    const labels = await segment(img, crop, session);
-    const outline = outlineFromLabels(
-      item,
-      crop,
-      labels,
-      items.filter((o) => o !== item),
-    );
-    if (outline === null) out.push(null);
-    else out.push(outline ?? (item.confirmed ? undefined : item.eyes ? eyeholes(item.eyes) : null));
+  }
+  return out;
+}
+
+/** Neighbours share a segmenter run when their crops fit in 1.5x one crop. */
+const SHARE = 1.5;
+
+/**
+ * Groups of crops that one segmenter run can cover: from the top, each crop takes its nearest
+ * neighbours of a similar size (within 0.7-1.4x) while they all fit in SHARE times its own crop,
+ * unturned. A crop on its own keeps its turn with the head.
+ */
+function sharedCrops(crops: readonly Crop[]): { crop: Crop; members: number[] }[] {
+  const order = crops
+    .map((_, i) => i)
+    .sort((a, b) => crops[a]!.cy - crops[b]!.cy || crops[a]!.cx - crops[b]!.cx);
+  const taken = new Uint8Array(crops.length);
+  const jobs: { crop: Crop; members: number[] }[] = [];
+  for (const i of order) {
+    if (taken[i]) continue;
+    taken[i] = 1;
+    const own = crops[i]!;
+    const limit = own.side * SHARE;
+    let [x0, y0, x1, y1] = [
+      own.cx - own.side / 2,
+      own.cy - own.side / 2,
+      own.cx + own.side / 2,
+      own.cy + own.side / 2,
+    ];
+    const members = [i];
+    const near = order
+      .filter(
+        (j) => !taken[j] && crops[j]!.side >= own.side * 0.7 && crops[j]!.side <= own.side / 0.7,
+      )
+      .sort(
+        (a, b) =>
+          Math.hypot(crops[a]!.cx - own.cx, crops[a]!.cy - own.cy) -
+          Math.hypot(crops[b]!.cx - own.cx, crops[b]!.cy - own.cy),
+      );
+    for (const j of near) {
+      const c = crops[j]!;
+      const nx0 = Math.min(x0, c.cx - c.side / 2);
+      const ny0 = Math.min(y0, c.cy - c.side / 2);
+      const nx1 = Math.max(x1, c.cx + c.side / 2);
+      const ny1 = Math.max(y1, c.cy + c.side / 2);
+      if (nx1 - nx0 > limit || ny1 - ny0 > limit) continue;
+      [x0, y0, x1, y1] = [nx0, ny0, nx1, ny1];
+      members.push(j);
+      taken[j] = 1;
+    }
+    jobs.push({
+      crop:
+        members.length === 1
+          ? own
+          : { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, side: limit, angle: 0 },
+      members,
+    });
+  }
+  return jobs;
+}
+
+/** `crop`'s labels, sampled (nearest) from the labels of the larger `shared` crop holding it. */
+function resample(labels: Uint8Array, shared: Crop, crop: Crop): Uint8Array {
+  const out = new Uint8Array(SEG * SEG);
+  for (let v = 0; v < SEG; v++) {
+    for (let u = 0; u < SEG; u++) {
+      const p = toPhoto(crop, u + 0.5, v + 0.5);
+      const tu = Math.floor(((p.x - shared.cx) / shared.side + 0.5) * SEG);
+      const tv = Math.floor(((p.y - shared.cy) / shared.side + 0.5) * SEG);
+      out[v * SEG + u] = tu >= 0 && tv >= 0 && tu < SEG && tv < SEG ? labels[tv * SEG + tu]! : 0;
+    }
   }
   return out;
 }

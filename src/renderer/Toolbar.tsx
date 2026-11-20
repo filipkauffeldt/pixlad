@@ -679,13 +679,14 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
             </button>
             <button
               type="button"
-              className="btn"
+              className="iconBtn"
               onClick={actions.reset}
               disabled={!photo || photo.areas.length === 0}
+              aria-label="Clear all areas"
               title="Clear every area and face on this photo (Undo brings them back)"
               data-testid="reset"
             >
-              Reset
+              <Icon name="clear" size={18} />
             </button>
             <span className="anchor">
               <button

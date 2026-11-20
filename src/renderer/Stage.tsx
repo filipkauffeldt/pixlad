@@ -362,6 +362,8 @@ export function Stage({
     surface.setPointerCapture(event.pointerId);
     setDragging(true);
     if (lasso) setDraftPoints([start]);
+    // A face search with Outlines: load the models (freed when idle) while the area is drawn.
+    if (app.target === 'faces' && app.faceShape === 'outline') actions.warmFaces();
   };
 
   // Right-click removes the topmost area under the pointer.

@@ -80,9 +80,14 @@ function superellipse(
   return { type: 'polygon', points };
 }
 
+/** How far (dx, dy) lies along a superellipse with half-axes a and b: 1 is on its edge. */
+const ovalDistance = (dx: number, dy: number, a: number, b: number): number =>
+  (Math.abs(dx / a) ** OVAL_EXPONENT + Math.abs(dy / b) ** OVAL_EXPONENT) ** (1 / OVAL_EXPONENT);
+
 /**
  * An oval in the padded box around a face, tilted with the head. The padding is the same as for
- * the rectangle: 1.4x vertically, mostly upward.
+ * the rectangle: 1.4x vertically, mostly upward. The oval grows until every corner of the detector
+ * box is inside, so it never covers less of the face than the rectangle.
  */
 export function faceOval(face: FaceData, padding: number): Polygon {
   const aspect = face.aspect ?? 1;
@@ -96,9 +101,15 @@ export function faceOval(face: FaceData, padding: number): Polygon {
   const b = (h + vertical) / 2;
   // The padding is uneven, so the oval's centre sits above the box's, along the head's axis.
   const shift = (vertical - up) / 2 - up / 2;
+  const grow = Math.max(
+    1,
+    ...[-1, 1].flatMap((sx) =>
+      [-1, 1].map((sy) => ovalDistance((sx * w) / 2, (sy * h) / 2 - shift, a, b)),
+    ),
+  );
   const cx = (face.box.x + face.box.w / 2) * aspect - shift * Math.sin(angle);
   const cy = face.box.y + face.box.h / 2 + shift * Math.cos(angle);
-  return superellipse(cx, cy, a, b, angle, aspect);
+  return superellipse(cx, cy, a * grow, b * grow, angle, aspect);
 }
 
 export function faceShape(face: FaceData, padding: number): Shape {

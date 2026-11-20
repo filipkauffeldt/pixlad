@@ -321,7 +321,13 @@ export const actions = {
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
   setShortcutsOpen: (shortcutsOpen: boolean): void => set({ shortcutsOpen }),
   setTarget: (target: Target): void => set({ target }),
-  setFaceShape: (faceShape: FaceShape): void => set({ faceShape }),
+  /** How faces are covered; the faces already found on the current photo change with it. */
+  setFaceShape(shape: FaceShape): void {
+    set({ faceShape: shape });
+    const id = state.currentId;
+    if (!id) return;
+    editAreas(id, (areas) => areas.map((a) => (a.face ? { ...a, face: { ...a.face, shape } } : a)));
+  },
   setOutline: (outline: Outline): void => set({ outline }),
   /**
    * The answer to the remove question: true takes the photos out of the session. `dontAsk` saves

@@ -12,6 +12,7 @@ const SEG = 256;
 
 // Selfie multiclass labels: 0 background, 1 hair, 2 body skin, 3 face skin, 4 clothes, 5 other.
 const HAIR = 1;
+const BODY_SKIN = 2;
 const FACE_SKIN = 3;
 const CLOTHES = 4;
 const OTHER = 5;
@@ -105,7 +106,8 @@ function framing(box: Box, kind: 'face' | 'head', angle: number): Crop {
 }
 
 /**
- * The outline of the face and hair in a crop's labels, or undefined when there is none. Only this
+ * The outline of the face and hair in a crop's labels, undefined when there is none, or null when
+ * the "face" is a tattoo. Only this
  * person's: an oval around the detection, reaching higher for hair on a face box, so the
  * neighbours' hair doesn't join up into one blob.
  */
@@ -114,7 +116,7 @@ function outlineFromLabels(
   crop: Crop,
   labels: Uint8Array,
   others: readonly TraceItem[],
-): Point[] | undefined {
+): Point[] | null | undefined {
   const perPx = SEG / crop.side;
   // And only this person's share: a pixel nearer (relative to face size) to a neighbour's centre
   // belongs to the neighbour, so outlines in a packed crowd never overlap.
@@ -147,6 +149,30 @@ function outlineFromLabels(
     const dy = (v - SEG / 2) / (v < SEG / 2 ? ryUp : ryDown);
     return dx * dx + dy * dy <= 1;
   };
+  // A face the segmenter sees as body skin with no face skin at all is a face tattoo on a chest or
+  // an arm.
+  if (!head) {
+    let faceSkin = 0;
+    let bodySkin = 0;
+    let n = 0;
+    for (
+      let v = Math.max(0, Math.floor(SEG / 2 - faceH / 2));
+      v < Math.min(SEG, SEG / 2 + faceH / 2);
+      v++
+    ) {
+      for (
+        let u = Math.max(0, Math.floor(SEG / 2 - faceW / 2));
+        u < Math.min(SEG, SEG / 2 + faceW / 2);
+        u++
+      ) {
+        const label = labels[v * SEG + u];
+        if (label === FACE_SKIN) faceSkin++;
+        else if (label === BODY_SKIN) bodySkin++;
+        n++;
+      }
+    }
+    if (n > 0 && faceSkin < 0.03 * n && bodySkin > 0.3 * n) return null;
+  }
   let mask: Uint8Array<ArrayBuffer> = new Uint8Array(SEG * SEG);
   for (let p = 0; p < SEG * SEG; p++) {
     if (!near(p % SEG, Math.floor(p / SEG)) || !ours(p % SEG, Math.floor(p / SEG))) continue;
@@ -349,7 +375,8 @@ function radialOutline(mask: Uint8Array): Point[] {
 
 /**
  * Outlines for `items`, in photo pixels. Per item: the outline; the eyeholes when a head shows no
- * face skin or hair but has eyes; null when it has neither (a balaclava, left sharp); or undefined to keep the oval (too small to trace, or a
+ * face skin or hair but has eyes; null when it has neither (a balaclava, left sharp) or the face is a
+ * tattoo; or undefined to keep the oval (too small to trace, or a
  * confirmed face the segmenter found nothing in).
  */
 export async function traceOutlines(
@@ -372,7 +399,8 @@ export async function traceOutlines(
       labels,
       items.filter((o) => o !== item),
     );
-    out.push(outline ?? (item.confirmed ? undefined : item.eyes ? eyeholes(item.eyes) : null));
+    if (outline === null) out.push(null);
+    else out.push(outline ?? (item.confirmed ? undefined : item.eyes ? eyeholes(item.eyes) : null));
   }
   return out;
 }

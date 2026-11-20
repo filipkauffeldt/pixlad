@@ -441,6 +441,56 @@ async function yunetPyramid(
 }
 
 /**
+ * Faces that clash: a face mostly (50%+) covered by stronger faces is a stray box between people,
+ * and a big face holding the centres of two or more smaller faces is a loose box over several
+ * people. What is left goes through `onePerPerson`.
+ */
+function oneFacePerPerson(faces: Person[]): Person[] {
+  const loose = faces.filter(
+    (d) =>
+      faces.filter((o) => o !== d && area(o.box) < area(d.box) / 2 && centreIn(o.box, d.box))
+        .length >= 2,
+  );
+  const rest = faces.filter((d) => !loose.includes(d));
+  const kept = rest.filter((d) => {
+    const covered = rest
+      .filter((o) => o !== d && o.score > d.score && area(o.box) < 4 * area(d.box))
+      .reduce((sum, o) => sum + overlap(d.box, o.box), 0);
+    return covered < 0.5 * area(d.box);
+  });
+  return onePerPerson(kept);
+}
+
+/**
+ * One detection per person. Largest first, a detection mostly (60%+) inside a kept one, or
+ * overlapping it by IoU 0.45+, is the same person when the kept one is at most 4x its area: it is
+ * dropped, and the kept one takes its confirmation and landmarks. A loose box over two people
+ * (more than 4x a face) keeps both.
+ */
+function onePerPerson(people: Person[]): Person[] {
+  const kept: Person[] = [];
+  for (const d of [...people].sort((a, b) => area(b.box) - area(a.box))) {
+    const k = kept.findIndex(
+      (o) =>
+        overlap(d.box, o.box) > 0 &&
+        area(o.box) <= 4 * area(d.box) &&
+        (inside(d.box, o.box) || iou(d.box, o.box) >= 0.45),
+    );
+    if (k < 0) {
+      kept.push(d);
+      continue;
+    }
+    const o = kept[k]!;
+    kept[k] = {
+      ...o,
+      ...(o.confirmed || d.confirmed ? { confirmed: true } : {}),
+      ...(o.landmarks.length === 0 && d.landmarks.length > 0 ? { landmarks: d.landmarks } : {}),
+    };
+  }
+  return kept;
+}
+
+/**
  * The people in `region` (normalized): every face, and the heads with no face of their own (the
  * back of a head, a balaclava).
  */
@@ -481,7 +531,18 @@ export async function findPeople(img: Img, region: Rect, modelsDir: string): Pro
   const hazy = (await hazyFaces(img, px, modelsDir)).filter(
     (f) => !plain.some((p) => overlap(p.box, f.box) > 0.3 * Math.min(area(p.box), area(f.box))),
   );
-  const faces = [...plain, ...hazy];
+  const faces = oneFacePerPerson([
+    ...plain,
+    ...hazy,
+    ...[...found.faces, ...more.faces].map((box): Person => ({
+      box,
+      score: 0.5,
+      landmarks: [],
+      kind: 'face',
+      from: 'deimv2',
+      confirmed: true,
+    })),
+  ]);
   // Heads add the people with no visible face. A head with a face inside is that person (already
   // in) or a loose box over several; either way it goes.
   const lone = heads.filter(
@@ -490,5 +551,5 @@ export async function findPeople(img: Img, region: Rect, modelsDir: string): Pro
       h.score >= LONE_HEAD_SCORE &&
       !faces.some((f) => overlap(f.box, h.box) > CLIP * area(f.box)),
   );
-  return [...faces, ...lone];
+  return onePerPerson([...faces, ...lone]);
 }

@@ -567,10 +567,11 @@ fieldset:disabled .segItem {
   top: calc(100% + 8px);
   right: 0;
   z-index: 26;
-  width: 260px;
-  padding: 12px 14px;
-  background: var(--raised);
+  width: 300px;
+  padding: 16px;
+  background: var(--panel);
   border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-pop);
   color: var(--text);
 }
 .exportChoice::before {
@@ -580,15 +581,15 @@ fieldset:disabled .segItem {
   right: 24px;
   width: 8px;
   height: 8px;
-  background: var(--raised);
+  background: var(--panel);
   border-left: 1px solid var(--line-strong);
   border-top: 1px solid var(--line-strong);
   transform: rotate(45deg);
 }
 .exportChoice h3 {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .exportChoice .radio {
   margin-bottom: 6px;
@@ -639,6 +640,7 @@ fieldset:disabled .segItem {
   max-height: 100%;
   background: var(--panel);
   border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-modal);
 }
 .modalHeader {
   display: flex;
@@ -754,13 +756,33 @@ fieldset:disabled .segItem {
   gap: 12px;
   padding: 6px 0;
 }
+/* Questions: a title, a line of detail, and the answers in one row at the bottom */
 .modal.confirm {
-  width: min(420px, 100%);
+  width: min(440px, 100%);
 }
-.modal.confirm h2 {
+.modal.confirm h2,
+.confirmTitle {
   margin: 0;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.modal.confirm .modalBody {
+  padding: 24px 24px 0;
+}
+.modal.confirm .modalFooter {
+  padding: 24px;
+  border-top: 0;
+}
+.modal.confirm .btn {
+  height: 34px;
+  padding: 0 16px;
+}
+.btn.danger,
+.btn.danger:hover:not(:disabled) {
+  background: var(--error);
+  border-color: var(--error);
+  color: var(--on-text);
 }
 .modalButtons {
   display: flex;
@@ -815,27 +837,24 @@ fieldset:disabled .segItem {
 }
 
 /* Replace original confirmation */
-.modal.confirm {
-  width: min(310px, 100%);
+.modal.confirm.overwrite {
+  width: min(480px, 100%);
 }
 .confirmTitle {
-  margin: 0;
-  padding: 12px 14px 0;
-  font-size: 14px;
-  font-weight: 500;
+  padding: 24px 24px 0;
 }
 .confirmBody {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 14px 12px;
+  gap: 10px;
+  padding: 8px 24px 0;
 }
 .confirmBody p {
   margin: 0;
 }
 .confirmFiles {
-  padding: 5px 8px;
-  background: var(--raised);
+  padding: 8px 10px;
+  background: var(--bg);
   border: 1px solid var(--line);
   word-break: break-all;
 }
@@ -844,15 +863,16 @@ fieldset:disabled .segItem {
 }
 .confirmFoot {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  gap: 6px;
-  padding: 9px 14px;
-  border-top: 1px solid var(--line);
+  gap: 8px;
+  padding: 24px;
 }
-/* Both buttons are the same size, and focus is a border so neither looks taller. */
+.confirmFoot .grow {
+  flex: 1;
+}
+/* Focus is a border, so a focused button never looks taller than the other. */
 .confirmFoot .btn {
-  width: 92px;
-  padding: 0;
   white-space: nowrap;
 }
 .confirmFoot .btn:focus {

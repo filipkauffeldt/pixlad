@@ -807,20 +807,27 @@ fieldset:disabled .segItem {
   border-top: 1px solid var(--line);
 }
 
-/* Keyboard shortcuts: the About modal's frame, with a list of keys and what they do. */
+/* Keyboard shortcuts: two columns, what a key does on the left and the keys on the right. */
 .modal.shortcuts {
-  width: min(480px, 100%);
+  width: min(720px, 100%);
+}
+.shortcutColumns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 36px;
+}
+.shortcutColumns h3 {
+  margin: 4px 0 6px;
 }
 .shortcutList {
   margin: 0;
 }
 .shortcutRow {
-  display: grid;
-  grid-template-columns: 130px 1fr;
+  display: flex;
+  justify-content: space-between;
   align-items: baseline;
   gap: 12px;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 4px 0;
 }
 .shortcutRow dt,
 .shortcutRow dd {
@@ -829,15 +836,17 @@ fieldset:disabled .segItem {
 .shortcutRow dd {
   color: var(--muted);
 }
+.shortcutRow dt {
+  display: flex;
+  flex: none;
+  gap: 3px;
+}
 .shortcutRow kbd {
   padding: 1px 6px;
-  background: var(--raised);
   border: 1px solid var(--line-strong);
-  font-size: var(--fs-mono);
-}
-.shortcutRow .plus {
-  margin: 0 4px;
-  color: var(--dim);
+  color: var(--text);
+  font-size: 10.5px;
+  white-space: nowrap;
 }
 
 /* Replace original confirmation */

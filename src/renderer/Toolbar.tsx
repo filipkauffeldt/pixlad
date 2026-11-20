@@ -638,7 +638,13 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           title="Find every face in this photo and add it to the mosaic (F)"
           data-testid="find-faces"
         >
-          <Icon name="find" />
+          {app.detecting ? (
+            <span className="findSpin">
+              <span className="spinner" aria-hidden="true" />
+            </span>
+          ) : (
+            <Icon name="find" />
+          )}
           Find all
         </button>
       </div>

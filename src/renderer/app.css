@@ -138,6 +138,17 @@
 .findAll:disabled {
   color: var(--dim);
 }
+/* Looking for faces: a spinner in the icon's place, so the button keeps its width */
+.findSpin {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.findSpin .spinner {
+  width: 11px;
+  height: 11px;
+}
 /* Under the photo: the counts, Block and Padding. Block stays centred and the counts grow to the
    left, so a count that gets wider never moves the controls. */
 .editBar {

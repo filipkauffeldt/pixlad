@@ -313,7 +313,10 @@ describe('zoom and pan', () => {
       .locator('[data-testid="photo"]')
       .evaluate((el) => parseFloat((el as HTMLElement).style.left));
     expect(Number.isInteger(left * dpr)).toBe(true);
-    expect(await page.locator('[data-testid="footer"]').innerText()).toContain('100%');
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="zoom-toggle"]')?.firstChild?.textContent === '100%',
+    );
 
     // pan with the wheel and with Space + drag
     const x0 = (await box(page)).x;
@@ -353,45 +356,36 @@ describe('zoom and pan', () => {
   });
 });
 
-describe('the zoom readout in the footer', () => {
-  it('is a button that switches between Fit and 100% like Z, and names the shortcut', async () => {
+describe('the zoom chip', () => {
+  it('shows away from Fit, names the shortcut, and goes back to Fit like Z', async () => {
     const dir = await tmp();
     const file = await photoFile(dir, 'readout.jpg', 2400, 1600);
     running = await launch();
     const { page } = running;
-    expect(await page.locator('[data-testid="zoom-toggle"]').count()).toBe(0); // no photo yet
     await dropFiles(page, [file]);
     await photoReady(page);
     const stage = page.locator('[data-testid="stage"]');
-    const readout = page.locator('[data-testid="zoom-toggle"]');
-    expect(await readout.innerText()).toBe('Fit');
-    expect(await readout.getAttribute('title')).toContain('(Z)');
+    const chip = page.locator('[data-testid="zoom-toggle"]');
+    expect(await chip.count()).toBe(0); // Fit
 
-    await readout.click();
-    await page.waitForFunction(
-      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === '100%',
-    );
-    expect(await stage.getAttribute('data-fit')).toBe('false');
-    expect((await box(page)).w).toBe(2400); // the same 100% as the Z key gives
+    await page.mouse.move(700, 400);
+    await page.keyboard.press('z');
+    await chip.waitFor();
+    expect(await chip.evaluate((el) => el.firstChild?.textContent)).toBe('100%');
+    expect(await chip.getAttribute('title')).toContain('(Z)');
 
-    await readout.click();
-    await page.waitForFunction(
-      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === 'Fit',
-    );
+    await chip.click();
+    await chip.waitFor({ state: 'detached' });
     expect(await stage.getAttribute('data-fit')).toBe('true');
 
-    // Zoomed to something else, it goes back to Fit, as Z does.
-    await page.mouse.move(700, 400);
+    // Zoomed to something else, it goes back to Fit too.
     await page.keyboard.down('Control');
     await page.mouse.wheel(0, -200);
     await page.keyboard.up('Control');
-    await page.waitForFunction(
-      () => document.querySelector('[data-testid="stage"]')?.getAttribute('data-fit') === 'false',
-    );
-    await readout.click();
-    await page.waitForFunction(
-      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === 'Fit',
-    );
+    await chip.waitFor();
+    expect(await stage.getAttribute('data-fit')).toBe('false');
+    await chip.click();
+    await chip.waitFor({ state: 'detached' });
     expect(await stage.getAttribute('data-fit')).toBe('true');
   });
 });

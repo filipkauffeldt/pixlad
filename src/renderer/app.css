@@ -155,7 +155,7 @@
 }
 .editBar > :first-child {
   justify-self: end;
-  padding-right: 22px;
+  padding: 0 22px 0 10px;
 }
 .editBar > .control {
   padding: 0 22px;
@@ -163,6 +163,7 @@
 }
 .editBar > :last-child {
   justify-self: start;
+  padding-right: 10px;
 }
 .control {
   display: flex;
@@ -913,6 +914,29 @@ input[type='range']::-webkit-slider-thumb {
   color: var(--text);
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* Away from Fit, the zoom over the photo's corner; a click goes back to Fit, as Z does. */
+.zoomChip {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 9px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+}
+.zoomChip::after {
+  content: 'Z · Fit';
+  color: var(--dim);
+}
+.zoomChip:hover::after {
+  color: var(--muted);
 }
 
 /* Empty state and drop overlay */

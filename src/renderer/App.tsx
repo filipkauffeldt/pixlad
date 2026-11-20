@@ -193,6 +193,17 @@ export function App() {
           <>
             <Stage key={`${photo.info.id}-${photo.fileVersion}`} photo={photo} onZoom={onZoom} />
             <EditBar photo={photo} />
+            {zoom !== undefined && (
+              <button
+                type="button"
+                className="zoomChip mono"
+                title="Back to Fit (Z)"
+                onClick={() => document.dispatchEvent(new Event('pixlad:toggle-zoom'))}
+                data-testid="zoom-toggle"
+              >
+                {`${Math.round(zoom)}%`}
+              </button>
+            )}
           </>
         ) : (
           <div className="empty" data-testid="empty">
@@ -220,17 +231,6 @@ export function App() {
             </>
           )}
         </span>
-        {photo && (
-          <button
-            type="button"
-            className="footerButton"
-            title="Switch between Fit and 100% (Z)"
-            onClick={() => document.dispatchEvent(new Event('pixlad:toggle-zoom'))}
-            data-testid="zoom-toggle"
-          >
-            {zoom === undefined ? 'Fit' : `${Math.round(zoom)}%`}
-          </button>
-        )}
         <span>
           {app.photos.length > 0 && photo
             ? `${app.photos.indexOf(photo) + 1} / ${app.photos.length}`

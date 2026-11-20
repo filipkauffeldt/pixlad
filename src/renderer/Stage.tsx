@@ -259,7 +259,7 @@ export function Stage({
       actions.removeArea(over);
     };
     window.addEventListener('keydown', onDeleteKey, true);
-    // The zoom button in the footer does what the Z key does.
+    // The zoom chip over the photo does what the Z key does.
     document.addEventListener('pixlad:toggle-zoom', toggleZoom);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);

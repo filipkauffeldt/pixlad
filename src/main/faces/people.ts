@@ -441,6 +441,32 @@ async function yunetPyramid(
 }
 
 /**
+ * Drop detections far bigger than the crowd's (a drum skin, a face "seen" in flare smoke): over 5x
+ * the median area, unless the other kind of detection (a head for a face, a face for a head) found
+ * something of a matching size there. Only with enough detections for the median to mean
+ * something.
+ */
+function notOversized(people: Person[], witnesses: readonly Person[]): Person[] {
+  if (people.length < 8) return people;
+  const median = people.map((p) => area(p.box)).sort((a, b) => a - b)[people.length >> 1]!;
+  return people.filter((d) => {
+    if (area(d.box) <= 5 * median) return true;
+    return witnesses.some((o) => {
+      if (o.kind === d.kind) return false;
+      const shared = overlap(d.box, o.box);
+      const ratio = area(d.box) / area(o.box);
+      return (
+        shared > 0 &&
+        ratio <= 4 &&
+        ratio >= 0.25 &&
+        shared >= 0.15 * Math.max(area(d.box), area(o.box)) &&
+        shared >= 0.5 * Math.min(area(d.box), area(o.box))
+      );
+    });
+  });
+}
+
+/**
  * Drop detections that are really a hand (a raised fist): mostly inside a detected hand box. A face
  * with a hand over the mouth stays, since most of its box is outside the hand. So does a face
  * DEIMv2 also calls a face (it sometimes calls a face behind a fist a hand too), and a face YuNet is
@@ -567,5 +593,6 @@ export async function findPeople(img: Img, region: Rect, modelsDir: string): Pro
       !faces.some((f) => overlap(f.box, h.box) > CLIP * area(f.box)),
   );
   const hands = [...found.hands, ...more.hands];
-  return onePerPerson(notHands([...faces, ...lone], hands, deimFaces));
+  const kept = notOversized([...faces, ...lone], [...heads, ...faces]);
+  return onePerPerson(notHands(kept, hands, deimFaces));
 }

@@ -39,6 +39,17 @@ function withMargin(region: Rect, width: number, height: number): Rect {
   return { type: 'rect', x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
+/** The faces whose centre lies in `region`: a face mostly outside the selection stays out. */
+function centredIn(faces: FaceDetection[], region: Rect): FaceDetection[] {
+  return faces.filter((f) => {
+    const cx = f.box.x + f.box.w / 2;
+    const cy = f.box.y + f.box.h / 2;
+    return (
+      cx >= region.x && cx <= region.x + region.w && cy >= region.y && cy <= region.y + region.h
+    );
+  });
+}
+
 /** The only decoded photo: upright RGBA plus the profile its preview patches carry. */
 let current:
   { width: number; height: number; rgba: Uint8Array; icc: Buffer | undefined } | undefined;
@@ -75,7 +86,7 @@ async function handle(request: WorkerRequest): Promise<unknown> {
         withMargin(request.region, current.width, current.height),
         { modelPath },
       );
-      return found;
+      return centredIn(found, request.region);
     }
     case 'thumb': {
       const decoded = decodeCoefficients(await readFile(request.path), { dcOnly: true });

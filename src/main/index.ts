@@ -262,6 +262,7 @@ function registerIpc(): void {
     wantedId = id;
     return onPhoto(id, () => photoWorker.run({ type: 'detect', region, options }));
   });
+  ipcMain.handle('faces:warm', () => photoWorker.run({ type: 'warm' }));
   ipcMain.handle('photo:trace', async (_e, id: string, faces: TraceFace[]) => {
     wantedId = id;
     return onPhoto(id, () => photoWorker.run({ type: 'trace', faces }));

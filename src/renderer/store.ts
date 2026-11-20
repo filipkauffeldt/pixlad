@@ -374,9 +374,16 @@ export const actions = {
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
   setShortcutsOpen: (shortcutsOpen: boolean): void => set({ shortcutsOpen }),
   setTarget: (target: Target): void => set({ target }),
+  /** Load the Outlines models ahead of use; nothing happens when they are loaded already. */
+  warmFaces(): void {
+    void window.api.warmFaces().catch(() => undefined);
+  },
+
   /** How faces are covered; the faces already found on the current photo change with it. */
   setFaceShape(shape: FaceShape): void {
     set({ faceShape: shape });
+    // Load the models now, while an area is picked, so the first Outlines run doesn't wait.
+    if (shape === 'outline') actions.warmFaces();
     const id = state.currentId;
     if (!id) return;
     // Outlines are traced when faces are found: faces without one keep their shape.

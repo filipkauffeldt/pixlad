@@ -128,6 +128,8 @@ export interface Api {
   detect(id: string, region: Rect, options?: DetectOptions): Promise<FaceDetection[]>;
   /** Outlines for faces already found: an outline, null to drop the face, undefined to keep it. */
   trace(id: string, faces: TraceFace[]): Promise<(Point[] | null | undefined)[]>;
+  /** Load the Outlines models ahead of use. */
+  warmFaces(): Promise<void>;
   exportPhoto(id: string, op: MosaicOp): Promise<ExportOutcome>;
   settings(): Promise<Settings>;
   /** Also records that the user has chosen, so the first-export choice does not show again. */

@@ -63,6 +63,14 @@ export async function withOutlineModels<T>(job: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Load the outline models ahead of use, so the first Outlines detection doesn't wait for them. */
+export const warmOutlineModels = (modelsDir: string): Promise<void> =>
+  withOutlineModels(async () => {
+    await Promise.all(
+      (Object.keys(OUTLINE_MODELS) as OutlineModel[]).map((m) => outlineModel(modelsDir, m)),
+    );
+  });
+
 function releaseOutlineModels(): void {
   if (busy > 0) return;
   const loaded = [...sessions.values()];

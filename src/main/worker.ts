@@ -16,7 +16,7 @@ import type {
 } from '../shared/types';
 import { exportEdit, ExportFailure, type ExportRequest } from './export-photo';
 import { detectFaces } from './faces/detect';
-import { withOutlineModels } from './faces/models';
+import { warmOutlineModels, withOutlineModels } from './faces/models';
 import { traceOutlines } from './faces/outlines';
 import { findPeople, type Person } from './faces/people';
 import { decodeCoefficients } from './jpeg/decode';
@@ -29,6 +29,7 @@ export type WorkerRequest =
   | { id: number; type: 'preview'; op: MosaicOp }
   | { id: number; type: 'detect'; region: Rect; options?: DetectOptions | undefined }
   | { id: number; type: 'trace'; faces: TraceFace[] }
+  | { id: number; type: 'warm' }
   | { id: number; type: 'thumb'; path: string }
   | { id: number; type: 'export'; request: ExportRequest };
 
@@ -152,6 +153,8 @@ async function handle(request: WorkerRequest): Promise<unknown> {
         : await detectFaces(photo.rgba, photo.width, photo.height, wider, { modelPath });
       return centredIn(found, request.region);
     }
+    case 'warm':
+      return warmOutlineModels(dirname(modelPath));
     case 'trace': {
       if (!current) throw new Error('no photo is open');
       return traceFaces(current, request.faces);

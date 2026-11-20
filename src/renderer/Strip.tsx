@@ -162,6 +162,11 @@ export function Strip() {
           })}
         </div>
       </div>
+      {app.adding && (
+        <span className="thumbPlaceholder" title="Adding photos…" data-testid="adding">
+          <span className="spinner" aria-hidden="true" />
+        </span>
+      )}
       <button
         type="button"
         className="addPhotos"

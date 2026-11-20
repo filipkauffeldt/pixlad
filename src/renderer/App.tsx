@@ -207,24 +207,31 @@ export function App() {
           </>
         ) : (
           <div className="empty" data-testid="empty">
-            <h1>Drop JPEG photos here</h1>
-            <p>One or several, or whole folders. Nothing is saved between sessions.</p>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => void actions.openDialog()}
-              data-testid="open"
-            >
-              Open…
-            </button>
-            {app.adding && <p>Adding…</p>}
+            {app.adding ? (
+              <>
+                <span className="spinner large" aria-hidden="true" />
+                <p data-testid="adding">Adding photos…</p>
+              </>
+            ) : (
+              <>
+                <h1>Drop JPEG photos here</h1>
+                <p>One or several, or whole folders. Nothing is saved between sessions.</p>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void actions.openDialog()}
+                  data-testid="open"
+                >
+                  Open…
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
       {app.photos.length > 0 && <Strip />}
       <div className="footer mono" data-testid="footer">
         <span className="status">
-          {app.adding && <span>Adding photos…</span>}
           {photo && (
             <>
               <span>{`${photo.info.width}×${photo.info.height}`}</span>

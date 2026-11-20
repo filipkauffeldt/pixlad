@@ -993,6 +993,17 @@ input[type='range']::-webkit-slider-thumb {
   overflow-x: auto;
   overflow-y: hidden;
 }
+/* While photos are being added: where the next ones will appear */
+.thumbPlaceholder {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 50px;
+  margin-top: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
 .addPhotos {
   flex: none;
   display: grid;
@@ -1217,12 +1228,18 @@ input[type='range']::-webkit-slider-thumb {
 
 /* A small turning ring for work without a known length. */
 .spinner {
+  display: block;
   width: 9px;
   height: 9px;
   border: 1.5px solid var(--line-strong);
   border-top-color: var(--text);
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
+}
+.spinner.large {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
 }
 @keyframes spin {
   to {

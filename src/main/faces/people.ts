@@ -51,7 +51,27 @@ const LONE_HEAD_SCORE = 0.5;
 /** A head covering this much of someone's face is that person's neighbour's box, not a person. */
 const CLIP = 0.5;
 
+/** The lowest YuNet score that counts, for a face inside a head. */
+const WEAK_FACE = 0.4;
+
 const area = (b: Box): number => b.w * b.h;
+
+/**
+ * Whether `face` sits where a face would in `head`: the middle half across, the 20-70% band down.
+ * A weak box lower down is a chin and a scarf.
+ */
+function holdsFace(head: Person, face: Person): boolean {
+  const h = head.box;
+  const cx = face.box.x + face.box.w / 2;
+  const cy = face.box.y + face.box.h / 2;
+  return (
+    head.score >= 0.4 &&
+    Math.abs(cx - (h.x + h.w / 2)) <= h.w * 0.25 &&
+    cy >= h.y + h.h * 0.2 &&
+    cy <= h.y + h.h * 0.7 &&
+    area(h) <= 6 * area(face.box)
+  );
+}
 
 export function overlap(a: Box, b: Box): number {
   const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
@@ -242,10 +262,12 @@ async function yunet(
   region: Rect,
   modelsDir: string,
   maxEdge = Infinity,
+  scoreThreshold = 0.6,
 ): Promise<Person[]> {
   const src = shrink(img, maxEdge);
   const found = await detectFaces(src.rgba, src.width, src.height, region, {
     modelPath: join(modelsDir, YUNET),
+    scoreThreshold,
   });
   return found.map((f) => ({
     box: {
@@ -267,12 +289,17 @@ async function yunet(
  * 640 px: on a 24 MP photo a face of 150-600 px is cut by the tile edges and only ~15 px in the
  * whole-photo pass. Copies at 2560 and 1280 px see those faces whole.
  */
-async function yunetPyramid(img: Img, region: Rect, modelsDir: string): Promise<Person[]> {
+async function yunetPyramid(
+  img: Img,
+  region: Rect,
+  modelsDir: string,
+  scoreThreshold: number,
+): Promise<Person[]> {
   const longest = Math.max(img.width, img.height);
   const levels = [Infinity, 2560, 1280].filter((edge) => edge === Infinity || edge < longest / 1.5);
   const all: Person[] = [];
   for (const edge of levels) {
-    const found = await yunet(img, region, modelsDir, edge);
+    const found = await yunet(img, region, modelsDir, edge, scoreThreshold);
     // The shrunk copies are there for big faces the tiles cut apart; small finds there are mostly
     // noise (a hand, a dark patch), and the full-resolution tiles see small faces anyway.
     const scale = edge === Infinity ? 1 : edge / longest;
@@ -313,8 +340,11 @@ export async function findPeople(img: Img, region: Rect, modelsDir: string): Pro
     ),
   ];
   // Faces anchor people: their boxes are tight, where head boxes in a crowd are loose and overlap
-  // the neighbours.
-  const faces = await yunetPyramid(img, region, modelsDir);
+  // the neighbours. YuNet goes down to 0.4, since a partly hidden face (behind a hand, a flag edge,
+  // another head) scores low, but a weak face counts only where a head sits around it.
+  const faces = (await yunetPyramid(img, region, modelsDir, WEAK_FACE)).filter(
+    (f) => f.score >= 0.6 || heads.some((h) => holdsFace(h, f)),
+  );
   // Heads add the people with no visible face. A head with a face inside is that person (already
   // in) or a loose box over several; either way it goes.
   const lone = heads.filter(

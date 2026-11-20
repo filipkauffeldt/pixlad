@@ -289,6 +289,10 @@
 .dropdown .icon {
   color: var(--muted);
 }
+.dropdown[aria-disabled='true'],
+.dropdown[aria-disabled='true'] .icon {
+  color: var(--dim);
+}
 /* Every label sits in one grid cell and only the current one shows, so the button keeps the
    width of the longest and the toolbar does not shift when the target changes. */
 .dropdownLabel {

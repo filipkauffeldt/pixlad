@@ -111,17 +111,22 @@ function ShapeMenu() {
   const app = useApp();
   const { open, setOpen, root } = useMenu();
   const current = SHAPES.find((s) => s.shape === app.faceShape)!;
+  // A drawn area has no face shape. The button stays where it is, greyed, so nothing moves.
+  const off = app.target === 'area';
   return (
     <div className="targetMenu" ref={root}>
       <button
         type="button"
         className="dropdown"
         aria-haspopup="menu"
-        aria-expanded={open}
-        title={`Face shape: ${current.label}`}
+        aria-expanded={open && !off}
+        aria-disabled={off || undefined}
+        title={off ? 'Face shape only applies to Faces' : `Face shape: ${current.label}`}
         aria-label={`Face shape: ${current.label}`}
         data-testid="face-shape"
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (!off) setOpen(!open);
+        }}
       >
         <ShapeIcon>{current.icon}</ShapeIcon>
         <span className="dropdownLabel">
@@ -133,7 +138,7 @@ function ShapeMenu() {
         </span>
         <Icon name="chevron" size={14} />
       </button>
-      {open && (
+      {open && !off && (
         <div className="menu" role="menu">
           {SHAPES.map(({ shape, label, hint, icon }) => (
             <button

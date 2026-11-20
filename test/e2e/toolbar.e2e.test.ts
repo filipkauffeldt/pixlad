@@ -335,6 +335,24 @@ describe('tooltips', () => {
   });
 });
 
+describe('the face shape button', () => {
+  it('greys out in place while Area is picked, and opens again for Faces', async () => {
+    const page = await openPhoto();
+    const shape = page.locator('[data-testid="face-shape"]');
+    const before = (await shape.boundingBox())!;
+    await page.click('[data-target="area"]');
+    expect(await shape.getAttribute('aria-disabled')).toBe('true');
+    expect(await shape.getAttribute('title')).toBe('Face shape only applies to Faces');
+    await shape.click({ force: true });
+    expect(await page.locator('[data-shape]').count()).toBe(0);
+
+    await page.click('[data-target="faces"]');
+    expect((await shape.boundingBox())!).toEqual(before);
+    await shape.click();
+    expect(await page.locator('[data-shape]').count()).toBe(3);
+  });
+});
+
 describe('the area counts', () => {
   it('are under the photo, and the toolbar stays the same height', async () => {
     const page = await openPhoto();

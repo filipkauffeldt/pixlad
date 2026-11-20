@@ -978,3 +978,29 @@ input[type='range']::-webkit-slider-thumb {
   height: 4px;
   accent-color: var(--text);
 }
+
+/* "Tracing outlines" in the status bar while face outlines come in. */
+.tracing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+.spinner {
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--line-strong);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 3s;
+  }
+}

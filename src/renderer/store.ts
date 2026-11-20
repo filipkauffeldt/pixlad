@@ -87,6 +87,8 @@ export interface AppState {
   target: Target;
   /** How found faces are covered. */
   faceShape: FaceShape;
+  /** Outlines being traced after a detection, for the status bar. */
+  tracing: { photoId: string; done: number; total: number } | undefined;
   outline: Outline;
   mode: RetouchMode;
   detecting: boolean;
@@ -132,6 +134,7 @@ const initial: AppState = {
   currentId: undefined,
   target: 'faces',
   faceShape: 'rectangle',
+  tracing: undefined,
   outline: 'rect',
   mode: 'add',
   detecting: false,
@@ -327,6 +330,7 @@ const TRACE_BATCH = 8;
  * Undo step. A face the tracing drops (a balaclava with nothing showing, a tattoo) is taken out.
  */
 async function traceOutlines(id: string, faces: readonly FaceData[]): Promise<void> {
+  set({ tracing: { photoId: id, done: 0, total: faces.length } });
   try {
     for (let start = 0; start < faces.length; start += TRACE_BATCH) {
       const batch = faces.slice(start, start + TRACE_BATCH);
@@ -352,6 +356,7 @@ async function traceOutlines(id: string, faces: readonly FaceData[]): Promise<vo
         }),
         rev: p.rev + 1,
       }));
+      set({ tracing: { photoId: id, done: start + batch.length, total: faces.length } });
     }
   } catch (cause) {
     document.dispatchEvent(
@@ -359,6 +364,8 @@ async function traceOutlines(id: string, faces: readonly FaceData[]): Promise<vo
         detail: cause instanceof Error ? cause.message : String(cause),
       }),
     );
+  } finally {
+    set({ tracing: undefined });
   }
 }
 

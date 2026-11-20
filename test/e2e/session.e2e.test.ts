@@ -268,12 +268,12 @@ describe('the strip', () => {
   it('scrolls sideways with a plain vertical wheel, and horizontal still works', async () => {
     const dir = await tmp();
     const files: string[] = [];
-    for (let i = 0; i < 20; i++) files.push(await photoFile(dir, `w${i}.jpg`, 400, 300));
+    for (let i = 0; i < 40; i++) files.push(await photoFile(dir, `w${i}.jpg`, 400, 300));
     running = await launch();
     const { page } = running;
     await dropFiles(page, files);
     await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 20'),
+      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 40'),
     );
     const strip = page.locator('[data-testid="strip"]');
     const scrollLeft = (): Promise<number> => strip.evaluate((el) => el.scrollLeft);

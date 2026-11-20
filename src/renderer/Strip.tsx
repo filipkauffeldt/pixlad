@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { actions, hasMosaic, useApp, type PhotoState } from './store';
 
-const ITEM = 104;
+/** A thumbnail and the gap after it. */
+const THUMB = 76;
+const ITEM = THUMB + 8;
+/** Room at the ends, so the current photo's frame is never cut off. */
+const EDGE = 8;
 
 function Badges({ photo }: { photo: PhotoState }) {
   const mosaic = hasMosaic(photo);
@@ -121,27 +125,31 @@ export function Strip() {
     return () => element.removeEventListener('wheel', onWheel);
   }, []);
 
+  // A few photos sit centred under the photo; more than fit start at the left edge and scroll.
+  const content = app.photos.length * ITEM - 8;
+  const start = Math.max(EDGE, (range.width - content) / 2);
+
   // Keep the current photo in view when stepping with the arrow keys.
   useEffect(() => {
     const element = scroller.current;
     const index = app.photos.findIndex((p) => p.info.id === app.currentId);
     if (!element || index < 0) return;
-    const left = 8 + index * ITEM;
-    if (left < element.scrollLeft + 8) element.scrollLeft = Math.max(0, left - 8);
-    else if (left + ITEM > element.scrollLeft + element.clientWidth) {
-      element.scrollLeft = left + ITEM - element.clientWidth + 8;
+    const left = start + index * ITEM;
+    if (left < element.scrollLeft + EDGE) element.scrollLeft = Math.max(0, left - EDGE);
+    else if (left + THUMB > element.scrollLeft + element.clientWidth - EDGE) {
+      element.scrollLeft = left + THUMB - element.clientWidth + EDGE;
     }
-  }, [app.currentId, app.photos]);
+  }, [app.currentId, app.photos, start]);
 
-  const first = Math.max(0, Math.floor((range.left - 8) / ITEM) - 2);
+  const first = Math.max(0, Math.floor((range.left - start) / ITEM) - 2);
   const last = Math.min(app.photos.length, Math.ceil((range.left + range.width) / ITEM) + 2);
   return (
     <div className="strip" ref={scroller} data-testid="strip">
-      <div className="stripInner" style={{ width: 16 + app.photos.length * ITEM }}>
+      <div className="stripInner" style={{ width: start * 2 + content }}>
         {app.photos.slice(first, last).map((photo, i) => {
           const index = first + i;
           return (
-            <div key={photo.info.id} className="thumbSlot" style={{ left: 8 + index * ITEM }}>
+            <div key={photo.info.id} className="thumbSlot" style={{ left: start + index * ITEM }}>
               <button
                 type="button"
                 className="thumb"

@@ -236,7 +236,7 @@ export function App() {
       {app.overwriteConfirm && <OverwriteConfirm anchor={app.overwriteConfirm.anchor} />}
       {app.notesOpen && app.update.phase !== 'idle' && <ReleaseNotes />}
       {app.removeQuestion && <RemoveExported question={app.removeQuestion} />}
-      {app.dragging && <div className="dropOverlay">Drop JPEG photos to add them</div>}
+      {app.dragging && <div className="dropOverlay">Drop to add photos</div>}
     </div>
   );
 }

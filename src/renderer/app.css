@@ -1029,7 +1029,8 @@ input[type='range']::-webkit-slider-thumb {
   justify-content: center;
   background: var(--backdrop-strong);
   border: 2px solid var(--text);
-  font-size: 15px;
+  font-size: 17px;
+  font-weight: 500;
   pointer-events: none;
 }
 

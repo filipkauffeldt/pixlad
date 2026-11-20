@@ -30,7 +30,7 @@ export interface Person {
   /** A head box holds hair and ears; a face box does not. */
   kind: 'face' | 'head';
   /** Which pass found it. */
-  from: 'yunet' | 'deimv2';
+  from: 'yunet' | 'dehazed' | 'deimv2';
   /** A detector saw a face here. */
   confirmed?: boolean;
 }
@@ -50,6 +50,9 @@ const N = 640;
 const LONE_HEAD_SCORE = 0.5;
 /** A head covering this much of someone's face is that person's neighbour's box, not a person. */
 const CLIP = 0.5;
+
+/** A face the dehazed pass finds counts only where the photo's spread of brightness is below this. */
+const HAZE_CONTRAST = 30;
 
 /** The lowest YuNet score that counts, for a face inside a head. */
 const WEAK_FACE = 0.4;
@@ -285,6 +288,135 @@ async function yunet(
 }
 
 /**
+ * Haze removal for flare smoke: each colour channel is stretched to its local (96 px) mean and
+ * spread, interpolated between tiles, which takes the coloured haze out and gives faces behind it
+ * their contrast back.
+ */
+function dehaze(img: Img, tile = 96, spread = 2.2): Img {
+  const { width: W, height: H, rgba } = img;
+  const tx = Math.ceil(W / tile);
+  const ty = Math.ceil(H / tile);
+  const mean = new Float32Array(tx * ty * 3);
+  const sd = new Float32Array(tx * ty * 3);
+  const sum = new Float64Array(tx * ty * 3);
+  const sq = new Float64Array(tx * ty * 3);
+  const n = new Float64Array(tx * ty);
+  for (let y = 0; y < H; y += 2) {
+    const row = Math.floor(y / tile) * tx;
+    for (let x = 0; x < W; x += 2) {
+      const i = (y * W + x) * 4;
+      const t = row + Math.floor(x / tile);
+      for (let k = 0; k < 3; k++) {
+        const v = rgba[i + k]!;
+        sum[t * 3 + k] = sum[t * 3 + k]! + v;
+        sq[t * 3 + k] = sq[t * 3 + k]! + v * v;
+      }
+      n[t] = n[t]! + 1;
+    }
+  }
+  for (let t = 0; t < tx * ty; t++) {
+    for (let k = 0; k < 3; k++) {
+      const m = sum[t * 3 + k]! / n[t]!;
+      mean[t * 3 + k] = m;
+      sd[t * 3 + k] = Math.max(6, Math.sqrt(Math.max(0, sq[t * 3 + k]! / n[t]! - m * m)));
+    }
+  }
+  const lerp = (
+    arr: Float32Array,
+    corners: number[],
+    wx: number,
+    wy: number,
+    k: number,
+  ): number => {
+    const [a, b, c, d] = corners as [number, number, number, number];
+    return (
+      (arr[a * 3 + k]! * (1 - wx) + arr[b * 3 + k]! * wx) * (1 - wy) +
+      (arr[c * 3 + k]! * (1 - wx) + arr[d * 3 + k]! * wx) * wy
+    );
+  };
+  const out = new Uint8Array(rgba.length);
+  for (let y = 0; y < H; y++) {
+    const fy = Math.min(ty - 1, Math.max(0, (y + 0.5) / tile - 0.5));
+    const y0 = Math.floor(fy);
+    const y1 = Math.min(ty - 1, y0 + 1);
+    const wy = fy - y0;
+    for (let x = 0; x < W; x++) {
+      const fx = Math.min(tx - 1, Math.max(0, (x + 0.5) / tile - 0.5));
+      const x0 = Math.floor(fx);
+      const x1 = Math.min(tx - 1, x0 + 1);
+      const wx = fx - x0;
+      const corners = [y0 * tx + x0, y0 * tx + x1, y1 * tx + x0, y1 * tx + x1];
+      const i = (y * W + x) * 4;
+      for (let k = 0; k < 3; k++) {
+        const m = lerp(mean, corners, wx, wy, k);
+        const s = lerp(sd, corners, wx, wy, k);
+        out[i + k] = Math.max(0, Math.min(255, 128 + ((rgba[i + k]! - m) * 128) / (spread * s)));
+      }
+      out[i + 3] = 255;
+    }
+  }
+  return { rgba: out, width: W, height: H };
+}
+
+/** A copy of `box` plus a margin, with the offset to map its coordinates back. */
+function cropImg(img: Img, box: Box, margin: number): { img: Img; x: number; y: number } {
+  const x0 = Math.max(0, Math.floor(box.x - margin));
+  const y0 = Math.max(0, Math.floor(box.y - margin));
+  const x1 = Math.min(img.width, Math.ceil(box.x + box.w + margin));
+  const y1 = Math.min(img.height, Math.ceil(box.y + box.h + margin));
+  const w = x1 - x0;
+  const h = y1 - y0;
+  if (x0 === 0 && y0 === 0 && w === img.width && h === img.height) return { img, x: 0, y: 0 };
+  const out = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    const start = ((y0 + y) * img.width + x0) * 4;
+    out.set(img.rgba.subarray(start, start + w * 4), y * w * 4);
+  }
+  return { img: { rgba: out, width: w, height: h }, x: x0, y: y0 };
+}
+
+/** Spread (standard deviation) of brightness inside a box. */
+function contrast(img: Img, b: Box): number {
+  const x0 = Math.max(0, Math.floor(b.x));
+  const y0 = Math.max(0, Math.floor(b.y));
+  const x1 = Math.min(img.width, Math.ceil(b.x + b.w));
+  const y1 = Math.min(img.height, Math.ceil(b.y + b.h));
+  let sum = 0;
+  let sq = 0;
+  let n = 0;
+  for (let y = y0; y < y1; y += 2) {
+    for (let x = x0; x < x1; x += 2) {
+      const i = (y * img.width + x) * 4;
+      const l = 0.299 * img.rgba[i]! + 0.587 * img.rgba[i + 1]! + 0.114 * img.rgba[i + 2]!;
+      sum += l;
+      sq += l * l;
+      n++;
+    }
+  }
+  if (n === 0) return 0;
+  const m = sum / n;
+  return Math.sqrt(Math.max(0, sq / n - m * m));
+}
+
+/**
+ * YuNet over a dehazed copy of `box`, at full resolution only (the faces smoke hides are small).
+ * Only finds where the original is washed out count: in clear light the plain pass sees everything,
+ * and what the dehazed copy adds there is a hand, a tattoo or a printed face.
+ */
+async function hazyFaces(img: Img, box: Box, modelsDir: string): Promise<Person[]> {
+  const part = cropImg(img, box, 128);
+  const found = await yunet(dehaze(part.img), { type: 'rect', x: 0, y: 0, w: 1, h: 1 }, modelsDir);
+  return found
+    .map((f) => ({
+      ...f,
+      from: 'dehazed' as const,
+      box: { ...f.box, x: f.box.x + part.x, y: f.box.y + part.y },
+      landmarks: f.landmarks.map((p) => ({ x: p.x + part.x, y: p.y + part.y })),
+    }))
+    .filter((f) => centreIn(f.box, box) && contrast(img, f.box) < HAZE_CONTRAST);
+}
+
+/**
  * YuNet over a pyramid. Find all faces looks at full-resolution 640 px tiles and the whole photo at
  * 640 px: on a 24 MP photo a face of 150-600 px is cut by the tile edges and only ~15 px in the
  * whole-photo pass. Copies at 2560 and 1280 px see those faces whole.
@@ -342,9 +474,14 @@ export async function findPeople(img: Img, region: Rect, modelsDir: string): Pro
   // Faces anchor people: their boxes are tight, where head boxes in a crowd are loose and overlap
   // the neighbours. YuNet goes down to 0.4, since a partly hidden face (behind a hand, a flag edge,
   // another head) scores low, but a weak face counts only where a head sits around it.
-  const faces = (await yunetPyramid(img, region, modelsDir, WEAK_FACE)).filter(
+  const plain = (await yunetPyramid(img, region, modelsDir, WEAK_FACE)).filter(
     (f) => f.score >= 0.6 || heads.some((h) => holdsFace(h, f)),
   );
+  // Flare smoke washes faces out; a pass over a dehazed copy finds them again.
+  const hazy = (await hazyFaces(img, px, modelsDir)).filter(
+    (f) => !plain.some((p) => overlap(p.box, f.box) > 0.3 * Math.min(area(p.box), area(f.box))),
+  );
+  const faces = [...plain, ...hazy];
   // Heads add the people with no visible face. A head with a face inside is that person (already
   // in) or a loose box over several; either way it goes.
   const lone = heads.filter(

@@ -135,7 +135,7 @@
   color: var(--muted);
 }
 .control input[type='range'] {
-  width: 40px;
+  width: 76px;
 }
 .spacer {
   flex: 1;
@@ -294,7 +294,7 @@
 }
 
 .numberField {
-  width: 52px;
+  width: 40px;
   height: 22px;
   background: transparent;
   border: 0;

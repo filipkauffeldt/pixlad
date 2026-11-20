@@ -546,7 +546,7 @@ export function Stage({
                   ? 'areaSubtract'
                   : 'areaOn';
               return (
-                <g key={i}>
+                <g key={i} className={area.kind === 'face' ? 'face' : undefined}>
                   <path
                     d={d}
                     className={`halo ${haloFor[state]}${i === hovered ? ' haloHover' : ''}`}

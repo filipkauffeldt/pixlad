@@ -13,6 +13,8 @@ const SEG = 256;
 // Selfie multiclass labels: 0 background, 1 hair, 2 body skin, 3 face skin, 4 clothes, 5 other.
 const HAIR = 1;
 const FACE_SKIN = 3;
+const CLOTHES = 4;
+const OTHER = 5;
 
 /** Faces under this size keep the oval: a traced outline there is mostly guesswork. */
 const MIN_TRACE_PX = 100;
@@ -163,7 +165,8 @@ function outlineFromLabels(
     for (let p = 0; p < SEG * SEG; p++) {
       const dx = ((p % SEG) - SEG / 2) / crx;
       const dy = (Math.floor(p / SEG) - ccy) / cry;
-      if (dx * dx + dy * dy <= 1) mask[p] = 1;
+      // Not over clothes or a held object (a scarf held up in front of the face).
+      if (dx * dx + dy * dy <= 1 && labels[p] !== CLOTHES && labels[p] !== OTHER) mask[p] = 1;
     }
   }
   const component = componentNearCentre(mask);
@@ -173,6 +176,22 @@ function outlineFromLabels(
   // A head nothing confirmed as a face, showing only a little skin (light or smoke hides the rest,
   // the face is turned away): the trace can't be trusted, so cover the head with an oval.
   if (head && !item.confirmed && area < 0.35 * faceW * faceH) {
+    // The head's oval, less clothes (a scarf held up, a collar): those stay sharp. If that leaves
+    // little (a hood or a cap the segmenter calls clothes), the whole oval.
+    const oval = new Uint8Array(SEG * SEG);
+    let ovalArea = 0;
+    for (let p = 0; p < SEG * SEG; p++) {
+      const dx = ((p % SEG) - SEG / 2) / (faceW * 0.55);
+      const dy = (Math.floor(p / SEG) - SEG / 2) / (faceH * 0.55);
+      if (dx * dx + dy * dy <= 1 && labels[p] !== CLOTHES) {
+        oval[p] = 1;
+        ovalArea++;
+      }
+    }
+    const full = Math.PI * faceW * 0.55 * faceH * 0.55;
+    const kept = ovalArea >= 0.4 * full ? componentNearCentre(oval) : undefined;
+    const ring = kept ? radialOutline(kept) : [];
+    if (ring.length >= 3) return ring.map((q) => toPhoto(crop, q.x, q.y));
     return Array.from({ length: 40 }, (_, k) => {
       const t = (2 * Math.PI * k) / 40;
       return toPhoto(

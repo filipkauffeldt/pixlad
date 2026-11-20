@@ -29,22 +29,6 @@ const OUTLINES: Array<{ outline: Outline; label: string; title: string }> = [
 ];
 const FLIP_KEY = isMac ? '⌘' : 'Ctrl';
 
-/** The arrow on Undo, turned around for Redo. It takes the colour of its button's text. */
-function CurvedArrow({ mirrored = false }: { mirrored?: boolean }) {
-  return (
-    <svg
-      className={mirrored ? 'curvedArrow mirrored' : 'curvedArrow'}
-      viewBox="0 0 16 16"
-      width="14"
-      height="14"
-      aria-hidden="true"
-    >
-      <path d="M5 3 2 6l3 3M2 6h7.5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
-  );
-}
-
-/** Picks what a drag acts on. */
 /** A menu's open state; a click outside it or Escape closes it. */
 function useMenu() {
   const [open, setOpen] = useState(false);
@@ -67,53 +51,23 @@ function useMenu() {
   return { open, setOpen, root };
 }
 
-function TargetMenu() {
+/** Picks what a drag acts on: faces, or a drawn area. */
+function TargetToggle() {
   const app = useApp();
-  const { open, setOpen, root } = useMenu();
-  const current = TARGETS.find((t) => t.target === app.target)!;
   return (
-    <div className="targetMenu" ref={root}>
-      <button
-        type="button"
-        className="btn dropdown"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title={current.title}
-        data-testid="target"
-        onClick={() => setOpen(!open)}
-      >
-        <span className="dropdownLabel">
-          {TARGETS.map(({ target, label }) => (
-            <span key={target} data-current={target === app.target ? '' : undefined}>
-              {label}
-            </span>
-          ))}
-        </span>
-        <svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true">
-          <path d="M1 3l4 4 4-4" />
-        </svg>
-      </button>
-      {open && (
-        <div className="menu" role="menu">
-          {TARGETS.map(({ target, label, title }) => (
-            <button
-              key={target}
-              type="button"
-              role="menuitemradio"
-              aria-checked={app.target === target}
-              className="menuItem"
-              title={title}
-              data-target={target}
-              onClick={() => {
-                actions.setTarget(target);
-                setOpen(false);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
+    <div className="seg" role="group" aria-label="Drag finds">
+      {TARGETS.map(({ target, label, title }) => (
+        <button
+          key={target}
+          type="button"
+          aria-pressed={app.target === target}
+          title={title}
+          data-target={target}
+          onClick={() => actions.setTarget(target)}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -158,7 +112,7 @@ function ShapeMenu() {
     <div className="targetMenu" ref={root}>
       <button
         type="button"
-        className="btn dropdown"
+        className="dropdown"
         aria-haspopup="menu"
         aria-expanded={open}
         title={`Face shape: ${current.label}`}
@@ -167,9 +121,14 @@ function ShapeMenu() {
         onClick={() => setOpen(!open)}
       >
         <ShapeIcon>{current.icon}</ShapeIcon>
-        <svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true">
-          <path d="M1 3l4 4 4-4" />
-        </svg>
+        <span className="dropdownLabel">
+          {SHAPES.map(({ shape, label }) => (
+            <span key={shape} data-current={shape === app.faceShape ? '' : undefined}>
+              {label}
+            </span>
+          ))}
+        </span>
+        <Icon name="chevron" size={14} />
       </button>
       {open && (
         <div className="menu" role="menu">
@@ -536,127 +495,139 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
   void unexportedCount;
   return (
     <div className="toolbar" data-testid="toolbar">
-      <div className="group" role="group" aria-label="Tool">
-        <TargetMenu />
-        {OUTLINES.map(({ outline, label, title }) => (
-          <button
-            key={outline}
-            type="button"
-            className="tab"
-            aria-pressed={active.outline === outline}
-            data-flipped={flips.outline && active.outline === outline ? '' : undefined}
-            title={title}
-            data-outline={outline}
-            onClick={() => actions.setOutline(outline)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="group" role="group" aria-label="Mode">
-        {(['add', 'subtract'] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            className="tab"
-            aria-pressed={active.mode === mode}
-            data-flipped={flips.mode && active.mode === mode ? '' : undefined}
-            title={
-              mode === 'add'
-                ? `New areas and faces add mosaic (hold ${FLIP_KEY} to subtract)`
-                : `New areas and faces take mosaic away (hold ${FLIP_KEY} to add)`
-            }
-            data-mode={mode}
-            onClick={() => actions.setMode(mode)}
-          >
-            {mode === 'add' ? 'Add' : 'Subtract'}
-          </button>
-        ))}
-      </div>
-      <button
-        type="button"
-        className="btn"
-        onClick={() => void actions.findAllFaces()}
-        disabled={!photo || app.detecting}
-        title="Find every face in this photo and add it to the mosaic (F)"
-        data-testid="find-faces"
-      >
-        Find all faces
-      </button>
-      <ShapeMenu />
-      <div className="spacer" />
-      <button
-        type="button"
-        className="btn"
-        onClick={() => void actions.openDialog()}
-        title={`Add photos to this session (${FLIP_KEY}+O)`}
-        data-testid="add-photos"
-      >
-        Add…
-      </button>
-      <button
-        type="button"
-        className="iconBtn"
-        onClick={actions.undo}
-        disabled={!photo || photo.undo.length === 0}
-        aria-label="Undo"
-        title={`Undo the last change to the areas (${FLIP_KEY}+Z)`}
-      >
-        <CurvedArrow />
-      </button>
-      <button
-        type="button"
-        className="iconBtn"
-        onClick={actions.redo}
-        disabled={!photo || photo.redo.length === 0}
-        aria-label="Redo"
-        title={`Redo the change you just undid (${REDO_KEYS})`}
-      >
-        <CurvedArrow mirrored />
-      </button>
-      <button
-        type="button"
-        className="btn"
-        onClick={actions.reset}
-        disabled={!photo || photo.areas.length === 0}
-        title="Clear every area and face on this photo (Undo brings them back)"
-        data-testid="reset"
-      >
-        Reset
-      </button>
-      <span className="anchor">
+      <div className="topLeft" />
+      <div className="toolGroup" role="toolbar" aria-label="Tools">
+        <TargetToggle />
+        <span className="sep" />
+        <ShapeMenu />
+        <span className="sep" />
+        <div className="seg" role="group" aria-label="Outline">
+          {OUTLINES.map(({ outline, label, title }) => (
+            <button
+              key={outline}
+              type="button"
+              className="iconSeg"
+              aria-pressed={active.outline === outline}
+              aria-label={label}
+              data-flipped={flips.outline && active.outline === outline ? '' : undefined}
+              title={title}
+              data-outline={outline}
+              onClick={() => actions.setOutline(outline)}
+            >
+              <Icon name={outline} />
+            </button>
+          ))}
+        </div>
+        <span className="sep" />
+        <div className="seg" role="group" aria-label="Mode">
+          {(['add', 'subtract'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              className="iconSeg"
+              aria-pressed={active.mode === mode}
+              aria-label={mode === 'add' ? 'Add' : 'Subtract'}
+              data-flipped={flips.mode && active.mode === mode ? '' : undefined}
+              title={
+                mode === 'add'
+                  ? `New areas and faces add mosaic (hold ${FLIP_KEY} to subtract)`
+                  : `New areas and faces take mosaic away (hold ${FLIP_KEY} to add)`
+              }
+              data-mode={mode}
+              onClick={() => actions.setMode(mode)}
+            >
+              <Icon name={mode === 'add' ? 'plus' : 'minus'} />
+            </button>
+          ))}
+        </div>
+        <span className="sep" />
         <button
           type="button"
-          className="btn primary"
-          onClick={() => void actions.exportCurrent()}
-          disabled={!photo || !hasMosaic(photo) || photo.status === 'exporting'}
-          title={
-            photo && !hasMosaic(photo)
-              ? 'Draw an area or find faces first'
-              : app.exportTarget === 'overwrite'
-                ? `Replace the original file with the mosaic (${FLIP_KEY}+E)`
-                : `Save a new copy with _edit next to the original (${FLIP_KEY}+E)`
-          }
-          data-testid="export"
+          className="findAll"
+          onClick={() => void actions.findAllFaces()}
+          disabled={!photo || app.detecting}
+          aria-label="Find all faces"
+          title="Find every face in this photo and add it to the mosaic (F)"
+          data-testid="find-faces"
         >
-          Export
+          <Icon name="find" />
+          Find all
         </button>
-        {app.exportChoice?.anchor === 'export' && <ExportChoice anchor="export" />}
-      </span>
-      <span className="anchor">
+      </div>
+      <div className="topRight">
         <button
           type="button"
           className="btn"
-          onClick={() => void actions.exportAll()}
-          disabled={!anyMosaic || exporting}
-          title="Export every photo that has a mosaic"
-          data-testid="export-all"
+          onClick={() => void actions.openDialog()}
+          title={`Add photos to this session (${FLIP_KEY}+O)`}
+          data-testid="add-photos"
         >
-          Export all
+          Add…
         </button>
-        {app.exportChoice?.anchor === 'all' && <ExportChoice anchor="all" />}
-      </span>
-      <Settings exporting={exporting} />
+        <button
+          type="button"
+          className="iconBtn"
+          onClick={actions.undo}
+          disabled={!photo || photo.undo.length === 0}
+          aria-label="Undo"
+          title={`Undo the last change to the areas (${FLIP_KEY}+Z)`}
+        >
+          <Icon name="undo" size={18} />
+        </button>
+        <button
+          type="button"
+          className="iconBtn"
+          onClick={actions.redo}
+          disabled={!photo || photo.redo.length === 0}
+          aria-label="Redo"
+          title={`Redo the change you just undid (${REDO_KEYS})`}
+        >
+          <Icon name="redo" size={18} />
+        </button>
+        <button
+          type="button"
+          className="btn"
+          onClick={actions.reset}
+          disabled={!photo || photo.areas.length === 0}
+          title="Clear every area and face on this photo (Undo brings them back)"
+          data-testid="reset"
+        >
+          Reset
+        </button>
+        <span className="anchor">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void actions.exportAll()}
+            disabled={!anyMosaic || exporting}
+            title="Export every photo that has a mosaic"
+            data-testid="export-all"
+          >
+            Export all
+          </button>
+          {app.exportChoice?.anchor === 'all' && <ExportChoice anchor="all" />}
+        </span>
+        <span className="anchor">
+          <button
+            type="button"
+            className="btn primary"
+            onClick={() => void actions.exportCurrent()}
+            disabled={!photo || !hasMosaic(photo) || photo.status === 'exporting'}
+            title={
+              photo && !hasMosaic(photo)
+                ? 'Draw an area or find faces first'
+                : app.exportTarget === 'overwrite'
+                  ? `Replace the original file with the mosaic (${FLIP_KEY}+E)`
+                  : `Save a new copy with _edit next to the original (${FLIP_KEY}+E)`
+            }
+            data-testid="export"
+          >
+            Export
+          </button>
+          {app.exportChoice?.anchor === 'export' && <ExportChoice anchor="export" />}
+        </span>
+        <Settings exporting={exporting} />
+      </div>
     </div>
   );
 }

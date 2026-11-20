@@ -169,6 +169,7 @@ describe('finding all faces', () => {
     await copyFile(crew, file);
     const page = await openPhoto(file);
     expect(await button(page, 'Find all faces').isEnabled()).toBe(true);
+    const toolbarHeight = (await page.locator('[data-testid="toolbar"]').boundingBox())!.height;
 
     await button(page, 'Find all faces').click();
     await page.waitForSelector('[data-testid="face-count"]', { timeout: 30000 });
@@ -176,7 +177,9 @@ describe('finding all faces', () => {
     expect(total).toBeGreaterThanOrEqual(3);
     expect(await button(page, 'Find all faces').isEnabled()).toBe(true);
     // Found faces and their count do not push the toolbar onto a second row.
-    expect((await page.locator('[data-testid="toolbar"]').boundingBox())!.height).toBeLessThan(50);
+    expect((await page.locator('[data-testid="toolbar"]').boundingBox())!.height).toBe(
+      toolbarHeight,
+    );
 
     // The same faces found again are not added twice.
     await button(page, 'Find all faces').click();

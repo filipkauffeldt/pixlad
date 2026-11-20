@@ -10,6 +10,34 @@ const ICONS = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  rect: <rect x="4" y="5.5" width="16" height="13" />,
+  lasso: (
+    <>
+      <path d="M7 18c-2-1-3-3-3-6 0-4 4-7 8-7s8 2.5 8 6-4 5-8 5c-1.5 0-3-.3-4-.8" />
+      <circle cx="7" cy="18.5" r="1.6" />
+    </>
+  ),
+  plus: <path d="M12 5.5v13M5.5 12h13" />,
+  minus: <path d="M5.5 12h13" />,
+  find: (
+    <>
+      <path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" />
+      <path d="M12 8.5l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z" />
+    </>
+  ),
+  chevron: <path d="M8 10l4 4 4-4" />,
+  undo: (
+    <>
+      <path d="M8.5 5 4.5 9l4 4" />
+      <path d="M4.5 9h10a4.5 4.5 0 0 1 0 9H10" />
+    </>
+  ),
+  redo: (
+    <>
+      <path d="M15.5 5l4 4-4 4" />
+      <path d="M19.5 9h-10a4.5 4.5 0 0 0 0 9H14" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof ICONS;

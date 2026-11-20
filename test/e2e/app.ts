@@ -58,7 +58,6 @@ export async function launch(
 
 /** Choose what a drag does: faces, or a drawn area as a rectangle or a lasso. */
 export async function pickTool(page: Page, tool: 'faces' | 'rect' | 'lasso'): Promise<void> {
-  await page.click('[data-testid="target"]');
   await page.click(`[data-target="${tool === 'faces' ? 'faces' : 'area'}"]`);
   await page.click(`[data-outline="${tool === 'lasso' ? 'lasso' : 'rect'}"]`);
 }

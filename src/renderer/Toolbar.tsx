@@ -130,6 +130,14 @@ const SHAPES: Array<{ shape: FaceShape; label: string; hint: string; icon: React
     hint: 'Instant',
     icon: <ellipse cx="7" cy="7" rx="4.5" ry="5.6" />,
   },
+  {
+    shape: 'outline',
+    label: 'Outlines',
+    hint: 'Face and hair, slower',
+    icon: (
+      <path d="M7 1.3c2.8 0 4.4 1.6 4.3 4.1-.1 1.5-1 2.5-1.2 3.6-.3 2-1.5 3.5-3.1 3.5S4.2 11 3.9 9C3.7 7.9 2.8 7 2.7 5.4 2.6 2.9 4.3 1.3 7 1.3z" />
+    ),
+  },
 ];
 
 function ShapeIcon({ children }: { children: ReactNode }) {

@@ -326,7 +326,14 @@ export const actions = {
     set({ faceShape: shape });
     const id = state.currentId;
     if (!id) return;
-    editAreas(id, (areas) => areas.map((a) => (a.face ? { ...a, face: { ...a.face, shape } } : a)));
+    // Outlines are traced when faces are found: faces without one keep their shape.
+    editAreas(id, (areas) =>
+      areas.map((a) =>
+        !a.face || (shape === 'outline' && !a.face.outline)
+          ? a
+          : { ...a, face: { ...a.face, shape } },
+      ),
+    );
   },
   setOutline: (outline: Outline): void => set({ outline }),
   /**
@@ -494,7 +501,7 @@ export const actions = {
         : region;
     actions.setDetecting(true, shape);
     try {
-      const found = await window.api.detect(id, region);
+      const found = await window.api.detect(id, region, { people: state.faceShape === 'outline' });
       const inside = lasso ? facesInLasso(found, lasso) : found;
       // Nothing found is not an error, but the user should see it, where the detector looked.
       if (inside.length === 0) actions.noFacesFound();

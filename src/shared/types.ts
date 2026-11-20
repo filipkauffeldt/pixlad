@@ -48,6 +48,20 @@ export interface FaceDetection {
   angle?: number;
   /** Photo width / height, to draw tilted shapes in normalized coordinates. */
   aspect?: number;
+  /** A head box holds hair and ears; a face box does not. Default: face. */
+  kind?: 'face' | 'head';
+  /** A detector saw a face here (for heads: not only a head). */
+  confirmed?: boolean;
+  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
+  eyes?: Rect[];
+}
+
+export interface DetectOptions {
+  /**
+   * Also find heads (turned away, in balaclavas) and faces in crowds and flare smoke, for the
+   * Outlines face shape. Slower.
+   */
+  people?: boolean;
 }
 
 /** A face to trace an outline for: its normalized box, kind and roll. */

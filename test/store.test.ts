@@ -154,13 +154,11 @@ describe('finding all faces', () => {
     await addPhoto();
     api.detect.mockResolvedValueOnce([face(0.1), face(0.5)]);
     await actions.findAllFaces();
-    expect(api.detect).toHaveBeenCalledWith(photo().info.id, {
-      type: 'rect',
-      x: 0,
-      y: 0,
-      w: 1,
-      h: 1,
-    });
+    expect(api.detect).toHaveBeenCalledWith(
+      photo().info.id,
+      { type: 'rect', x: 0, y: 0, w: 1, h: 1 },
+      { people: false },
+    );
     expect(faceAreas()).toEqual([
       expect.objectContaining({ mode: 'add', enabled: true }),
       expect.objectContaining({ mode: 'add', enabled: true }),

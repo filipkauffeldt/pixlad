@@ -4,7 +4,7 @@
 // retouch-geometry.ts (GPL-3.0-or-later), without lens correction.
 import { clamp, pointInPolygon, rectToPolygon, shapeBounds } from '../shared/geometry';
 import { blockSizePxToRel } from '../shared/block-size';
-import type { MosaicArea, MosaicOp, Polygon, Rect, Shape } from '../shared/types';
+import type { MosaicArea, MosaicOp, Point, Polygon, Rect, Shape } from '../shared/types';
 
 export type RetouchMode = 'add' | 'subtract';
 
@@ -28,9 +28,17 @@ export interface FaceData {
   aspect?: number;
   /** How the face is covered. Missing in older sessions: a rectangle. */
   shape?: FaceShape;
+  /** A head box holds hair and ears; a face box does not. Missing: a face. */
+  kind?: 'face' | 'head';
+  /** A detector saw a face here. */
+  confirmed?: boolean;
+  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
+  eyes?: Rect[];
+  /** The traced outline of face and hair, normalized. */
+  outline?: Point[];
 }
 
-export type FaceShape = 'rectangle' | 'oval';
+export type FaceShape = 'rectangle' | 'oval' | 'outline';
 
 /**
  * Padding around a detected face, as a fraction of its width. Height padding is 1.4x wider and
@@ -94,6 +102,12 @@ export function faceOval(face: FaceData, padding: number): Polygon {
   const angle = face.angle ?? 0;
   const w = face.box.w * aspect;
   const h = face.box.h;
+  // A head box already holds hair and ears: padded evenly.
+  if (face.kind === 'head') {
+    const cx = (face.box.x + face.box.w / 2) * aspect;
+    const cy = face.box.y + face.box.h / 2;
+    return superellipse(cx, cy, (w / 2) * (1 + padding), (h / 2) * (1 + padding), angle, aspect);
+  }
   const horizontal = w * padding;
   const vertical = h * padding * FACE_PADDING_VERTICAL;
   const up = vertical * FACE_PADDING_UP_BIAS;
@@ -112,8 +126,44 @@ export function faceOval(face: FaceData, padding: number): Polygon {
   return superellipse(cx, cy, a * grow, b * grow, angle, aspect);
 }
 
+/** A head box padded evenly: it already holds hair and ears. */
+function padHeadBox(box: Rect, padding: number): Rect {
+  const left = clamp(box.x - (box.w * padding) / 2, 0, 1);
+  const top = clamp(box.y - (box.h * padding) / 2, 0, 1);
+  const right = clamp(box.x + box.w * (1 + padding / 2), left, 1);
+  const bottom = clamp(box.y + box.h * (1 + padding / 2), top, 1);
+  return { type: 'rect', x: left, y: top, w: right - left, h: bottom - top };
+}
+
+/** A traced outline grown from its centre by the padding. */
+function grownOutline(outline: readonly Point[], padding: number): Polygon {
+  let cx = 0;
+  let cy = 0;
+  for (const p of outline) {
+    cx += p.x / outline.length;
+    cy += p.y / outline.length;
+  }
+  return {
+    type: 'polygon',
+    points: outline.map((p) => ({
+      x: clamp(cx + (p.x - cx) * (1 + padding), 0, 1),
+      y: clamp(cy + (p.y - cy) * (1 + padding), 0, 1),
+    })),
+  };
+}
+
 export function faceShape(face: FaceData, padding: number): Shape {
-  return face.shape === 'oval' ? faceOval(face, padding) : padFaceBox(face.box, padding);
+  switch (face.shape ?? 'rectangle') {
+    case 'rectangle':
+      return face.kind === 'head' ? padHeadBox(face.box, padding) : padFaceBox(face.box, padding);
+    case 'oval':
+      return faceOval(face, padding);
+    case 'outline':
+      // Not traced (yet, or too small): the oval.
+      return face.outline && face.outline.length >= 3
+        ? grownOutline(face.outline, padding)
+        : faceOval(face, padding);
+  }
 }
 
 export function areaShape(area: RetouchArea, facePadding: number): Shape {

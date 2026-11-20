@@ -6,11 +6,19 @@ import { readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
 import { renderMosaic } from '../shared/mosaic';
-import type { FaceDetection, MosaicOp, Point, Rect, TraceFace } from '../shared/types';
+import type {
+  DetectOptions,
+  FaceDetection,
+  MosaicOp,
+  Point,
+  Rect,
+  TraceFace,
+} from '../shared/types';
 import { exportEdit, ExportFailure, type ExportRequest } from './export-photo';
 import { detectFaces } from './faces/detect';
 import { withOutlineModels } from './faces/models';
 import { traceOutlines } from './faces/outlines';
+import { findPeople, type Person } from './faces/people';
 import { decodeCoefficients } from './jpeg/decode';
 import { iccProfile } from './jpeg/parse';
 import { dcThumbnail, decodePlanes, planesToRgba } from './jpeg/pixels';
@@ -19,7 +27,7 @@ import { encodePng } from './png';
 export type WorkerRequest =
   | { id: number; type: 'open'; path: string }
   | { id: number; type: 'preview'; op: MosaicOp }
-  | { id: number; type: 'detect'; region: Rect }
+  | { id: number; type: 'detect'; region: Rect; options?: DetectOptions | undefined }
   | { id: number; type: 'trace'; faces: TraceFace[] }
   | { id: number; type: 'thumb'; path: string }
   | { id: number; type: 'export'; request: ExportRequest };
@@ -51,6 +59,37 @@ function centredIn(faces: FaceDetection[], region: Rect): FaceDetection[] {
     return (
       cx >= region.x && cx <= region.x + region.w && cy >= region.y && cy <= region.y + region.h
     );
+  });
+}
+
+/** People found in pixels as normalized detections, kept inside the photo. */
+function toDetections(people: Person[], photo: { width: number; height: number }): FaceDetection[] {
+  const { width: W, height: H } = photo;
+  const norm = (r: { x: number; y: number; w: number; h: number }): Rect => ({
+    type: 'rect',
+    x: r.x / W,
+    y: r.y / H,
+    w: r.w / W,
+    h: r.h / H,
+  });
+  return people.flatMap((p) => {
+    const x = Math.max(0, p.box.x);
+    const y = Math.max(0, p.box.y);
+    const right = Math.min(W, p.box.x + p.box.w);
+    const bottom = Math.min(H, p.box.y + p.box.h);
+    if (right <= x || bottom <= y) return [];
+    const [eye, otherEye] = p.landmarks;
+    return [
+      {
+        box: norm({ x, y, w: right - x, h: bottom - y }),
+        score: p.score,
+        angle: eye && otherEye ? Math.atan2(otherEye.y - eye.y, otherEye.x - eye.x) : 0,
+        aspect: W / H,
+        kind: p.kind,
+        ...(p.confirmed ? { confirmed: true } : {}),
+        ...(p.eyes ? { eyes: p.eyes.map(norm) } : {}),
+      },
+    ];
   });
 }
 
@@ -104,13 +143,13 @@ async function handle(request: WorkerRequest): Promise<unknown> {
     }
     case 'detect': {
       if (!current) throw new Error('no photo is open');
-      const found: FaceDetection[] = await detectFaces(
-        current.rgba,
-        current.width,
-        current.height,
-        withMargin(request.region, current.width, current.height),
-        { modelPath },
-      );
+      const photo = current;
+      const wider = withMargin(request.region, photo.width, photo.height);
+      const found: FaceDetection[] = request.options?.people
+        ? await withOutlineModels(async () =>
+            toDetections(await findPeople(photo, wider, dirname(modelPath)), photo),
+          )
+        : await detectFaces(photo.rgba, photo.width, photo.height, wider, { modelPath });
       return centredIn(found, request.region);
     }
     case 'trace': {

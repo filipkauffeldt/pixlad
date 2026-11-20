@@ -22,6 +22,16 @@ import {
   pickTool,
 } from './app';
 
+/** Wait until the session holds `count` photos and `name` is the one open. */
+const inSession = (page: Page, count: number, name: string, timeout?: number): Promise<unknown> =>
+  page.waitForFunction(
+    ([n, current]) =>
+      document.querySelector('[data-testid="strip"]')?.getAttribute('data-count') === String(n) &&
+      document.querySelector('[data-testid="file-name"]')?.textContent === current,
+    [count, name] as const,
+    { timeout },
+  );
+
 let running: Launched | undefined;
 afterEach(async () => {
   if (running) await stubCloseDialog(running.app, 0).catch(() => undefined);
@@ -117,11 +127,7 @@ describe('opening', () => {
     running = await launch();
     const { page } = running;
     await dropFiles(page, [folder]);
-    await page.waitForFunction(
-      () => document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 250'),
-      undefined,
-      { timeout: 30000 },
-    );
+    await inSession(page, 250, 'p000.jpg', 30000);
     // Only what is on screen is in the DOM.
     expect(await page.locator('[data-testid="thumb"]').count()).toBeLessThan(40);
     // The page answers while thumbnails are decoded.
@@ -129,9 +135,7 @@ describe('opening', () => {
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(0))));
     expect(Date.now() - before).toBeLessThan(1000);
     await page.keyboard.press('ArrowRight');
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('2 / 250'),
-    );
+    await inSession(page, 250, 'p001.jpg');
   });
 
   it('says when dropped photos were already in the session', async () => {
@@ -141,9 +145,7 @@ describe('opening', () => {
     running = await launch();
     const { page } = running;
     await dropFiles(page, [a, b]);
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
-    );
+    await inSession(page, 2, 'a.jpg');
     await dropFiles(page, [a, b]);
     await page.waitForFunction(() =>
       Array.from(document.querySelectorAll('[data-testid="notice"]')).some((notice) =>
@@ -200,9 +202,7 @@ describe('opening', () => {
     running = await launch();
     const { page } = running;
     await dropFiles(page, [join(dir, 'a.jpg'), join(dir, 'b.jpg')]);
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
-    );
+    await inSession(page, 2, 'a.jpg');
     const thumb = page.locator('[data-testid="thumb"]').first();
     const remove = page.locator('[data-testid="remove"]').first();
     const opacity = (): Promise<string> => remove.evaluate((el) => getComputedStyle(el).opacity);
@@ -245,9 +245,7 @@ describe('face padding', () => {
     running = await launch();
     const { page } = running;
     await dropFiles(page, [a, b]);
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
-    );
+    await inSession(page, 2, 'a.jpg');
     const padding = page.locator('[aria-label="Face padding in percent"]');
     expect(await padding.inputValue()).toBe('15');
     await padding.fill('30');
@@ -256,9 +254,7 @@ describe('face padding', () => {
     expect(await padding.inputValue()).toBe('30');
 
     await dropFiles(page, [c]);
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('2 / 3'),
-    );
+    await inSession(page, 3, 'b.jpg');
     await page.keyboard.press('ArrowRight');
     expect(await padding.inputValue()).toBe('30');
   });
@@ -268,13 +264,11 @@ describe('the strip', () => {
   it('scrolls sideways with a plain vertical wheel, and horizontal still works', async () => {
     const dir = await tmp();
     const files: string[] = [];
-    for (let i = 0; i < 20; i++) files.push(await photoFile(dir, `w${i}.jpg`, 400, 300));
+    for (let i = 0; i < 40; i++) files.push(await photoFile(dir, `w${i}.jpg`, 400, 300));
     running = await launch();
     const { page } = running;
     await dropFiles(page, files);
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 20'),
-    );
+    await inSession(page, 40, 'w0.jpg');
     const strip = page.locator('[data-testid="strip"]');
     const scrollLeft = (): Promise<number> => strip.evaluate((el) => el.scrollLeft);
     expect(await scrollLeft()).toBe(0);
@@ -313,7 +307,10 @@ describe('zoom and pan', () => {
       .locator('[data-testid="photo"]')
       .evaluate((el) => parseFloat((el as HTMLElement).style.left));
     expect(Number.isInteger(left * dpr)).toBe(true);
-    expect(await page.locator('[data-testid="footer"]').innerText()).toContain('100%');
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="zoom-toggle"]')?.firstChild?.textContent === '100%',
+    );
 
     // pan with the wheel and with Space + drag
     const x0 = (await box(page)).x;
@@ -353,45 +350,36 @@ describe('zoom and pan', () => {
   });
 });
 
-describe('the zoom readout in the footer', () => {
-  it('is a button that switches between Fit and 100% like Z, and names the shortcut', async () => {
+describe('the zoom chip', () => {
+  it('shows away from Fit, names the shortcut, and goes back to Fit like Z', async () => {
     const dir = await tmp();
     const file = await photoFile(dir, 'readout.jpg', 2400, 1600);
     running = await launch();
     const { page } = running;
-    expect(await page.locator('[data-testid="zoom-toggle"]').count()).toBe(0); // no photo yet
     await dropFiles(page, [file]);
     await photoReady(page);
     const stage = page.locator('[data-testid="stage"]');
-    const readout = page.locator('[data-testid="zoom-toggle"]');
-    expect(await readout.innerText()).toBe('Fit');
-    expect(await readout.getAttribute('title')).toContain('(Z)');
+    const chip = page.locator('[data-testid="zoom-toggle"]');
+    expect(await chip.count()).toBe(0); // Fit
 
-    await readout.click();
-    await page.waitForFunction(
-      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === '100%',
-    );
-    expect(await stage.getAttribute('data-fit')).toBe('false');
-    expect((await box(page)).w).toBe(2400); // the same 100% as the Z key gives
+    await page.mouse.move(700, 400);
+    await page.keyboard.press('z');
+    await chip.waitFor();
+    expect(await chip.evaluate((el) => el.firstChild?.textContent)).toBe('100%');
+    expect(await chip.getAttribute('title')).toContain('(Z)');
 
-    await readout.click();
-    await page.waitForFunction(
-      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === 'Fit',
-    );
+    await chip.click();
+    await chip.waitFor({ state: 'detached' });
     expect(await stage.getAttribute('data-fit')).toBe('true');
 
-    // Zoomed to something else, it goes back to Fit, as Z does.
-    await page.mouse.move(700, 400);
+    // Zoomed to something else, it goes back to Fit too.
     await page.keyboard.down('Control');
     await page.mouse.wheel(0, -200);
     await page.keyboard.up('Control');
-    await page.waitForFunction(
-      () => document.querySelector('[data-testid="stage"]')?.getAttribute('data-fit') === 'false',
-    );
-    await readout.click();
-    await page.waitForFunction(
-      () => document.querySelector('[data-testid="zoom-toggle"]')?.textContent === 'Fit',
-    );
+    await chip.waitFor();
+    expect(await stage.getAttribute('data-fit')).toBe('false');
+    await chip.click();
+    await chip.waitFor({ state: 'detached' });
     expect(await stage.getAttribute('data-fit')).toBe('true');
   });
 });
@@ -531,7 +519,7 @@ describe('closing and exporting a batch', () => {
 
     await page.click('[data-testid="export-all"]');
     await page.waitForSelector('[data-testid="batch-progress"]');
-    expect(await page.locator('[data-testid="batch-status"]').innerText()).toBe('Exporting 1 of 3');
+    expect(await page.locator('[data-testid="batch-status"]').innerText()).toBe('1/3');
     expect(await page.getAttribute('[data-testid="batch-progress"]', 'aria-valuenow')).toBe('0');
     await page.click('[data-testid="batch-cancel"]');
     await page.waitForFunction(

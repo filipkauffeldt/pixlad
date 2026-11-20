@@ -13,6 +13,8 @@
   --raised: #1c1c1e;
   --line: #232325;
   --line-strong: #2e2e31;
+  /* A pressed segment or a hovered menu item */
+  --hover: #242427;
 
   /* Text. White is also the only accent: selection, active tab, primary button. */
   --text: #e8e8e8;
@@ -28,11 +30,14 @@
   --scrim: #000a;
 
   /* Behind modals and the drop target, and inside drawn areas */
-  --backdrop: rgba(14, 14, 15, 0.72);
   --backdrop-strong: rgba(14, 14, 15, 0.82);
   --area-fill: rgba(255, 255, 255, 0.05);
   --draft-fill: rgba(255, 255, 255, 0.08);
   --hover-fill: rgba(255, 255, 255, 0.14);
+
+  /* Under menus and popovers, and under dialogs */
+  --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.8);
+  --shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.9);
 
   /* Type */
   --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -45,7 +50,7 @@
   --tracking-label: 0.1em;
 
   /* Layout */
-  --topbar-h: 36px;
+  --topbar-h: 56px;
   --select-outline: 2px solid var(--text);
   --select-offset: 2px;
 }
@@ -59,6 +64,7 @@
     --raised: #ffffff;
     --line: #e0e0dd;
     --line-strong: #cbcbc7;
+    --hover: #e6e6e3;
 
     --text: #18181a;
     --muted: #5f5f63;
@@ -70,10 +76,12 @@
 
     --scrim: rgba(248, 248, 247, 0.85);
 
-    --backdrop: rgba(236, 236, 234, 0.72);
     --backdrop-strong: rgba(236, 236, 234, 0.85);
     --area-fill: rgba(0, 0, 0, 0.05);
     --draft-fill: rgba(0, 0, 0, 0.08);
     --hover-fill: rgba(0, 0, 0, 0.14);
+
+    --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.12);
+    --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.18);
   }
 }

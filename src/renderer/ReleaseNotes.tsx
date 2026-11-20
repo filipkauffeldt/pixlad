@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect } from 'react';
+import { Icon } from './Icon';
 import { actions, useApp } from './store';
 
 /** What changed in the update that was found. */
@@ -45,12 +46,12 @@ export function ReleaseNotes() {
           </div>
           <button
             type="button"
-            className="close"
+            className="iconBtn close"
             aria-label="Close"
             autoFocus
             onClick={() => actions.setNotesOpen(false)}
           >
-            ×
+            <Icon name="close" size={14} />
           </button>
         </header>
         <div className="modalBody">

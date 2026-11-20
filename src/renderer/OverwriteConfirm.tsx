@@ -45,7 +45,7 @@ export function OverwriteConfirm({ anchor }: { anchor: 'export' | 'all' }) {
       }}
     >
       <div
-        className="modal confirm"
+        className="modal confirm overwrite"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="overwrite-title"
@@ -67,7 +67,9 @@ export function OverwriteConfirm({ anchor }: { anchor: 'export' | 'all' }) {
             {count > LISTED && <div className="muted">{`and ${count - LISTED} more`}</div>}
           </div>
           <p className="errorText">This cannot be undone.</p>
-          <label className="radio muted">
+        </div>
+        <div className="confirmFoot">
+          <label className="radio muted grow">
             <input
               type="checkbox"
               checked={dontAsk}
@@ -76,8 +78,6 @@ export function OverwriteConfirm({ anchor }: { anchor: 'export' | 'all' }) {
             />
             <span>Don’t ask again this session</span>
           </label>
-        </div>
-        <div className="confirmFoot">
           <button
             ref={cancel}
             type="button"
@@ -89,7 +89,7 @@ export function OverwriteConfirm({ anchor }: { anchor: 'export' | 'all' }) {
           </button>
           <button
             type="button"
-            className="btn primary"
+            className="btn primary danger"
             onClick={() => void actions.confirmOverwrite(dontAsk)}
             data-testid="overwrite-confirm-replace"
           >

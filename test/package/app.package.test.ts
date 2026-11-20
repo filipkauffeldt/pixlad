@@ -90,13 +90,17 @@ describe('the packaged app', () => {
     const reported = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
     const version = reported === '0.0.0-dev' ? 'dev' : reported;
     await page.getByText(`Version ${version}`, { exact: true }).waitFor();
-    expect(await about.locator('[data-testid="about-notices"] li').count()).toBeGreaterThan(10);
+    await page.click('[data-testid="open-licences"]');
+    expect(await about.locator('[data-testid="about-notices"] .noticeRow').count()).toBeGreaterThan(
+      10,
+    );
     await page.click('[data-testid="about-gpl"]');
     expect(await about.locator('.licenseText').innerText()).toContain('GNU GENERAL PUBLIC LICENSE');
     await page.locator('.noticeRow', { hasText: /^react \d/ }).click();
     expect(await about.locator('.licenseText').innerText()).toContain(
       'Permission is hereby granted',
     );
+    await page.locator('.noticeRow', { hasText: 'Electron and Chromium' }).click();
     await about.getByRole('button', { name: 'Open Chromium licences' }).waitFor();
   });
 

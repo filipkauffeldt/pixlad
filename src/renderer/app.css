@@ -4,21 +4,189 @@
   height: 100%;
 }
 
-/* Toolbar: one row in a fixed order; a narrow window wraps it, never resizes controls. */
+/* The top bar: the photo's name on the left, the tools centred, export and settings on the
+   right. A narrow window moves the tools to a second row; controls never resize. */
 .toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 8px 16px;
   min-height: var(--topbar-h);
-  padding: 6px 12px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
+  padding: 8px 14px;
 }
-.group {
+@media (max-width: 1180px) {
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .toolGroup {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
+}
+.topLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.topLeft img {
+  display: block;
+  flex: none;
+}
+/* The name gives way last: the export result beside it shortens first. */
+.fileName {
+  flex: 0 1 auto;
+  min-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appName {
+  font-weight: 500;
+}
+/* The last export's result beside the name */
+.photoStatus {
+  display: flex;
+  flex: 0 1000 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-left: 6px;
+  color: var(--muted);
+}
+.photoStatus .dot {
+  margin-top: 0;
+}
+.photoStatus .message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.textButton {
+  flex: none;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+.textButton:hover {
+  text-decoration-color: var(--text);
+}
+.topRight {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.topRight > * {
+  flex: none;
+}
+/* Every tool in one framed group, with hairlines between the kinds of choice. */
+.toolGroup {
   display: flex;
   align-items: center;
   gap: 2px;
+  padding: 3px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+/* No photo open: the tools wait, dimmed, but can still be set up for the first one */
+.toolGroup.idle {
+  opacity: 0.5;
+}
+.toolGroup .sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 6px;
+  background: var(--line);
+}
+.seg {
+  display: flex;
+  gap: 2px;
+}
+.seg button,
+.findAll,
+.dropdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 11px;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.seg button.iconSeg {
+  justify-content: center;
+  width: 32px;
+  padding: 0;
+}
+.seg button:hover,
+.findAll:hover:not(:disabled),
+.dropdown:hover {
+  color: var(--text);
+}
+.seg button[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--on-text);
+}
+/* Held Alt or Ctrl swaps the choice for one drag: the swapped-in choice gets a dashed frame. */
+.seg button[data-flipped] {
+  background: transparent;
+  color: var(--text);
+  outline: 1px dashed var(--text);
+  outline-offset: -1px;
+}
+.findAll:disabled {
+  color: var(--dim);
+}
+/* Looking for faces: a spinner in the icon's place, so the button keeps its width */
+.findSpin {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.findSpin .spinner {
+  width: 11px;
+  height: 11px;
+}
+/* Under the photo: the counts, Block and Padding. Block stays centred and the counts grow to the
+   left, so a count that gets wider never moves the controls. */
+.editBar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 22px; /* EDIT_BAR_HEIGHT */
+  /* A drag can still start beside the controls; a zoomed photo passes under them. */
+  pointer-events: none;
+}
+.editBar > * {
+  pointer-events: auto;
+  background: var(--bg);
+}
+.editBar > :first-child {
+  justify-self: end;
+  padding: 0 22px 0 10px;
+}
+.editBar > .control {
+  padding: 0 22px;
+  border-left: 1px solid var(--line);
+}
+.editBar > :last-child {
+  justify-self: start;
+  padding-right: 10px;
 }
 .control {
   display: flex;
@@ -31,28 +199,48 @@
   color: var(--muted);
 }
 .control input[type='range'] {
-  width: 40px;
+  width: 76px;
 }
 .spacer {
   flex: 1;
 }
 .counts {
   display: flex;
-  gap: 12px;
+  gap: 22px;
 }
-.counts:empty {
-  display: none;
+.readout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.readout .label {
+  color: var(--muted);
+}
+.readout .value {
+  color: var(--text);
+}
+.readout .total {
+  color: var(--dim);
+}
+.readout .progress {
+  width: 60px;
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 12px;
   background: transparent;
   border: 1px solid var(--line-strong);
-  color: var(--text);
-  padding: 4px 10px;
-  height: 24px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 .btn:hover:not(:disabled) {
-  background: var(--raised);
+  color: var(--text);
+  background: var(--hover);
 }
 .btn:disabled {
   color: var(--dim);
@@ -62,40 +250,56 @@
   background: var(--text);
   color: var(--on-text);
   border-color: var(--text);
+  font-weight: 500;
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--text);
+  color: var(--on-text);
 }
 .btn.primary:disabled {
   background: var(--raised);
   color: var(--dim);
-  border-color: var(--line);
+  border-color: var(--raised);
 }
-.tab {
+/* A bare icon: undo, redo, settings. */
+.iconBtn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   background: transparent;
   border: 0;
-  border-bottom: 1px solid transparent;
   color: var(--muted);
-  padding: 4px 10px;
-  height: 24px;
 }
-.tab:hover {
+.iconBtn:hover:not(:disabled),
+.iconBtn[aria-expanded='true'] {
   color: var(--text);
+  background: var(--hover);
 }
-.tab[aria-pressed='true'] {
-  color: var(--text);
-  border-bottom-color: var(--text);
+.iconBtn:disabled {
+  color: var(--dim);
 }
-
-.tab[data-flipped] {
-  border-bottom-style: dashed;
+.icon {
+  display: block;
+  flex: none;
 }
 .targetMenu {
   position: relative;
-  margin-right: 4px;
 }
 .dropdown {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 8px 0 10px;
+  padding: 0 8px 0 9px;
+  color: var(--text);
+}
+.dropdown[aria-expanded='true'] {
+  background: var(--hover);
+}
+.dropdown .icon {
+  color: var(--muted);
+}
+.dropdown[aria-disabled='true'],
+.dropdown[aria-disabled='true'] .icon {
+  color: var(--dim);
 }
 /* Every label sits in one grid cell and only the current one shows, so the button keeps the
    width of the longest and the toolbar does not shift when the target changes. */
@@ -110,33 +314,18 @@
 .dropdownLabel > span[data-current] {
   visibility: visible;
 }
-.curvedArrow {
-  display: block;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.curvedArrow.mirrored {
-  transform: scaleX(-1);
-}
-.dropdown svg {
-  fill: none;
-  stroke: var(--muted);
-  stroke-width: 1.4;
-}
 .menu {
   position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
+  top: calc(100% + 7px);
+  left: -4px;
   z-index: 25;
   min-width: 100px;
   padding: 4px;
   display: flex;
   flex-direction: column;
-  background: var(--raised);
+  background: var(--panel);
   border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-pop);
 }
 .menuItem {
   background: transparent;
@@ -150,7 +339,7 @@
   color: var(--text);
 }
 .menuItem[aria-checked='true'] {
-  background: var(--line);
+  background: var(--hover);
 }
 /* The face shape picker: an icon of each shape, and a hint on speed in the menu. */
 .shapeIcon {
@@ -163,21 +352,34 @@
   stroke: currentColor;
   stroke-width: 1.2;
 }
+/* A shape per row: its icon, its name over how fast it is, and a check on the current one */
 .shapeItem {
   display: grid;
-  grid-template-columns: 14px auto 1fr;
+  grid-template-columns: 22px 1fr 16px;
   align-items: center;
   gap: 8px;
+  width: 244px;
+  height: 44px;
+  padding: 0 10px;
   white-space: nowrap;
 }
+.shapeItem .shapeIcon {
+  width: 18px;
+  height: 18px;
+}
+.shapeLabel {
+  display: block;
+  color: var(--text);
+  font-weight: 500;
+}
 .shapeItem .hint {
+  display: block;
   color: var(--dim);
-  text-align: right;
-  padding-left: 16px;
+  font-size: 11.5px;
 }
 
 .numberField {
-  width: 52px;
+  width: 40px;
   height: 22px;
   background: transparent;
   border: 0;
@@ -212,7 +414,7 @@ input[type='range']::-webkit-slider-thumb {
   background: linear-gradient(var(--text), var(--text)) center / 2px 100% no-repeat;
 }
 
-/* Settings */
+/* Settings: one row per setting, the choice on the right */
 .settings {
   position: relative;
 }
@@ -221,52 +423,85 @@ input[type='range']::-webkit-slider-thumb {
   top: calc(100% + 6px);
   right: 0;
   z-index: 25;
-  width: 300px;
-  margin: 0;
-  padding: 10px 12px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: var(--raised);
+  width: 392px;
+  background: var(--panel);
   border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-pop);
 }
 .settingsPanel fieldset {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
   margin: 0;
   padding: 0;
   border: 0;
   min-width: 0;
 }
-.settingsPanel legend {
-  float: left;
-  padding: 0;
-}
-.settingsPanel legend + * {
-  clear: both;
-}
-.appearance {
+.settingRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
 }
+.settingName {
+  display: block;
+  color: var(--text);
+}
+.settingRow small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+/* Segmented choice: real radio buttons, invisible, over each segment */
+.segmented,
 .themePicker {
   display: flex;
+  flex: none;
   border: 1px solid var(--line-strong);
+}
+.segItem {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 26px;
+  padding: 0 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.segItem + .segItem,
+.themePicker button + button {
+  border-left: 1px solid var(--line-strong);
+}
+.segItem input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+}
+.segItem:hover {
+  color: var(--text);
+}
+.segItem:has(input:checked) {
+  background: var(--text);
+  color: var(--on-text);
+}
+.segItem:has(input:focus-visible),
+.themePicker button:focus-visible {
+  outline: 1px solid var(--text);
+  outline-offset: 1px;
+}
+fieldset:disabled .segItem {
+  color: var(--dim);
 }
 .themePicker button {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 24px;
+  width: 32px;
+  height: 26px;
   padding: 0;
   background: transparent;
   border: 0;
   color: var(--muted);
-}
-.themePicker button + button {
-  border-left: 1px solid var(--line-strong);
 }
 .themePicker button:hover {
   color: var(--text);
@@ -275,28 +510,69 @@ input[type='range']::-webkit-slider-thumb {
   background: var(--text);
   color: var(--on-text);
 }
-.themePicker button:focus-visible {
-  outline: 1px solid var(--text);
-  outline-offset: 1px;
-}
 .themePicker svg {
   display: block;
 }
-.settingsPanel .subLabel {
-  margin-top: 4px;
+/* An on/off switch, drawn over a real checkbox */
+.toggle {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--line-strong);
 }
-.linkButton {
-  align-self: flex-start;
-  padding: 8px 0 0;
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  background: var(--muted);
+}
+.toggle:checked {
+  background: var(--text);
+  border-color: var(--text);
+}
+.toggle:checked::after {
+  left: 16px;
+  background: var(--on-text);
+}
+.toggle:focus-visible {
+  outline: 1px solid var(--text);
+  outline-offset: 2px;
+}
+.settingsFoot {
+  display: flex;
+}
+.settingsFoot button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  height: 38px;
+  padding: 0 16px;
   background: transparent;
   border: 0;
-  border-top: 1px solid var(--line);
-  width: 100%;
-  text-align: left;
   color: var(--muted);
 }
-.linkButton:hover {
+.settingsFoot button + button {
+  border-left: 1px solid var(--line);
+}
+.settingsFoot button:hover {
   color: var(--text);
+  background: var(--hover);
+}
+.settingsFoot button .icon {
+  transform: rotate(-90deg);
+}
+.settingsFoot kbd {
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
 }
 
 /* First-export choice, under the Export or Export all button */
@@ -309,10 +585,11 @@ input[type='range']::-webkit-slider-thumb {
   top: calc(100% + 8px);
   right: 0;
   z-index: 26;
-  width: 260px;
-  padding: 12px 14px;
-  background: var(--raised);
+  width: 300px;
+  padding: 16px;
+  background: var(--panel);
   border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-pop);
   color: var(--text);
 }
 .exportChoice::before {
@@ -322,15 +599,15 @@ input[type='range']::-webkit-slider-thumb {
   right: 24px;
   width: 8px;
   height: 8px;
-  background: var(--raised);
+  background: var(--panel);
   border-left: 1px solid var(--line-strong);
   border-top: 1px solid var(--line-strong);
   transform: rotate(45deg);
 }
 .exportChoice h3 {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .exportChoice .radio {
   margin-bottom: 6px;
@@ -371,7 +648,8 @@ input[type='range']::-webkit-slider-thumb {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: var(--backdrop);
+  /* The same dim as behind a drop, and no blur: the photo stays recognisable behind it. */
+  background: var(--backdrop-strong);
 }
 .modal {
   display: flex;
@@ -380,35 +658,31 @@ input[type='range']::-webkit-slider-thumb {
   max-height: 100%;
   background: var(--panel);
   border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-modal);
 }
 .modalHeader {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 14px 16px 10px;
-  border-bottom: 1px solid var(--line);
+  padding: 18px 16px 4px 24px;
 }
 .modalHeader .aboutIcon {
   flex: none;
-  margin-right: 12px;
 }
 .modalHeader .aboutTitle {
   flex: 1;
 }
-.modalHeader h2 {
-  margin: 0 0 2px;
-  font-size: 15px;
-  font-weight: 500;
-}
-.modalHeader .close {
-  background: transparent;
-  border: 0;
-  color: var(--muted);
+.modalHeader h2,
+.modal.about .modalBody h2 {
+  margin: 0;
   font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
+
 .modalBody {
   overflow-y: auto;
-  padding: 12px 16px 16px;
+  padding: 12px 24px 24px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -419,6 +693,132 @@ input[type='range']::-webkit-slider-thumb {
 .modalBody h3 {
   margin: 10px 0 0;
   font-weight: 400;
+}
+/* About: who made it and under which licence; the licences themselves are one click further. */
+.modal.about {
+  width: min(440px, 100%);
+}
+.modal.about .modalBody {
+  gap: 6px;
+}
+.aboutCopy {
+  margin-top: 8px !important;
+}
+.aboutActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.aboutActions .btn .icon {
+  transform: rotate(-90deg);
+}
+.licencesTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: -10px;
+}
+.iconBtn.back .icon {
+  transform: rotate(90deg);
+}
+/* Licences: the parts on the left, filterable and grouped; the chosen licence on the right. */
+.modal.about.licencesView {
+  width: min(760px, 100%);
+  height: min(600px, 100%);
+}
+.licences {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.licenceList {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+}
+.licenceFilter {
+  flex: none;
+  height: 38px;
+  padding: 0 16px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  outline: 0;
+}
+.licenceFilter::placeholder {
+  color: var(--dim);
+}
+.licenceScroll {
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+.licenceScroll h3 {
+  margin: 12px 16px 4px;
+}
+.noticeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 5px 16px;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  text-align: left;
+}
+.noticeRow:hover {
+  color: var(--text);
+}
+.noticeRow[aria-pressed='true'] {
+  background: var(--hover);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--text);
+}
+.noticeRow .mono {
+  flex: none;
+  color: var(--dim);
+  font-size: 10px;
+}
+.licencePane {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  padding: 16px 20px 20px;
+}
+.licencePane h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.licencePane .meta {
+  color: var(--dim);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  word-break: break-all;
+}
+.licencePane > .btn {
+  align-self: flex-start;
+  margin-top: 8px;
+}
+.licenseText {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .muted {
   color: var(--muted);
@@ -432,46 +832,6 @@ input[type='range']::-webkit-slider-thumb {
 }
 .errorText {
   color: var(--error);
-}
-.notices {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--line);
-}
-.notices li {
-  border-bottom: 1px solid var(--line);
-}
-.noticeRow {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  padding: 6px 0;
-  background: transparent;
-  border: 0;
-  color: var(--text);
-  text-align: left;
-}
-.noticeRow:hover span:first-child {
-  text-decoration: underline;
-}
-.licenseText {
-  flex-shrink: 0;
-  max-height: 260px;
-  overflow: auto;
-  margin: 0 0 8px;
-  padding: 8px 10px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 11px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.modalBody > .btn {
-  align-self: flex-start;
-  margin-top: 6px;
 }
 .radio {
   display: flex;
@@ -495,13 +855,33 @@ input[type='range']::-webkit-slider-thumb {
   gap: 12px;
   padding: 6px 0;
 }
+/* Questions: a title, a line of detail, and the answers in one row at the bottom */
 .modal.confirm {
-  width: min(420px, 100%);
+  width: min(440px, 100%);
 }
-.modal.confirm h2 {
+.modal.confirm h2,
+.confirmTitle {
   margin: 0;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.modal.confirm .modalBody {
+  padding: 24px 24px 0;
+}
+.modal.confirm .modalFooter {
+  padding: 24px;
+  border-top: 0;
+}
+.modal.confirm .btn {
+  height: 34px;
+  padding: 0 16px;
+}
+.btn.danger,
+.btn.danger:hover:not(:disabled) {
+  background: var(--error);
+  border-color: var(--error);
+  color: var(--on-text);
 }
 .modalButtons {
   display: flex;
@@ -522,20 +902,27 @@ input[type='range']::-webkit-slider-thumb {
   border-top: 1px solid var(--line);
 }
 
-/* Keyboard shortcuts: the About modal's frame, with a list of keys and what they do. */
+/* Keyboard shortcuts: two columns, what a key does on the left and the keys on the right. */
 .modal.shortcuts {
-  width: min(480px, 100%);
+  width: min(720px, 100%);
+}
+.shortcutColumns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 36px;
+}
+.shortcutColumns h3 {
+  margin: 4px 0 6px;
 }
 .shortcutList {
   margin: 0;
 }
 .shortcutRow {
-  display: grid;
-  grid-template-columns: 130px 1fr;
+  display: flex;
+  justify-content: space-between;
   align-items: baseline;
   gap: 12px;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 4px 0;
 }
 .shortcutRow dt,
 .shortcutRow dd {
@@ -544,39 +931,38 @@ input[type='range']::-webkit-slider-thumb {
 .shortcutRow dd {
   color: var(--muted);
 }
+.shortcutRow dt {
+  display: flex;
+  flex: none;
+  gap: 3px;
+}
 .shortcutRow kbd {
   padding: 1px 6px;
-  background: var(--raised);
   border: 1px solid var(--line-strong);
-  font-size: var(--fs-mono);
-}
-.shortcutRow .plus {
-  margin: 0 4px;
-  color: var(--dim);
+  color: var(--text);
+  font-size: 10.5px;
+  white-space: nowrap;
 }
 
 /* Replace original confirmation */
-.modal.confirm {
-  width: min(310px, 100%);
+.modal.confirm.overwrite {
+  width: min(480px, 100%);
 }
 .confirmTitle {
-  margin: 0;
-  padding: 12px 14px 0;
-  font-size: 14px;
-  font-weight: 500;
+  padding: 24px 24px 0;
 }
 .confirmBody {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 14px 12px;
+  gap: 10px;
+  padding: 8px 24px 0;
 }
 .confirmBody p {
   margin: 0;
 }
 .confirmFiles {
-  padding: 5px 8px;
-  background: var(--raised);
+  padding: 8px 10px;
+  background: var(--bg);
   border: 1px solid var(--line);
   word-break: break-all;
 }
@@ -585,15 +971,16 @@ input[type='range']::-webkit-slider-thumb {
 }
 .confirmFoot {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  gap: 6px;
-  padding: 9px 14px;
-  border-top: 1px solid var(--line);
+  gap: 8px;
+  padding: 24px;
 }
-/* Both buttons are the same size, and focus is a border so neither looks taller. */
+.confirmFoot .grow {
+  flex: 1;
+}
+/* Focus is a border, so a focused button never looks taller than the other. */
 .confirmFoot .btn {
-  width: 92px;
-  padding: 0;
   white-space: nowrap;
 }
 .confirmFoot .btn:focus {
@@ -617,13 +1004,19 @@ input[type='range']::-webkit-slider-thumb {
 }
 .notice {
   display: flex;
+  align-self: center;
   align-items: flex-start;
   gap: 12px;
-  padding: 6px 12px;
-  background: var(--raised);
+  max-width: 100%;
+  padding: 8px 8px 8px 14px;
+  background: var(--panel);
   border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-pop);
   color: var(--text);
   pointer-events: auto;
+}
+.notice .lines {
+  padding-top: 4px;
 }
 .notice .lines {
   flex: 1;
@@ -632,7 +1025,7 @@ input[type='range']::-webkit-slider-thumb {
 .dot {
   width: 6px;
   height: 6px;
-  margin-top: 5px;
+  margin-top: 9px;
   flex: none;
   border-radius: 50%;
   background: var(--dim);
@@ -642,11 +1035,6 @@ input[type='range']::-webkit-slider-thumb {
 }
 .dot.ok {
   background: var(--ok);
-}
-.notice .close {
-  background: transparent;
-  border: 0;
-  color: var(--muted);
 }
 
 /* Stage */
@@ -733,6 +1121,22 @@ input[type='range']::-webkit-slider-thumb {
 .overlay .haloDraft {
   stroke-dasharray: 4 3;
 }
+/* Found faces are many and small: a faint outline each, so the crowd stays readable. The one
+   under the pointer is drawn in full. */
+.overlay .face .areaOn {
+  stroke-opacity: 0.4;
+}
+.overlay .face .haloOn {
+  stroke-opacity: 0.45;
+  stroke-width: 2.4;
+}
+.overlay .face .areaHover {
+  stroke-opacity: 1;
+}
+.overlay .face .haloHover {
+  stroke-opacity: 0.95;
+  stroke-width: 6;
+}
 /* The area under the pointer: what a click would switch. Dashes stay, so on and off still read. */
 .overlay .areaHover {
   stroke: var(--text);
@@ -743,6 +1147,22 @@ input[type='range']::-webkit-slider-thumb {
 .overlay .haloHover {
   stroke-opacity: 0.95;
   stroke-width: 6;
+}
+/* Under the face the pointer is on: how sure the detector was */
+.faceTag {
+  position: absolute;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  background: var(--text);
+  color: var(--on-text);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.stage[data-peek] .faceTag {
+  visibility: hidden;
 }
 /* Next to the region the detector is looking at; a chip so it reads over any photo. */
 .regionLabel {
@@ -755,22 +1175,50 @@ input[type='range']::-webkit-slider-thumb {
   pointer-events: none;
 }
 
+/* Away from Fit, the zoom over the photo's corner; a click goes back to Fit, as Z does. */
+.zoomChip {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 9px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+}
+.zoomChip::after {
+  content: 'Z · Fit';
+  color: var(--dim);
+}
+.zoomChip:hover::after {
+  color: var(--muted);
+}
+
 /* Empty state and drop overlay */
 .empty {
   position: absolute;
-  inset: 0;
+  inset: 24px 40px 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  border: 1px dashed var(--line-strong);
-  margin: 24px;
+  gap: 16px;
+  border: 1px solid var(--line);
 }
 .empty h1 {
   margin: 0;
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.btn kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--dim);
 }
 .empty p {
   margin: 0;
@@ -785,19 +1233,53 @@ input[type='range']::-webkit-slider-thumb {
   justify-content: center;
   background: var(--backdrop-strong);
   border: 2px solid var(--text);
-  font-size: 15px;
+  font-size: 17px;
+  font-weight: 500;
   pointer-events: none;
 }
 
-/* Strip */
+/* Strip: the thumbnails, then Add. Past the window's width the thumbnails scroll and Add stays. */
+.stripBar {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  height: 76px;
+  flex: none;
+  padding: 0 14px 12px;
+}
 .strip {
   position: relative;
-  height: 92px;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
+}
+/* While photos are being added: where the next ones will appear */
+.thumbPlaceholder {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 50px;
+  margin-top: 4px;
   background: var(--panel);
-  border-top: 1px solid var(--line);
+  border: 1px solid var(--line);
+}
+.addPhotos {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  margin-top: 4px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+.addPhotos:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
 }
 .stripInner {
   position: relative;
@@ -805,9 +1287,9 @@ input[type='range']::-webkit-slider-thumb {
 }
 .thumbSlot {
   position: absolute;
-  top: 8px;
-  width: 96px;
-  height: 76px;
+  top: 4px;
+  width: 76px;
+  height: 50px;
 }
 .thumb {
   position: relative;
@@ -821,39 +1303,83 @@ input[type='range']::-webkit-slider-thumb {
 .thumb img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   display: block;
+  opacity: 0.55;
+}
+.thumb:hover img {
+  opacity: 0.85;
+}
+.thumb[aria-current='true'] img {
+  opacity: 1;
 }
 .thumb[aria-current='true'] {
-  outline: var(--select-outline);
-  outline-offset: var(--select-offset);
+  outline: 1px solid var(--text);
+  outline-offset: 3px;
 }
-.thumb .badges {
+/* One badge in the top right corner of a thumbnail */
+.thumb .badge {
   position: absolute;
-  left: 3px;
-  bottom: 3px;
-  display: flex;
-  gap: 3px;
-  padding: 2px 3px;
-  background: var(--scrim);
-  align-items: center;
-}
-.thumb .badges svg {
-  display: block;
-}
-.thumbSlot .remove {
-  position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
   width: 16px;
   height: 16px;
-  line-height: 14px;
+  background: var(--scrim);
+  color: var(--text);
+}
+.thumb .badge svg {
+  display: block;
+}
+.thumb .badge.ok {
+  color: var(--ok);
+}
+.thumb .badge.failed {
+  background: var(--error);
+  color: var(--on-text);
+}
+/* An export under way: a line that runs along the bottom */
+.thumbProgress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  overflow: hidden;
+  background: var(--scrim);
+}
+.thumbProgress span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: var(--text);
+  animation: sweep 1.2s ease-in-out infinite;
+}
+@keyframes sweep {
+  from {
+    left: -40%;
+  }
+  to {
+    left: 100%;
+  }
+}
+/* Remove, on hover: the top left corner, clear of the status badge */
+.thumbSlot .remove {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
   padding: 0;
   opacity: 0;
   pointer-events: none;
-  background: var(--scrim);
+  background: var(--text);
   border: 0;
-  color: var(--text);
+  color: var(--on-text);
 }
 .thumbSlot:hover .remove,
 .thumbSlot:focus-within .remove {
@@ -865,34 +1391,7 @@ input[type='range']::-webkit-slider-thumb {
   outline-offset: 1px;
 }
 
-/* Footer */
-.footer {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-  height: 28px;
-  flex: none;
-  padding: 0 12px;
-  background: var(--panel);
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-}
-.footer .status {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-/* Export all: progress next to the count, and Cancel */
-.footer .batch {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+/* A thin progress bar */
 .progress {
   display: block;
   width: 96px;
@@ -904,56 +1403,11 @@ input[type='range']::-webkit-slider-thumb {
   height: 100%;
   background: var(--text);
 }
-.footerButton {
-  padding: 0;
-  background: transparent;
-  border: 0;
-  color: var(--muted);
-  font: inherit;
-}
-.footerButton:hover:not(:disabled) {
-  color: var(--text);
-  text-decoration: underline;
-}
-.footer .status .footerButton {
-  margin-left: 8px;
-}
-.footerButton:disabled {
-  color: var(--dim);
-}
 .label {
   color: var(--dim);
   font-size: var(--fs-label);
   text-transform: uppercase;
   letter-spacing: var(--tracking-label);
-}
-
-/* Toasts: failures only */
-.toasts {
-  position: fixed;
-  right: 12px;
-  bottom: 44px;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-width: 520px;
-}
-.toast {
-  display: flex;
-  gap: 10px;
-  padding: 8px 10px;
-  background: var(--raised);
-  border: 1px solid var(--line-strong);
-}
-.toast .lines {
-  flex: 1;
-  word-break: break-word;
-}
-.toast .close {
-  background: transparent;
-  border: 0;
-  color: var(--muted);
 }
 
 /* Updates */
@@ -963,9 +1417,7 @@ input[type='range']::-webkit-slider-thumb {
   align-items: center;
   gap: 4px 12px;
 }
-.notice.update .dot {
-  margin-top: 9px;
-}
+
 .updateRow {
   display: flex;
   flex-wrap: wrap;
@@ -979,14 +1431,9 @@ input[type='range']::-webkit-slider-thumb {
   accent-color: var(--text);
 }
 
-/* "Tracing outlines" in the status bar while face outlines come in. */
-.tracing {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text);
-}
+/* A small turning ring for work without a known length. */
 .spinner {
+  display: block;
   width: 9px;
   height: 9px;
   border: 1.5px solid var(--line-strong);
@@ -994,13 +1441,19 @@ input[type='range']::-webkit-slider-thumb {
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
 }
+.spinner.large {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
+  .spinner,
+  .thumbProgress span {
     animation-duration: 3s;
   }
 }

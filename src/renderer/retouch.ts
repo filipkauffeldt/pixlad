@@ -303,8 +303,16 @@ export function withFlips(
 export const areaBounds = (area: RetouchArea, facePadding: number): Rect =>
   shapeBounds(areaShape(area, facePadding));
 
-/** The breathing room kept around the picture when it is fitted to the stage, in CSS pixels. */
+/** The room kept beside and above the picture when it is fitted to the stage, in CSS pixels. */
 export const FIT_MARGIN = 40;
+export const FIT_TOP = 24;
+
+/**
+ * The room kept under the fitted picture: the edit bar sits there, 10 px from the picture and
+ * 10 px from the thumbnails (6 px to the stage's edge, and the thumbnails' 4 px inset).
+ */
+export const EDIT_BAR_HEIGHT = 22;
+export const FIT_BOTTOM = 10 + EDIT_BAR_HEIGHT + 6;
 
 /** The strip around the picture where a drag may start, in CSS pixels. */
 export const HIT_MARGIN = 100;

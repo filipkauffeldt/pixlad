@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef } from 'react';
+import { Icon } from './Icon';
 import { SHORTCUTS } from './shortcut-list';
 import { actions } from './store';
 
 /** Every keyboard shortcut, one list. Opened with ? or from Settings. */
+const GROUPS = [
+  { group: 'edit', title: 'Edit' },
+  { group: 'view', title: 'Photos and view' },
+] as const;
+
 export function Shortcuts() {
   const close = useRef<HTMLButtonElement>(null);
 
@@ -41,29 +47,37 @@ export function Shortcuts() {
           <button
             ref={close}
             type="button"
-            className="close"
+            className="iconBtn close"
             aria-label="Close"
             onClick={() => actions.setShortcutsOpen(false)}
           >
-            ×
+            <Icon name="close" size={14} />
           </button>
         </header>
-        <div className="modalBody">
-          <dl className="shortcutList">
-            {SHORTCUTS.map(({ keys, does }) => (
-              <div className="shortcutRow" key={`${keys.join('+')} ${does}`} data-testid="shortcut">
-                <dt>
-                  {keys.map((key, i) => (
-                    <span key={key}>
-                      {i > 0 && <span className="plus">+</span>}
-                      <kbd className="mono">{key}</kbd>
-                    </span>
-                  ))}
-                </dt>
-                <dd>{does}</dd>
-              </div>
-            ))}
-          </dl>
+        <div className="modalBody shortcutColumns">
+          {GROUPS.map(({ group, title }) => (
+            <section key={group}>
+              <h3 className="label">{title}</h3>
+              <dl className="shortcutList">
+                {SHORTCUTS.filter((s) => s.group === group).map(({ keys, does }) => (
+                  <div
+                    className="shortcutRow"
+                    key={`${keys.join('+')} ${does}`}
+                    data-testid="shortcut"
+                  >
+                    <dd>{does}</dd>
+                    <dt>
+                      {keys.map((key) => (
+                        <kbd className="mono" key={key}>
+                          {key}
+                        </kbd>
+                      ))}
+                    </dt>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
         </div>
       </div>
     </div>

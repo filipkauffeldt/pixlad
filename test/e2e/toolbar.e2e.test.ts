@@ -118,7 +118,7 @@ describe('adding photos to a running session', () => {
     expect(await thumbs()).toBe(1);
 
     await answerOpenDialog(app, [await writePhoto('b.jpg')]);
-    await button(page, 'Add…').click();
+    await page.click('[data-testid="add-photos"]');
     await page.waitForFunction(
       () => document.querySelectorAll('[data-testid="thumb"]').length === 2,
     );
@@ -131,14 +131,20 @@ describe('adding photos to a running session', () => {
     expect(await thumbs()).toBe(3);
   });
 
-  it('works while a number field has focus, and before any photo is open', async () => {
+  it('works before any photo is open, and while a number field has focus', async () => {
     running = await launch();
     const { page, app } = running;
     await page.waitForSelector('[data-testid="empty"]');
     await answerOpenDialog(app, [await writePhoto('a.jpg')]);
-    await page.focus('[aria-label="Block size in px"]');
     await page.keyboard.press('ControlOrMeta+o');
     await page.waitForSelector('[data-testid="photo"]');
+
+    await answerOpenDialog(app, [await writePhoto('b.jpg')]);
+    await page.focus('[aria-label="Block size in px"]');
+    await page.keyboard.press('ControlOrMeta+o');
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-testid="thumb"]').length === 2,
+    );
   });
 });
 
@@ -146,7 +152,7 @@ describe('finding all faces', () => {
   const crew = resolve(import.meta.dirname, '../../fixtures/apollo11_crew.jpg');
   const faceCount = async (page: Page): Promise<number> => {
     const text = await page.locator('[data-testid="face-count"]').textContent();
-    return Number(/of (\d+)/.exec(text ?? '')?.[1] ?? 0);
+    return Number(/\/(\d+)/.exec(text ?? '')?.[1] ?? 0);
   };
 
   it('is off with no photo open', async () => {
@@ -163,6 +169,7 @@ describe('finding all faces', () => {
     await copyFile(crew, file);
     const page = await openPhoto(file);
     expect(await button(page, 'Find all faces').isEnabled()).toBe(true);
+    const toolbarHeight = (await page.locator('[data-testid="toolbar"]').boundingBox())!.height;
 
     await button(page, 'Find all faces').click();
     await page.waitForSelector('[data-testid="face-count"]', { timeout: 30000 });
@@ -170,7 +177,9 @@ describe('finding all faces', () => {
     expect(total).toBeGreaterThanOrEqual(3);
     expect(await button(page, 'Find all faces').isEnabled()).toBe(true);
     // Found faces and their count do not push the toolbar onto a second row.
-    expect((await page.locator('[data-testid="toolbar"]').boundingBox())!.height).toBeLessThan(50);
+    expect((await page.locator('[data-testid="toolbar"]').boundingBox())!.height).toBe(
+      toolbarHeight,
+    );
 
     // The same faces found again are not added twice.
     await button(page, 'Find all faces').click();
@@ -267,9 +276,7 @@ describe('the sliders', () => {
 
 describe('the slider labels', () => {
   it('use the muted text colour, not the dim one reserved for disabled states', async () => {
-    running = await launch();
-    const { page } = running;
-    await page.waitForSelector('[data-testid="empty"]');
+    const page = await openPhoto();
     const colours = await page.evaluate(() => {
       const root = getComputedStyle(document.documentElement);
       const resolve = (token: string): string => {
@@ -328,28 +335,43 @@ describe('tooltips', () => {
   });
 });
 
+describe('the face shape button', () => {
+  it('greys out in place while Area is picked, and opens again for Faces', async () => {
+    const page = await openPhoto();
+    const shape = page.locator('[data-testid="face-shape"]');
+    const before = (await shape.boundingBox())!;
+    await page.click('[data-target="area"]');
+    expect(await shape.getAttribute('aria-disabled')).toBe('true');
+    expect(await shape.getAttribute('title')).toBe('Face shape only applies to Faces');
+    await shape.click({ force: true });
+    expect(await page.locator('[data-shape]').count()).toBe(0);
+
+    await page.click('[data-target="faces"]');
+    expect((await shape.boundingBox())!).toEqual(before);
+    await shape.click();
+    expect(await page.locator('[data-shape]').count()).toBe(3);
+  });
+});
+
 describe('the area counts', () => {
-  it('are in the footer, and the toolbar stays on one row in the default window', async () => {
+  it('are under the photo, and the toolbar stays the same height', async () => {
     const page = await openPhoto();
     const toolbar = page.locator('[data-testid="toolbar"]');
-    const singleRow = (await toolbar.boundingBox())!.height;
-    expect(await page.locator('[data-testid="footer"] [data-testid="area-counts"]').count()).toBe(
+    const height = (await toolbar.boundingBox())!.height;
+    expect(await page.locator('[data-testid="edit-bar"] [data-testid="area-counts"]').count()).toBe(
       1,
     );
     expect(await page.locator('[data-testid="drawn-count"]').count()).toBe(0);
 
     await drag(page, [0.2, 0.2], [0.5, 0.5]);
     await drag(page, [0.6, 0.6], [0.8, 0.8]);
-    const counts = page.locator('[data-testid="footer"] [data-testid="drawn-count"]');
-    expect(await counts.textContent()).toBe('2 of 2 areas on');
+    const counts = page.locator('[data-testid="edit-bar"] [data-testid="drawn-count"]');
+    expect(await counts.textContent()).toBe('2/2');
     expect(await toolbar.locator('[data-testid="area-counts"]').count()).toBe(0);
-    expect((await toolbar.boundingBox())!.height).toBe(singleRow);
+    expect((await toolbar.boundingBox())!.height).toBe(height);
 
     await page.mouse.click(...(await centreOfFirstArea(page)));
-    expect(await counts.textContent()).toBe('1 of 2 areas on');
-    // The readout comes after the photo's name and size.
-    const status = await page.locator('[data-testid="photo-status"]').innerText();
-    expect(status.indexOf('1600×1200')).toBeLessThan(status.indexOf('areas on'));
+    expect(await counts.textContent()).toBe('1/2');
   });
 });
 

@@ -1,83 +1,71 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef, useState } from 'react';
+import { isMac } from './flips';
+import { Icon } from './Icon';
 import { actions, hasMosaic, useApp, type PhotoState } from './store';
 
-const ITEM = 104;
+/** A thumbnail and the gap after it. */
+const THUMB = 76;
+const ITEM = THUMB + 8;
+/** Room at the ends, so the current photo's frame is never cut off. */
+const EDGE = 8;
 
-function Badges({ photo }: { photo: PhotoState }) {
-  const mosaic = hasMosaic(photo);
-  const exported = photo.status === 'exported' && photo.exportedRev === photo.rev;
-  if (!mosaic && !exported && photo.status !== 'exporting' && photo.status !== 'failed')
-    return null;
-  return (
-    <span className="badges">
-      {mosaic && (
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          aria-label="Has a mosaic"
-          data-testid="badge-mosaic"
-        >
-          <title>Has a mosaic</title>
+/**
+ * The photo's state, as one badge in its corner: failed, exported or has a mosaic. An export
+ * under way runs a line along the bottom instead.
+ */
+function Badges({ photo, waiting }: { photo: PhotoState; waiting: boolean }) {
+  if (waiting) {
+    return (
+      <span
+        className="badge"
+        title="Exports once its outlines are traced"
+        data-testid="badge-waiting"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-label="Waiting for its outlines">
+          <circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" />
+          <path d="M5 2.6V5l1.6 1.1" fill="none" stroke="currentColor" />
+        </svg>
+      </span>
+    );
+  }
+  if (photo.status === 'exporting') {
+    return (
+      <span className="thumbProgress" aria-label="Exporting" data-testid="badge-exporting">
+        <span />
+      </span>
+    );
+  }
+  if (photo.status === 'failed') {
+    return (
+      <span className="badge failed" title="Export failed" data-testid="badge-failed">
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-label="Export failed">
+          <path d="M5 1.5v4.2M5 8v.4" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        </svg>
+      </span>
+    );
+  }
+  if (photo.status === 'exported' && photo.exportedRev === photo.rev) {
+    return (
+      <span className="badge ok" title="Exported" data-testid="badge-exported">
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-label="Exported">
+          <path d="M1.5 5.3l2.3 2.3L8.5 2.6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+      </span>
+    );
+  }
+  if (hasMosaic(photo)) {
+    return (
+      <span className="badge" title="Has a mosaic" data-testid="badge-mosaic">
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-label="Has a mosaic">
           <path d="M0 0h5v5H0zM5 5h5v5H5z" fill="currentColor" />
-          <path d="M5 0h5v5H5zM0 5h5v5H0z" fill="none" stroke="currentColor" strokeWidth="1" />
+          <path d="M5.5 .5h4v4h-4zM.5 5.5h4v4h-4z" fill="none" stroke="currentColor" />
         </svg>
-      )}
-      {photo.status === 'exporting' && (
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          aria-label="Exporting"
-          data-testid="badge-exporting"
-        >
-          <title>Exporting</title>
-          <circle cx="5" cy="5" r="3.5" fill="none" stroke="currentColor" strokeDasharray="6 4">
-            <animateTransform
-              attributeName="transform"
-              type="rotate"
-              from="0 5 5"
-              to="360 5 5"
-              dur="1s"
-              repeatCount="indefinite"
-            />
-          </circle>
-        </svg>
-      )}
-      {exported && (
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          aria-label="Exported"
-          data-testid="badge-exported"
-        >
-          <title>Exported</title>
-          <path d="M1.5 5.5l2.3 2.3L8.5 2.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-        </svg>
-      )}
-      {photo.status === 'failed' && (
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          aria-label="Export failed"
-          data-testid="badge-failed"
-          style={{ color: 'var(--error)' }}
-        >
-          <title>Export failed</title>
-          <path
-            d="M5 1l4.5 8h-9zM5 4v2.5M5 7.6v.1"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.1"
-          />
-        </svg>
-      )}
-    </span>
-  );
+      </span>
+    );
+  }
+  return null;
 }
 
 /** A virtualised strip: only the thumbnails in view exist, so hundreds of photos stay cheap. */
@@ -121,60 +109,89 @@ export function Strip() {
     return () => element.removeEventListener('wheel', onWheel);
   }, []);
 
+  const content = app.photos.length * ITEM - 8;
+  const start = EDGE;
+
   // Keep the current photo in view when stepping with the arrow keys.
   useEffect(() => {
     const element = scroller.current;
     const index = app.photos.findIndex((p) => p.info.id === app.currentId);
     if (!element || index < 0) return;
-    const left = 8 + index * ITEM;
-    if (left < element.scrollLeft + 8) element.scrollLeft = Math.max(0, left - 8);
-    else if (left + ITEM > element.scrollLeft + element.clientWidth) {
-      element.scrollLeft = left + ITEM - element.clientWidth + 8;
+    const left = start + index * ITEM;
+    if (left < element.scrollLeft + EDGE) element.scrollLeft = Math.max(0, left - EDGE);
+    else if (left + THUMB > element.scrollLeft + element.clientWidth - EDGE) {
+      element.scrollLeft = left + THUMB - element.clientWidth + EDGE;
     }
-  }, [app.currentId, app.photos]);
+  }, [app.currentId, app.photos, start]);
 
-  const first = Math.max(0, Math.floor((range.left - 8) / ITEM) - 2);
+  const first = Math.max(0, Math.floor((range.left - start) / ITEM) - 2);
   const last = Math.min(app.photos.length, Math.ceil((range.left + range.width) / ITEM) + 2);
+  // A few photos sit centred, with Add after them; more than fit scroll, and Add stays at the end.
   return (
-    <div className="strip" ref={scroller} data-testid="strip">
-      <div className="stripInner" style={{ width: 16 + app.photos.length * ITEM }}>
-        {app.photos.slice(first, last).map((photo, i) => {
-          const index = first + i;
-          return (
-            <div key={photo.info.id} className="thumbSlot" style={{ left: 8 + index * ITEM }}>
-              <button
-                type="button"
-                className="thumb"
-                aria-current={photo.info.id === app.currentId}
-                aria-label={photo.info.name}
-                title={photo.info.name}
-                data-testid="thumb"
-                data-name={photo.info.name}
-                onClick={() => actions.select(photo.info.id)}
-              >
-                <img
-                  src={`pixlad://thumb/${photo.info.id}?v=${photo.fileVersion}`}
-                  alt=""
-                  loading="lazy"
-                  draggable={false}
-                />
-                <Badges photo={photo} />
-              </button>
-              <button
-                type="button"
-                className="remove"
-                aria-label={`Remove ${photo.info.name} from the session`}
-                title="Remove from the session. The file stays on disk."
-                data-testid="remove"
-                data-name={photo.info.name}
-                onClick={() => actions.remove(photo.info.id)}
-              >
-                ×
-              </button>
-            </div>
-          );
-        })}
+    <div className="stripBar">
+      <div
+        className="strip"
+        ref={scroller}
+        style={{ width: start * 2 + content }}
+        data-count={app.photos.length}
+        data-testid="strip"
+      >
+        <div className="stripInner" style={{ width: start * 2 + content }}>
+          {app.photos.slice(first, last).map((photo, i) => {
+            const index = first + i;
+            return (
+              <div key={photo.info.id} className="thumbSlot" style={{ left: start + index * ITEM }}>
+                <button
+                  type="button"
+                  className="thumb"
+                  aria-current={photo.info.id === app.currentId}
+                  aria-label={photo.info.name}
+                  title={photo.info.name}
+                  data-testid="thumb"
+                  data-name={photo.info.name}
+                  onClick={() => actions.select(photo.info.id)}
+                >
+                  <img
+                    src={`pixlad://thumb/${photo.info.id}?v=${photo.fileVersion}`}
+                    alt=""
+                    loading="lazy"
+                    draggable={false}
+                  />
+                  <Badges photo={photo} waiting={app.batch?.waiting === photo.info.id} />
+                </button>
+                <button
+                  type="button"
+                  className="remove"
+                  aria-label={`Remove ${photo.info.name} from the session`}
+                  title="Remove from the session. The file stays on disk."
+                  data-testid="remove"
+                  data-name={photo.info.name}
+                  onClick={() => actions.remove(photo.info.id)}
+                >
+                  <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true">
+                    <path d="M1 1l6 6M7 1 1 7" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
+      {app.adding && (
+        <span className="thumbPlaceholder" title="Adding photos…" data-testid="adding">
+          <span className="spinner" aria-hidden="true" />
+        </span>
+      )}
+      <button
+        type="button"
+        className="addPhotos"
+        onClick={() => void actions.openDialog()}
+        aria-label="Add photos"
+        title={`Add photos to this session (${isMac ? '⌘' : 'Ctrl'}+O)`}
+        data-testid="add-photos"
+      >
+        <Icon name="plus" />
+      </button>
     </div>
   );
 }

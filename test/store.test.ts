@@ -282,3 +282,63 @@ describe('finding all faces', () => {
     expect(faceAreas()).toHaveLength(1);
   });
 });
+
+describe('exporting while outlines are traced', () => {
+  it('leaves Export alone until the photo has its outlines', async () => {
+    const extra = api as typeof api & Record<string, unknown>;
+    extra['settings'] = vi.fn().mockResolvedValue({
+      exportTarget: 'suffix',
+      exportChosen: true,
+      checkForUpdates: false,
+      afterExport: 'keep',
+      theme: 'dark',
+    });
+    extra['warmFaces'] = vi.fn().mockResolvedValue(undefined);
+    let finish: (outlines: undefined[]) => void = () => undefined;
+    extra['trace'] = vi.fn(() => new Promise((resolve) => (finish = resolve)));
+    await actions.loadSettings();
+    await addPhoto();
+    actions.setFaceShape('outline');
+    api.detect.mockResolvedValueOnce([face(0.1)]);
+    await actions.findAllFaces();
+    expect(getState().tracing?.photoId).toBe(photo().info.id);
+
+    await actions.exportCurrent();
+    expect(api.exportPhoto).not.toHaveBeenCalled();
+
+    finish([undefined]);
+    await vi.waitFor(() => expect(getState().tracing).toBeUndefined());
+    api.exportPhoto.mockResolvedValueOnce({ ok: true, name: 'p_edit.jpg', replaced: false });
+    await actions.exportCurrent();
+    expect(api.exportPhoto).toHaveBeenCalledOnce();
+    actions.setFaceShape('rectangle');
+  });
+
+  it('exports the photo being traced last in Export all, once its outlines are in', async () => {
+    const extra = api as typeof api & Record<string, unknown>;
+    let finish: (outlines: undefined[]) => void = () => undefined;
+    extra['trace'] = vi.fn(() => new Promise((resolve) => (finish = resolve)));
+    const traced = await addPhoto();
+    actions.setFaceShape('outline');
+    api.detect.mockResolvedValueOnce([face(0.1)]);
+    await actions.findAllFaces();
+    actions.setFaceShape('rectangle');
+    const other = await addPhoto();
+    draw(0.5);
+    api.exportPhoto.mockResolvedValue({ ok: true, name: 'x_edit.jpg', replaced: false });
+
+    // Photos from earlier tests are in the session too; only these two matter here.
+    const exported = (): unknown[] =>
+      api.exportPhoto.mock.calls
+        .map(([id]) => id)
+        .filter((id) => id === traced.id || id === other.id);
+    const running = actions.exportAll();
+    await vi.waitFor(() => expect(getState().batch?.waiting).toBe(traced.id));
+    expect(exported()).toEqual([other.id]);
+
+    finish([undefined]);
+    await running;
+    expect(exported()).toEqual([other.id, traced.id]);
+    expect(getState().batch).toMatchObject({ finished: true, waiting: undefined });
+  });
+});

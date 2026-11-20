@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
 import type { AfterExport, ExportTarget, Theme } from '../shared/ipc';
+import icon from '../../build/icon.svg';
+import { AreaCounts } from './AreaCounts';
 import { ExportChoice } from './ExportChoice';
+import { Icon } from './Icon';
 import { isMac, useFlips } from './flips';
 import { withFlips, type FaceShape, type Outline } from './retouch';
 import {
@@ -12,6 +15,7 @@ import {
   longEdgeOf,
   unexportedCount,
   useApp,
+  type Batch,
   type PhotoState,
   type Target,
 } from './store';
@@ -28,22 +32,6 @@ const OUTLINES: Array<{ outline: Outline; label: string; title: string }> = [
 ];
 const FLIP_KEY = isMac ? '⌘' : 'Ctrl';
 
-/** The arrow on Undo, turned around for Redo. It takes the colour of its button's text. */
-function CurvedArrow({ mirrored = false }: { mirrored?: boolean }) {
-  return (
-    <svg
-      className={mirrored ? 'curvedArrow mirrored' : 'curvedArrow'}
-      viewBox="0 0 16 16"
-      width="14"
-      height="14"
-      aria-hidden="true"
-    >
-      <path d="M5 3 2 6l3 3M2 6h7.5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
-  );
-}
-
-/** Picks what a drag acts on. */
 /** A menu's open state; a click outside it or Escape closes it. */
 function useMenu() {
   const [open, setOpen] = useState(false);
@@ -66,53 +54,23 @@ function useMenu() {
   return { open, setOpen, root };
 }
 
-function TargetMenu() {
+/** Picks what a drag acts on: faces, or a drawn area. */
+function TargetToggle() {
   const app = useApp();
-  const { open, setOpen, root } = useMenu();
-  const current = TARGETS.find((t) => t.target === app.target)!;
   return (
-    <div className="targetMenu" ref={root}>
-      <button
-        type="button"
-        className="btn dropdown"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title={current.title}
-        data-testid="target"
-        onClick={() => setOpen(!open)}
-      >
-        <span className="dropdownLabel">
-          {TARGETS.map(({ target, label }) => (
-            <span key={target} data-current={target === app.target ? '' : undefined}>
-              {label}
-            </span>
-          ))}
-        </span>
-        <svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true">
-          <path d="M1 3l4 4 4-4" />
-        </svg>
-      </button>
-      {open && (
-        <div className="menu" role="menu">
-          {TARGETS.map(({ target, label, title }) => (
-            <button
-              key={target}
-              type="button"
-              role="menuitemradio"
-              aria-checked={app.target === target}
-              className="menuItem"
-              title={title}
-              data-target={target}
-              onClick={() => {
-                actions.setTarget(target);
-                setOpen(false);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
+    <div className="seg" role="group" aria-label="Drag finds">
+      {TARGETS.map(({ target, label, title }) => (
+        <button
+          key={target}
+          type="button"
+          aria-pressed={app.target === target}
+          title={title}
+          data-target={target}
+          onClick={() => actions.setTarget(target)}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -153,24 +111,34 @@ function ShapeMenu() {
   const app = useApp();
   const { open, setOpen, root } = useMenu();
   const current = SHAPES.find((s) => s.shape === app.faceShape)!;
+  // A drawn area has no face shape. The button stays where it is, greyed, so nothing moves.
+  const off = app.target === 'area';
   return (
     <div className="targetMenu" ref={root}>
       <button
         type="button"
-        className="btn dropdown"
+        className="dropdown"
         aria-haspopup="menu"
-        aria-expanded={open}
-        title={`Face shape: ${current.label}`}
+        aria-expanded={open && !off}
+        aria-disabled={off || undefined}
+        title={off ? 'Face shape only applies to Faces' : `Face shape: ${current.label}`}
         aria-label={`Face shape: ${current.label}`}
         data-testid="face-shape"
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (!off) setOpen(!open);
+        }}
       >
         <ShapeIcon>{current.icon}</ShapeIcon>
-        <svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true">
-          <path d="M1 3l4 4 4-4" />
-        </svg>
+        <span className="dropdownLabel">
+          {SHAPES.map(({ shape, label }) => (
+            <span key={shape} data-current={shape === app.faceShape ? '' : undefined}>
+              {label}
+            </span>
+          ))}
+        </span>
+        <Icon name="chevron" size={14} />
       </button>
-      {open && (
+      {open && !off && (
         <div className="menu" role="menu">
           {SHAPES.map(({ shape, label, hint, icon }) => (
             <button
@@ -186,8 +154,11 @@ function ShapeMenu() {
               }}
             >
               <ShapeIcon>{icon}</ShapeIcon>
-              <span>{label}</span>
-              <span className="hint">{hint}</span>
+              <span>
+                <span className="shapeLabel">{label}</span>
+                <span className="hint">{hint}</span>
+              </span>
+              {app.faceShape === shape ? <Icon name="check" size={14} /> : <span />}
             </button>
           ))}
         </div>
@@ -248,7 +219,7 @@ const EXPORT_TARGETS: Array<{ target: ExportTarget; label: string; note: string 
     label: 'New copy',
     note: 'Saves a copy with _edit in its name. The original stays as it is.',
   },
-  { target: 'overwrite', label: 'Replace original', note: 'Cannot be undone.' },
+  { target: 'overwrite', label: 'Replace', note: 'Writes over the original. Cannot be undone.' },
 ];
 
 const THEMES: Array<{ theme: Theme; label: string; icon: ReactNode }> = [
@@ -291,9 +262,9 @@ function ThemePicker() {
     buttons.current[index]?.focus();
   };
   return (
-    <div className="appearance">
-      <span className="label" id="appearance-label">
-        Appearance
+    <div className="settingRow">
+      <span className="settingName" id="appearance-label">
+        Theme
       </span>
       <div
         className="themePicker"
@@ -343,8 +314,12 @@ function ThemePicker() {
 
 const AFTER_EXPORT: Array<{ choice: AfterExport; label: string; note: string }> = [
   { choice: 'ask', label: 'Ask', note: 'Asks after each export.' },
-  { choice: 'keep', label: 'Keep photos in the session', note: 'The exported photos stay open.' },
-  { choice: 'remove', label: 'Remove them from the session', note: 'The files stay on disk.' },
+  { choice: 'keep', label: 'Keep', note: 'The exported photos stay in the session.' },
+  {
+    choice: 'remove',
+    label: 'Remove',
+    note: 'The exported photos leave the session. The files stay on disk.',
+  },
 ];
 
 function Settings({ exporting }: { exporting: boolean }) {
@@ -370,157 +345,178 @@ function Settings({ exporting }: { exporting: boolean }) {
     <div className="settings" ref={root}>
       <button
         type="button"
-        className="btn"
+        className="iconBtn"
         aria-expanded={open}
+        aria-label="Settings"
+        title="Settings"
         onClick={() => setOpen(!open)}
         data-testid="settings"
       >
-        Settings
+        <Icon name="cog" size={18} />
       </button>
       {open && (
         <div className="settingsPanel" data-testid="settings-panel">
           <fieldset disabled={exporting}>
-            <legend className="label">Export</legend>
-            {EXPORT_TARGETS.map(({ target, label, note }) => (
-              <label className="radio" key={target}>
-                <input
-                  type="radio"
-                  name="export-target"
-                  checked={app.exportTarget === target}
-                  onChange={() => void actions.setExportTarget(target)}
-                  data-testid={`export-target-${target}`}
-                />
-                <span>
-                  {label}
-                  <small>{note}</small>
+            <div className="settingRow">
+              <div>
+                <span className="settingName" id="save-as-label">
+                  Save as
                 </span>
-              </label>
-            ))}
-            <div className="label subLabel" id="after-export-label">
-              After export
+                <small>Replace can’t be undone.</small>
+              </div>
+              <div className="segmented" role="radiogroup" aria-labelledby="save-as-label">
+                {EXPORT_TARGETS.map(({ target, label, note }) => (
+                  <label className="segItem" key={target} title={note}>
+                    <input
+                      type="radio"
+                      name="export-target"
+                      checked={app.exportTarget === target}
+                      onChange={() => void actions.setExportTarget(target)}
+                      data-testid={`export-target-${target}`}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
             </div>
-            {AFTER_EXPORT.map(({ choice, label, note }) => (
-              <label className="radio" key={choice}>
-                <input
-                  type="radio"
-                  name="after-export"
-                  aria-describedby="after-export-label"
-                  checked={app.afterExport === choice}
-                  onChange={() => void actions.setAfterExport(choice)}
-                  data-testid={`after-export-${choice}`}
-                />
-                <span>
-                  {label}
-                  <small>{note}</small>
-                </span>
-              </label>
-            ))}
+            <div className="settingRow">
+              <span className="settingName" id="after-export-label">
+                After export
+              </span>
+              <div className="segmented" role="radiogroup" aria-labelledby="after-export-label">
+                {AFTER_EXPORT.map(({ choice, label, note }) => (
+                  <label className="segItem" key={choice} title={note}>
+                    <input
+                      type="radio"
+                      name="after-export"
+                      checked={app.afterExport === choice}
+                      onChange={() => void actions.setAfterExport(choice)}
+                      data-testid={`after-export-${choice}`}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
           </fieldset>
           <ThemePicker />
-          <fieldset>
-            <legend className="label">Updates</legend>
-            <label className="radio">
-              <input
-                type="checkbox"
-                checked={app.checkForUpdates}
-                onChange={(e) => void actions.setCheckForUpdates(e.target.checked)}
-                data-testid="check-for-updates"
-              />
-              <span>
-                Check for updates on start
-                <small>Asks GitHub whether a newer version exists.</small>
-              </span>
-            </label>
-          </fieldset>
-          <button
-            type="button"
-            className="linkButton"
-            onClick={() => {
-              setOpen(false);
-              actions.setShortcutsOpen(true);
-            }}
-            data-testid="open-shortcuts"
-          >
-            Keyboard shortcuts
-          </button>
-          <button
-            type="button"
-            className="linkButton"
-            onClick={() => {
-              setOpen(false);
-              actions.setAboutOpen(true);
-            }}
-            data-testid="open-about"
-          >
-            About Pixlad
-          </button>
+          <label className="settingRow" title="Asks GitHub whether a newer version exists.">
+            <span className="settingName">Check for updates on start</span>
+            <input
+              type="checkbox"
+              className="toggle"
+              checked={app.checkForUpdates}
+              onChange={(e) => void actions.setCheckForUpdates(e.target.checked)}
+              data-testid="check-for-updates"
+            />
+          </label>
+          <div className="settingsFoot">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                actions.setShortcutsOpen(true);
+              }}
+              data-testid="open-shortcuts"
+            >
+              Keyboard shortcuts
+              <kbd>?</kbd>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                actions.setAboutOpen(true);
+              }}
+              data-testid="open-about"
+            >
+              About Pixlad
+              <Icon name="chevron" size={14} />
+            </button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
-  const app = useApp();
-  const flips = useFlips();
-  const active = withFlips(app, flips);
+/** What the last Export all did, once it is over. */
+function batchSummary(batch: Batch): string {
+  return [
+    `${batch.ok} exported`,
+    // "0 failed" stays when nothing was cancelled; after a cancel only real failures show.
+    ...(batch.failed.length > 0 || batch.cancelled === 0 ? [`${batch.failed.length} failed`] : []),
+    ...(batch.cancelled > 0 ? [`${batch.cancelled} cancelled`] : []),
+  ].join(', ');
+}
+
+/** Export all under way: which photo of how many, and Cancel. */
+function BatchProgress({ batch }: { batch: Batch }) {
+  return (
+    <span className="readout batch">
+      <span className="label">Exporting</span>
+      <span className="value mono" data-testid="batch-status">
+        {Math.min(batch.done + 1, batch.total)}
+        <span className="total">/{batch.total}</span>
+      </span>
+      <span
+        className="progress"
+        role="progressbar"
+        aria-label="Export progress"
+        aria-valuemin={0}
+        aria-valuemax={batch.total}
+        aria-valuenow={batch.done}
+        data-testid="batch-progress"
+      >
+        <span style={{ width: `${(batch.done / Math.max(batch.total, 1)) * 100}%` }} />
+      </span>
+      <button
+        type="button"
+        className="btn"
+        disabled={batch.cancelling}
+        onClick={actions.cancelExportAll}
+        data-testid="batch-cancel"
+      >
+        {batch.cancelling ? 'Cancelling…' : 'Cancel'}
+      </button>
+    </span>
+  );
+}
+
+/** How the last export of the photo went, next to its name: saved where, or why it failed. */
+function PhotoStatus({ photo }: { photo: PhotoState }) {
+  if (!photo.message) return null;
+  const tone = photo.status === 'failed' ? 'error' : photo.status === 'exported' ? 'ok' : '';
+  return (
+    <span className="photoStatus" data-testid="photo-status">
+      <span className={`dot ${tone}`} />
+      <span className="message" title={photo.message}>
+        {photo.message}
+      </span>
+      {photo.status === 'exported' && (
+        <button
+          type="button"
+          className="textButton"
+          onClick={() => void actions.showInFolder(photo.info.id)}
+          title="Show the exported file in its folder"
+          data-testid="show-in-folder"
+        >
+          Show
+        </button>
+      )}
+    </span>
+  );
+}
+
+/** Block and Padding, under the photo. */
+export function EditBar({ photo }: { photo: PhotoState | undefined }) {
   const longEdge = photo ? longEdgeOf(photo) : 1;
   const px = photo
     ? blockSizeRelToPx(blockSizePxToRel(photo.blockPx, longEdge), longEdge)
     : BLOCK_SIZE_PX.min;
-  const exporting = app.batch !== undefined && !app.batch.finished;
-  const anyMosaic = app.photos.some(hasMosaic);
-  void unexportedCount;
   return (
-    <div className="toolbar" data-testid="toolbar">
-      <div className="group" role="group" aria-label="Tool">
-        <TargetMenu />
-        {OUTLINES.map(({ outline, label, title }) => (
-          <button
-            key={outline}
-            type="button"
-            className="tab"
-            aria-pressed={active.outline === outline}
-            data-flipped={flips.outline && active.outline === outline ? '' : undefined}
-            title={title}
-            data-outline={outline}
-            onClick={() => actions.setOutline(outline)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="group" role="group" aria-label="Mode">
-        {(['add', 'subtract'] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            className="tab"
-            aria-pressed={active.mode === mode}
-            data-flipped={flips.mode && active.mode === mode ? '' : undefined}
-            title={
-              mode === 'add'
-                ? `New areas and faces add mosaic (hold ${FLIP_KEY} to subtract)`
-                : `New areas and faces take mosaic away (hold ${FLIP_KEY} to add)`
-            }
-            data-mode={mode}
-            onClick={() => actions.setMode(mode)}
-          >
-            {mode === 'add' ? 'Add' : 'Subtract'}
-          </button>
-        ))}
-      </div>
-      <button
-        type="button"
-        className="btn"
-        onClick={() => void actions.findAllFaces()}
-        disabled={!photo || app.detecting}
-        title="Find every face in this photo and add it to the mosaic (F)"
-        data-testid="find-faces"
-      >
-        Find all faces
-      </button>
-      <ShapeMenu />
+    <div className="editBar" data-testid="edit-bar">
+      {photo && <AreaCounts photo={photo} />}
       <label
         className="control"
         title="Block edge in pixels of the full-resolution photo. Small selections get larger blocks, so a face stays unrecognisable."
@@ -573,79 +569,182 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           onPointerUp={(e) => e.currentTarget.blur()}
         />
       </label>
-      <div className="spacer" />
-      <button
-        type="button"
-        className="btn"
-        onClick={() => void actions.openDialog()}
-        title={`Add photos to this session (${FLIP_KEY}+O)`}
-        data-testid="add-photos"
-      >
-        Add…
-      </button>
-      <button
-        type="button"
-        className="btn"
-        onClick={actions.undo}
-        disabled={!photo || photo.undo.length === 0}
-        aria-label="Undo"
-        title={`Undo the last change to the areas (${FLIP_KEY}+Z)`}
-      >
-        <CurvedArrow />
-      </button>
-      <button
-        type="button"
-        className="btn"
-        onClick={actions.redo}
-        disabled={!photo || photo.redo.length === 0}
-        aria-label="Redo"
-        title={`Redo the change you just undid (${REDO_KEYS})`}
-      >
-        <CurvedArrow mirrored />
-      </button>
-      <button
-        type="button"
-        className="btn"
-        onClick={actions.reset}
-        disabled={!photo || photo.areas.length === 0}
-        title="Clear every area and face on this photo (Undo brings them back)"
-        data-testid="reset"
-      >
-        Reset
-      </button>
-      <span className="anchor">
+    </div>
+  );
+}
+
+export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
+  const app = useApp();
+  const flips = useFlips();
+  const active = withFlips(app, flips);
+  const exporting = app.batch !== undefined && !app.batch.finished;
+  const tracingThis = photo !== undefined && app.tracing?.photoId === photo.info.id;
+  const anyMosaic = app.photos.some(hasMosaic);
+  void unexportedCount;
+  return (
+    <div className="toolbar" data-testid="toolbar">
+      <div className="topLeft">
+        <img src={icon} alt="" width={20} height={20} />
+        {photo ? (
+          <>
+            <span
+              className="fileName mono"
+              title={`${photo.info.name}, ${photo.info.width}×${photo.info.height}`}
+              data-testid="file-name"
+            >
+              {photo.info.name}
+            </span>
+            <PhotoStatus photo={photo} />
+          </>
+        ) : (
+          <span className="appName">Pixlad</span>
+        )}
+      </div>
+      <div className={photo ? 'toolGroup' : 'toolGroup idle'} role="toolbar" aria-label="Tools">
+        <TargetToggle />
+        <span className="sep" />
+        <ShapeMenu />
+        <span className="sep" />
+        <div className="seg" role="group" aria-label="Outline">
+          {OUTLINES.map(({ outline, label, title }) => (
+            <button
+              key={outline}
+              type="button"
+              className="iconSeg"
+              aria-pressed={active.outline === outline}
+              aria-label={label}
+              data-flipped={flips.outline && active.outline === outline ? '' : undefined}
+              title={title}
+              data-outline={outline}
+              onClick={() => actions.setOutline(outline)}
+            >
+              <Icon name={outline} />
+            </button>
+          ))}
+        </div>
+        <span className="sep" />
+        <div className="seg" role="group" aria-label="Mode">
+          {(['add', 'subtract'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              className="iconSeg"
+              aria-pressed={active.mode === mode}
+              aria-label={mode === 'add' ? 'Add' : 'Subtract'}
+              data-flipped={flips.mode && active.mode === mode ? '' : undefined}
+              title={
+                mode === 'add'
+                  ? `New areas and faces add mosaic (hold ${FLIP_KEY} to subtract)`
+                  : `New areas and faces take mosaic away (hold ${FLIP_KEY} to add)`
+              }
+              data-mode={mode}
+              onClick={() => actions.setMode(mode)}
+            >
+              <Icon name={mode === 'add' ? 'plus' : 'minus'} />
+            </button>
+          ))}
+        </div>
+        <span className="sep" />
         <button
           type="button"
-          className="btn primary"
-          onClick={() => void actions.exportCurrent()}
-          disabled={!photo || !hasMosaic(photo) || photo.status === 'exporting'}
-          title={
-            photo && !hasMosaic(photo)
-              ? 'Draw an area or find faces first'
-              : app.exportTarget === 'overwrite'
-                ? `Replace the original file with the mosaic (${FLIP_KEY}+E)`
-                : `Save a new copy with _edit next to the original (${FLIP_KEY}+E)`
-          }
-          data-testid="export"
+          className="findAll"
+          onClick={() => void actions.findAllFaces()}
+          disabled={!photo || app.detecting}
+          aria-label="Find all faces"
+          title="Find every face in this photo and add it to the mosaic (F)"
+          data-testid="find-faces"
         >
-          Export
+          {app.detecting ? (
+            <span className="findSpin">
+              <span className="spinner" aria-hidden="true" />
+            </span>
+          ) : (
+            <Icon name="find" />
+          )}
+          Find all
         </button>
-        {app.exportChoice?.anchor === 'export' && <ExportChoice anchor="export" />}
-      </span>
-      <span className="anchor">
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void actions.exportAll()}
-          disabled={!anyMosaic || exporting}
-          title="Export every photo that has a mosaic"
-          data-testid="export-all"
-        >
-          Export all
-        </button>
-        {app.exportChoice?.anchor === 'all' && <ExportChoice anchor="all" />}
-      </span>
-      <Settings exporting={exporting} />
+      </div>
+      <div className="topRight">
+        {exporting && app.batch ? (
+          <BatchProgress batch={app.batch} />
+        ) : (
+          <>
+            {app.batch && (
+              <span className="batchSummary" data-testid="batch-status">
+                {batchSummary(app.batch)}
+              </span>
+            )}
+            <button
+              type="button"
+              className="iconBtn"
+              onClick={actions.undo}
+              disabled={!photo || photo.undo.length === 0}
+              aria-label="Undo"
+              title={`Undo the last change to the areas (${FLIP_KEY}+Z)`}
+            >
+              <Icon name="undo" size={18} />
+            </button>
+            <button
+              type="button"
+              className="iconBtn"
+              onClick={actions.redo}
+              disabled={!photo || photo.redo.length === 0}
+              aria-label="Redo"
+              title={`Redo the change you just undid (${REDO_KEYS})`}
+            >
+              <Icon name="redo" size={18} />
+            </button>
+            <button
+              type="button"
+              className="iconBtn"
+              onClick={actions.reset}
+              disabled={!photo || photo.areas.length === 0}
+              aria-label="Clear all areas"
+              title="Clear every area and face on this photo (Undo brings them back)"
+              data-testid="reset"
+            >
+              <Icon name="clear" size={18} />
+            </button>
+            <span className="anchor">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void actions.exportAll()}
+                disabled={!anyMosaic || exporting}
+                title="Export every photo that has a mosaic"
+                data-testid="export-all"
+              >
+                Export all
+              </button>
+              {app.exportChoice?.anchor === 'all' && <ExportChoice anchor="all" />}
+            </span>
+            <span className="anchor">
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => void actions.exportCurrent()}
+                disabled={
+                  !photo || !hasMosaic(photo) || photo.status === 'exporting' || tracingThis
+                }
+                title={
+                  photo && !hasMosaic(photo)
+                    ? 'Draw an area or find faces first'
+                    : tracingThis
+                      ? 'Export waits until tracing finishes'
+                      : app.exportTarget === 'overwrite'
+                        ? `Replace the original file with the mosaic (${FLIP_KEY}+E)`
+                        : `Save a new copy with _edit next to the original (${FLIP_KEY}+E)`
+                }
+                data-testid="export"
+              >
+                Export
+              </button>
+              {app.exportChoice?.anchor === 'export' && <ExportChoice anchor="export" />}
+            </span>
+          </>
+        )}
+        <Settings exporting={exporting} />
+      </div>
     </div>
   );
 }

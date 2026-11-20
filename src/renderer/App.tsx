@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useCallback, useEffect, useState } from 'react';
 import { About } from './About';
-import { AreaCounts } from './AreaCounts';
 import { OverwriteConfirm } from './OverwriteConfirm';
 import { ReleaseNotes } from './ReleaseNotes';
 import { isMac } from './flips';
@@ -11,7 +10,8 @@ import { RemovePhoto } from './RemovePhoto';
 import { Shortcuts } from './Shortcuts';
 import { Stage } from './Stage';
 import { Strip } from './Strip';
-import { Toolbar } from './Toolbar';
+import { Icon } from './Icon';
+import { EditBar, Toolbar } from './Toolbar';
 import { UpdateStatus } from './UpdateStatus';
 import { actions, currentPhoto, useApp } from './store';
 
@@ -130,20 +130,6 @@ export function App() {
     };
   }, []);
 
-  const batch = app.batch;
-  const batchText = batch
-    ? batch.finished
-      ? [
-          `${batch.ok} exported`,
-          // "0 failed" stays when nothing was cancelled; after a cancel only real failures show.
-          ...(batch.failed.length > 0 || batch.cancelled === 0
-            ? [`${batch.failed.length} failed`]
-            : []),
-          ...(batch.cancelled > 0 ? [`${batch.cancelled} cancelled`] : []),
-        ].join(', ')
-      : `Exporting ${Math.min(batch.done + 1, batch.total)} of ${batch.total}`
-    : '';
-
   return (
     <div className="app">
       <Toolbar photo={photo} />
@@ -159,11 +145,29 @@ export function App() {
               </div>
               <button
                 type="button"
-                className="close"
+                className="iconBtn close"
                 aria-label="Dismiss"
                 onClick={() => actions.dismissNotice(notice.id)}
               >
-                ×
+                <Icon name="close" size={14} />
+              </button>
+            </div>
+          ))}
+          {app.toasts.map((toast) => (
+            <div className="notice" role="alert" key={toast.id} data-testid="toast">
+              <span className="dot error" />
+              <div className="lines">
+                {toast.lines.map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="iconBtn close"
+                aria-label="Dismiss"
+                onClick={() => actions.dismissNotice(toast.id)}
+              >
+                <Icon name="close" size={14} />
               </button>
             </div>
           ))}
@@ -176,149 +180,64 @@ export function App() {
               {app.update.phase === 'opened' && (
                 <button
                   type="button"
-                  className="close"
+                  className="iconBtn close"
                   aria-label="Dismiss"
                   onClick={actions.hideUpdatePrompt}
                 >
-                  ×
+                  <Icon name="close" size={14} />
                 </button>
               )}
             </div>
           )}
         </div>
         {photo ? (
-          <Stage key={`${photo.info.id}-${photo.fileVersion}`} photo={photo} onZoom={onZoom} />
+          <>
+            <Stage key={`${photo.info.id}-${photo.fileVersion}`} photo={photo} onZoom={onZoom} />
+            <EditBar photo={photo} />
+            {zoom !== undefined && (
+              <button
+                type="button"
+                className="zoomChip mono"
+                title="Back to Fit (Z)"
+                onClick={() => document.dispatchEvent(new Event('pixlad:toggle-zoom'))}
+                data-testid="zoom-toggle"
+              >
+                {`${Math.round(zoom)}%`}
+              </button>
+            )}
+          </>
         ) : (
           <div className="empty" data-testid="empty">
-            <h1>Drop JPEG photos here</h1>
-            <p>One or several, or whole folders. Nothing is saved between sessions.</p>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => void actions.openDialog()}
-              data-testid="open"
-            >
-              Open…
-            </button>
-            {app.adding && <p>Adding…</p>}
+            {app.adding ? (
+              <>
+                <span className="spinner large" aria-hidden="true" />
+                <p data-testid="adding">Adding photos…</p>
+              </>
+            ) : (
+              <>
+                <h1>Drop JPEG photos or folders</h1>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void actions.openDialog()}
+                  data-testid="open"
+                >
+                  Open…
+                  <kbd>{isMac ? '⌘ O' : 'Ctrl O'}</kbd>
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
       {app.photos.length > 0 && <Strip />}
-      <div className="footer mono" data-testid="footer">
-        <span className="status" data-testid="photo-status">
-          {app.adding && <span>Adding photos…</span>}
-          {photo && (
-            <>
-              <span>{photo.info.name}</span>
-              <span>{`${photo.info.width}×${photo.info.height}`}</span>
-              <AreaCounts photo={photo} />
-              {app.tracing?.photoId === photo.info.id && (
-                <span className="tracing" data-testid="tracing">
-                  <span className="spinner" aria-hidden="true" />
-                  {`Tracing outlines ${app.tracing.done}/${app.tracing.total}`}
-                </span>
-              )}
-              {photo.message && (
-                <span>
-                  <span
-                    className={`dot ${photo.status === 'failed' ? 'error' : photo.status === 'exported' ? 'ok' : ''}`}
-                    style={{ display: 'inline-block', marginRight: 6 }}
-                  />
-                  {photo.message}
-                  {photo.status === 'exported' && (
-                    <>
-                      {' '}
-                      <button
-                        type="button"
-                        className="footerButton"
-                        onClick={() => void actions.showInFolder(photo.info.id)}
-                        data-testid="show-in-folder"
-                      >
-                        Show in folder
-                      </button>
-                    </>
-                  )}
-                </span>
-              )}
-            </>
-          )}
-        </span>
-        {batchText && (
-          <span className="batch">
-            <span data-testid="batch-status">{batchText}</span>
-            {batch && !batch.finished && (
-              <>
-                <span
-                  className="progress"
-                  role="progressbar"
-                  aria-label="Export progress"
-                  aria-valuemin={0}
-                  aria-valuemax={batch.total}
-                  aria-valuenow={batch.done}
-                  data-testid="batch-progress"
-                >
-                  <span style={{ width: `${(batch.done / Math.max(batch.total, 1)) * 100}%` }} />
-                </span>
-                <button
-                  type="button"
-                  className="footerButton"
-                  disabled={batch.cancelling}
-                  onClick={actions.cancelExportAll}
-                  data-testid="batch-cancel"
-                >
-                  {batch.cancelling ? 'Cancelling…' : 'Cancel'}
-                </button>
-              </>
-            )}
-          </span>
-        )}
-        {photo && (
-          <button
-            type="button"
-            className="footerButton"
-            title="Switch between Fit and 100% (Z)"
-            onClick={() => document.dispatchEvent(new Event('pixlad:toggle-zoom'))}
-            data-testid="zoom-toggle"
-          >
-            {zoom === undefined ? 'Fit' : `${Math.round(zoom)}%`}
-          </button>
-        )}
-        <span>
-          {app.photos.length > 0 && photo
-            ? `${app.photos.indexOf(photo) + 1} / ${app.photos.length}`
-            : ''}
-        </span>
-      </div>
-      {app.toasts.length > 0 && (
-        <div className="toasts" data-testid="toasts">
-          {app.toasts.map((toast) => (
-            <div className="toast" role="alert" key={toast.id} data-testid="toast">
-              <span className="dot error" />
-              <div className="lines">
-                {toast.lines.map((line, i) => (
-                  <div key={i}>{line}</div>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="close"
-                aria-label="Dismiss"
-                onClick={() => actions.dismissNotice(toast.id)}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
       {app.removePhotoQuestion && <RemovePhoto question={app.removePhotoQuestion} />}
       {app.aboutOpen && <About />}
       {app.shortcutsOpen && <Shortcuts />}
       {app.overwriteConfirm && <OverwriteConfirm anchor={app.overwriteConfirm.anchor} />}
       {app.notesOpen && app.update.phase !== 'idle' && <ReleaseNotes />}
       {app.removeQuestion && <RemoveExported question={app.removeQuestion} />}
-      {app.dragging && <div className="dropOverlay">Drop JPEG photos to add them</div>}
+      {app.dragging && <div className="dropOverlay">Drop to add photos</div>}
     </div>
   );
 }

@@ -15,7 +15,21 @@ const EDGE = 8;
  * The photo's state, as one badge in its corner: failed, exported or has a mosaic. An export
  * under way runs a line along the bottom instead.
  */
-function Badges({ photo }: { photo: PhotoState }) {
+function Badges({ photo, waiting }: { photo: PhotoState; waiting: boolean }) {
+  if (waiting) {
+    return (
+      <span
+        className="badge"
+        title="Exports once its outlines are traced"
+        data-testid="badge-waiting"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-label="Waiting for its outlines">
+          <circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" />
+          <path d="M5 2.6V5l1.6 1.1" fill="none" stroke="currentColor" />
+        </svg>
+      </span>
+    );
+  }
   if (photo.status === 'exporting') {
     return (
       <span className="thumbProgress" aria-label="Exporting" data-testid="badge-exporting">
@@ -143,7 +157,7 @@ export function Strip() {
                     loading="lazy"
                     draggable={false}
                   />
-                  <Badges photo={photo} />
+                  <Badges photo={photo} waiting={app.batch?.waiting === photo.info.id} />
                 </button>
                 <button
                   type="button"

@@ -79,6 +79,8 @@ export interface Batch {
   cancelling: boolean;
   /** Photos that were never started because the batch was cancelled. */
   cancelled: number;
+  /** A photo whose outlines are still being traced: it goes last, once they are in. */
+  waiting?: string;
 }
 
 export interface AppState {
@@ -180,6 +182,17 @@ export const subscribe = (l: () => void): (() => void) => {
   return () => listeners.delete(l);
 };
 export const useApp = (): AppState => useSyncExternalStore(subscribe, getState, getState);
+
+/** Resolves once `ready` holds, checked after every change to the state. */
+const until = (ready: () => boolean): Promise<void> =>
+  new Promise((resolve) => {
+    if (ready()) return resolve();
+    const stop = subscribe(() => {
+      if (!ready()) return;
+      stop();
+      resolve();
+    });
+  });
 
 export const longEdgeOf = (p: PhotoState): number => Math.max(p.info.width, p.info.height);
 export const opOf = (p: PhotoState) =>
@@ -889,7 +902,12 @@ export const actions = {
   /** Every photo with a mosaic, one after the other, in the background. */
   async exportAll(confirmed = false): Promise<void> {
     if (state.batch && !state.batch.finished) return;
-    const ids = state.photos.filter(hasMosaic).map((p) => p.info.id);
+    // A photo still being traced goes last, so the others are not held up by it.
+    const tracing = state.tracing?.photoId;
+    const ids = state.photos
+      .filter(hasMosaic)
+      .map((p) => p.info.id)
+      .sort((a, b) => Number(a === tracing) - Number(b === tracing));
     if (ids.length === 0) return;
     if (!state.exportChosen) {
       set({ exportChoice: { anchor: 'all' } });
@@ -911,13 +929,23 @@ export const actions = {
       },
     });
     const exported: string[] = [];
+    const cancelFrom = (index: number): void => {
+      const left = ids.slice(index).filter((rest) => state.photos.some((p) => p.info.id === rest));
+      set((s) => ({ batch: s.batch && { ...s.batch, cancelled: left.length } }));
+    };
     for (const [index, id] of ids.entries()) {
       if (state.batch?.cancelling) {
-        const left = ids
-          .slice(index)
-          .filter((rest) => state.photos.some((p) => p.info.id === rest));
-        set((s) => ({ batch: s.batch && { ...s.batch, cancelled: left.length } }));
+        cancelFrom(index);
         break;
+      }
+      if (state.tracing?.photoId === id) {
+        set((s) => ({ batch: s.batch && { ...s.batch, waiting: id } }));
+        await until(() => state.tracing?.photoId !== id || state.batch?.cancelling === true);
+        set((s) => ({ batch: s.batch && { ...s.batch, waiting: undefined } }));
+        if (state.batch?.cancelling) {
+          cancelFrom(index);
+          break;
+        }
       }
       const photo = state.photos.find((p) => p.info.id === id);
       const name = photo?.info.name ?? id;

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { clamp, polygonBounds, shapeBounds, simplifyPolygon } from '../shared/geometry';
 import type { Point, Rect, Shape } from '../shared/types';
 import {
+  areaBounds,
   areaIndexAt,
   areaShape,
   clampToPicture,
@@ -499,6 +500,21 @@ export function Stage({
     return { left: left(x), top: Math.max(8, top - 6 - height) };
   })();
 
+  // The face under the pointer gets a tag under it with how sure the detector was.
+  const hoveredArea = hovered >= 0 ? photo.areas[hovered] : undefined;
+  const hoveredFace = ((): { text: string; at: { left: number; top: number } } | undefined => {
+    if (!hoveredArea?.face) return undefined;
+    const b = areaBounds(hoveredArea, photo.facePadding);
+    const score = hoveredArea.face.score;
+    return {
+      text: score === undefined ? 'Face' : `Face ${Math.round(score * 100)}%`,
+      at: {
+        left: layout.offset.x + (b.x + b.w / 2) * pw,
+        top: layout.offset.y + (b.y + b.h) * ph + 4,
+      },
+    };
+  })();
+
   return (
     <div
       ref={stageRef}
@@ -580,6 +596,11 @@ export function Stage({
               </>
             )}
           </svg>
+          {hoveredFace && (
+            <div className="faceTag mono" style={hoveredFace.at} data-testid="face-tag">
+              {hoveredFace.text}
+            </div>
+          )}
           {marked && (
             <div className="regionLabel" style={labelAt} data-testid="detect-label">
               {looking ? 'Looking for faces…' : 'No faces found'}

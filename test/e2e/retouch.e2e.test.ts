@@ -192,6 +192,9 @@ describe('drawing with the real mouse', () => {
       .locator('[data-testid="area"][data-kind="face"]')
       .first()
       .boundingBox())!;
+    // The face under the pointer is tagged with the detector's confidence.
+    await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
+    expect(await page.locator('[data-testid="face-tag"]').textContent()).toMatch(/^Face \d+%$/);
     await page.mouse.click(first.x + first.width / 2, first.y + first.height / 2);
     await expect(page.locator('[data-testid="face-count"]').textContent()).resolves.toContain(
       `${total - 1}/${total}`,

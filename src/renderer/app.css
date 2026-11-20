@@ -925,6 +925,22 @@ input[type='range']::-webkit-slider-thumb {
   stroke-opacity: 0.95;
   stroke-width: 6;
 }
+/* Under the face the pointer is on: how sure the detector was */
+.faceTag {
+  position: absolute;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  background: var(--text);
+  color: var(--on-text);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.stage[data-peek] .faceTag {
+  visibility: hidden;
+}
 /* Next to the region the detector is looking at; a chip so it reads over any photo. */
 .regionLabel {
   position: absolute;

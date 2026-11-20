@@ -441,6 +441,20 @@ async function yunetPyramid(
 }
 
 /**
+ * Drop detections that are really a hand (a raised fist): mostly inside a detected hand box. A face
+ * with a hand over the mouth stays, since most of its box is outside the hand. So does a face
+ * DEIMv2 also calls a face (it sometimes calls a face behind a fist a hand too), and a face YuNet is
+ * sure of (0.8 and up).
+ */
+function notHands(people: Person[], hands: readonly Box[], faces: readonly Box[]): Person[] {
+  return people.filter((p) => {
+    if (faces.some((f) => overlap(f, p.box) >= 0.5 * Math.min(area(p.box), area(f)))) return true;
+    if (p.from === 'yunet' && p.score >= 0.8) return true;
+    return !hands.some((h) => overlap(p.box, h) >= 0.5 * area(p.box));
+  });
+}
+
+/**
  * Faces that clash: a face mostly (50%+) covered by stronger faces is a stray box between people,
  * and a big face holding the centres of two or more smaller faces is a loose box over several
  * people. What is left goes through `onePerPerson`.
@@ -531,10 +545,11 @@ export async function findPeople(img: Img, region: Rect, modelsDir: string): Pro
   const hazy = (await hazyFaces(img, px, modelsDir)).filter(
     (f) => !plain.some((p) => overlap(p.box, f.box) > 0.3 * Math.min(area(p.box), area(f.box))),
   );
+  const deimFaces = [...found.faces, ...more.faces];
   const faces = oneFacePerPerson([
     ...plain,
     ...hazy,
-    ...[...found.faces, ...more.faces].map((box): Person => ({
+    ...deimFaces.map((box): Person => ({
       box,
       score: 0.5,
       landmarks: [],
@@ -551,5 +566,6 @@ export async function findPeople(img: Img, region: Rect, modelsDir: string): Pro
       h.score >= LONE_HEAD_SCORE &&
       !faces.some((f) => overlap(f.box, h.box) > CLIP * area(f.box)),
   );
-  return onePerPerson([...faces, ...lone]);
+  const hands = [...found.hands, ...more.hands];
+  return onePerPerson(notHands([...faces, ...lone], hands, deimFaces));
 }

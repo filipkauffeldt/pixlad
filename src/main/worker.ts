@@ -26,6 +26,19 @@ export type WorkerReply =
 
 const modelPath = (workerData as { modelPath: string }).modelPath;
 
+/**
+ * The region grown by 8% of the long edge on every side, inside the photo, so a face the
+ * selection cuts through is detected whole.
+ */
+function withMargin(region: Rect, width: number, height: number): Rect {
+  const margin = 0.08 * Math.max(width, height);
+  const x0 = Math.max(0, region.x - margin / width);
+  const y0 = Math.max(0, region.y - margin / height);
+  const x1 = Math.min(1, region.x + region.w + margin / width);
+  const y1 = Math.min(1, region.y + region.h + margin / height);
+  return { type: 'rect', x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
 /** The only decoded photo: upright RGBA plus the profile its preview patches carry. */
 let current:
   { width: number; height: number; rgba: Uint8Array; icc: Buffer | undefined } | undefined;
@@ -59,7 +72,7 @@ async function handle(request: WorkerRequest): Promise<unknown> {
         current.rgba,
         current.width,
         current.height,
-        request.region,
+        withMargin(request.region, current.width, current.height),
         { modelPath },
       );
       return found;

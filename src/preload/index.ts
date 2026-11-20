@@ -12,6 +12,7 @@ const api: Api = {
   openPhoto: (id) => ipcRenderer.invoke('photo:open', id),
   preview: (id, op) => ipcRenderer.invoke('photo:preview', id, op),
   detect: (id, region) => ipcRenderer.invoke('photo:detect', id, region),
+  trace: (id, faces) => ipcRenderer.invoke('photo:trace', id, faces),
   exportPhoto: (id, op) => ipcRenderer.invoke('photo:export', id, op),
   settings: () => ipcRenderer.invoke('settings:get'),
   showInFolder: (id) => ipcRenderer.invoke('export:show-in-folder', id),

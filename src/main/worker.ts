@@ -3,11 +3,14 @@
 // One worker script, three instances (current photo, thumbnails, exporter), so decoding and
 // encoding never block the window.
 import { readFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
 import { renderMosaic } from '../shared/mosaic';
-import type { FaceDetection, MosaicOp, Rect } from '../shared/types';
+import type { FaceDetection, MosaicOp, Point, Rect, TraceFace } from '../shared/types';
 import { exportEdit, ExportFailure, type ExportRequest } from './export-photo';
 import { detectFaces } from './faces/detect';
+import { withOutlineModels } from './faces/models';
+import { traceOutlines } from './faces/outlines';
 import { decodeCoefficients } from './jpeg/decode';
 import { iccProfile } from './jpeg/parse';
 import { dcThumbnail, decodePlanes, planesToRgba } from './jpeg/pixels';
@@ -17,6 +20,7 @@ export type WorkerRequest =
   | { id: number; type: 'open'; path: string }
   | { id: number; type: 'preview'; op: MosaicOp }
   | { id: number; type: 'detect'; region: Rect }
+  | { id: number; type: 'trace'; faces: TraceFace[] }
   | { id: number; type: 'thumb'; path: string }
   | { id: number; type: 'export'; request: ExportRequest };
 
@@ -48,6 +52,27 @@ function centredIn(faces: FaceDetection[], region: Rect): FaceDetection[] {
       cx >= region.x && cx <= region.x + region.w && cy >= region.y && cy <= region.y + region.h
     );
   });
+}
+
+/**
+ * Outlines for faces already found, normalized. Per face: the outline, null to drop the face (a
+ * balaclava with nothing showing, a tattoo), or undefined to keep its oval.
+ */
+async function traceFaces(
+  photo: { rgba: Uint8Array; width: number; height: number },
+  faces: TraceFace[],
+): Promise<(Point[] | null | undefined)[]> {
+  const { width: W, height: H } = photo;
+  const px = (r: Rect) => ({ x: r.x * W, y: r.y * H, w: r.w * W, h: r.h * H });
+  const items = faces.map((f) => ({
+    box: px(f.box),
+    kind: f.kind ?? 'face',
+    angle: f.angle ?? 0,
+    confirmed: f.confirmed ?? f.kind !== 'head',
+    ...(f.eyes ? { eyes: f.eyes.map(px) } : {}),
+  }));
+  const outlines = await withOutlineModels(() => traceOutlines(photo, items, dirname(modelPath)));
+  return outlines.map((o) => (o ? o.map((p) => ({ x: p.x / W, y: p.y / H })) : o));
 }
 
 /** The only decoded photo: upright RGBA plus the profile its preview patches carry. */
@@ -87,6 +112,10 @@ async function handle(request: WorkerRequest): Promise<unknown> {
         { modelPath },
       );
       return centredIn(found, request.region);
+    }
+    case 'trace': {
+      if (!current) throw new Error('no photo is open');
+      return traceFaces(current, request.faces);
     }
     case 'thumb': {
       const decoded = decodeCoefficients(await readFile(request.path), { dcOnly: true });

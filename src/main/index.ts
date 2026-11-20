@@ -28,7 +28,7 @@ import {
   type PreviewPatch,
   type Settings,
 } from '../shared/ipc';
-import { opHasAddedArea, type MosaicOp, type Rect } from '../shared/types';
+import { opHasAddedArea, type MosaicOp, type Rect, type TraceFace } from '../shared/types';
 import { parseVersion } from '../shared/version';
 import { chooseEditPath, type WrittenEdit } from './edit-path';
 import { Limiter, WorkerClient } from './pool';
@@ -255,6 +255,10 @@ function registerIpc(): void {
   ipcMain.handle('photo:detect', async (_e, id: string, region: Rect) => {
     wantedId = id;
     return onPhoto(id, () => photoWorker.run({ type: 'detect', region }));
+  });
+  ipcMain.handle('photo:trace', async (_e, id: string, faces: TraceFace[]) => {
+    wantedId = id;
+    return onPhoto(id, () => photoWorker.run({ type: 'trace', faces }));
   });
   ipcMain.handle('photo:export', async (_e, id: string, op: MosaicOp): Promise<ExportOutcome> => {
     const photo = session.get(id);

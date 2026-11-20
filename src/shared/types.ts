@@ -50,6 +50,18 @@ export interface FaceDetection {
   aspect?: number;
 }
 
+/** A face to trace an outline for: its normalized box, kind and roll. */
+export interface TraceFace {
+  box: Rect;
+  /** A head box holds hair and ears; a face box does not. Default: face. */
+  kind?: 'face' | 'head';
+  angle?: number;
+  /** A detector saw a face here. Default: true for a face, false for a head. */
+  confirmed?: boolean;
+  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
+  eyes?: Rect[];
+}
+
 export const isAdded = (area: MosaicArea): boolean =>
   area.enabled !== false && area.mode !== 'subtract';
 

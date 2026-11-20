@@ -4,14 +4,28 @@
 // segmenter. Boxes and points are in photo pixels.
 import * as ort from 'onnxruntime-node';
 import type { Point } from '../../shared/types';
+import { outlineModel } from './models';
 import type { Box, Img } from './people';
 
 /** The segmenter's input edge. */
 const SEG = 256;
 
 // Selfie multiclass labels: 0 background, 1 hair, 2 body skin, 3 face skin, 4 clothes, 5 other.
-export const HAIR = 1;
-export const FACE_SKIN = 3;
+const HAIR = 1;
+const FACE_SKIN = 3;
+
+/** Faces under this size keep the oval: a traced outline there is mostly guesswork. */
+const MIN_TRACE_PX = 100;
+
+/** A face or head to outline. */
+export interface TraceItem {
+  box: Box;
+  kind: 'face' | 'head';
+  /** Head roll in radians. */
+  angle: number;
+  /** A detector saw a face here. */
+  confirmed: boolean;
+}
 
 /** A square crop of the photo, `side` px wide and rotated by `angle`, seen at SEG x SEG. */
 interface Crop {
@@ -60,11 +74,7 @@ function sample(img: Img, crop: Crop): Float32Array {
 }
 
 /** The label of each pixel of the crop: the segmenter's most likely class. */
-export async function segment(
-  img: Img,
-  crop: Crop,
-  session: ort.InferenceSession,
-): Promise<Uint8Array> {
+async function segment(img: Img, crop: Crop, session: ort.InferenceSession): Promise<Uint8Array> {
   const input = new ort.Tensor('float32', sample(img, crop), [1, SEG, SEG, 3]);
   const out = await session.run({ [session.inputNames[0]!]: input });
   const scores = out[session.outputNames[0]!]!.data as Float32Array;
@@ -81,11 +91,212 @@ export async function segment(
  * The crop a face's outline is worked out in, turned with the head: a face box 1.5x and a head box
  * (which already holds hair) 1.2x, both widened by 1.35 to leave room for hair above a face.
  */
-export function framing(box: Box, kind: 'face' | 'head', angle: number): Crop {
+function framing(box: Box, kind: 'face' | 'head', angle: number): Crop {
   return {
     cx: box.x + box.w / 2,
     cy: box.y + box.h / 2,
     side: Math.max(box.w, box.h) * (kind === 'head' ? 1.2 : 1.5) * 1.35,
     angle,
   };
+}
+
+/**
+ * The outline of the face and hair in a crop's labels, or undefined when there is none. Only this
+ * person's: an oval around the detection, reaching higher for hair on a face box, so the
+ * neighbours' hair doesn't join up into one blob.
+ */
+function outlineFromLabels(item: TraceItem, crop: Crop, labels: Uint8Array): Point[] | undefined {
+  const perPx = SEG / crop.side;
+  const head = item.kind === 'head';
+  const faceW = item.box.w * perPx;
+  const faceH = item.box.h * perPx;
+  const rx = faceW * (head ? 0.6 : 0.85);
+  const ryUp = faceH * (head ? 0.6 : 1.05);
+  const ryDown = faceH * (head ? 0.6 : 0.65);
+  const near = (u: number, v: number): boolean => {
+    const dx = (u - SEG / 2) / rx;
+    const dy = (v - SEG / 2) / (v < SEG / 2 ? ryUp : ryDown);
+    return dx * dx + dy * dy <= 1;
+  };
+  let mask: Uint8Array<ArrayBuffer> = new Uint8Array(SEG * SEG);
+  for (let p = 0; p < SEG * SEG; p++) {
+    if (!near(p % SEG, Math.floor(p / SEG))) continue;
+    // Face and hair; hats, glasses, hands (body skin) and clothes stay out.
+    const label = labels[p]!;
+    mask[p] = label === FACE_SKIN || label === HAIR ? 1 : 0;
+  }
+  // Close small gaps (glasses frames, a strand of hair) so the face stays one piece.
+  mask = erode(dilate(mask, 4), 4);
+  // Where a detector saw a face, its core is always covered: smoke or odd light can hide part of
+  // the skin from the segmenter, and the outline must not shrink below the face.
+  if (item.confirmed) {
+    const crx = faceW * (head ? 0.33 : 0.45);
+    const cry = faceH * (head ? 0.33 : 0.5);
+    const ccy = SEG / 2 + (head ? faceH * 0.1 : 0);
+    for (let p = 0; p < SEG * SEG; p++) {
+      const dx = ((p % SEG) - SEG / 2) / crx;
+      const dy = (Math.floor(p / SEG) - ccy) / cry;
+      if (dx * dx + dy * dy <= 1) mask[p] = 1;
+    }
+  }
+  const component = componentNearCentre(mask);
+  if (!component) return undefined;
+  let area = 0;
+  for (const v of component) area += v;
+  // A head nothing confirmed as a face, showing only a little skin (light or smoke hides the rest,
+  // the face is turned away): the trace can't be trusted, so cover the head with an oval.
+  if (head && !item.confirmed && area < 0.35 * faceW * faceH) {
+    return Array.from({ length: 40 }, (_, k) => {
+      const t = (2 * Math.PI * k) / 40;
+      return toPhoto(
+        crop,
+        SEG / 2 + Math.cos(t) * faceW * 0.55,
+        SEG / 2 + Math.sin(t) * faceH * 0.55,
+      );
+    });
+  }
+  const ring = radialOutline(component);
+  return ring.length >= 3 ? ring.map((p) => toPhoto(crop, p.x, p.y)) : undefined;
+}
+
+const dilate = (mask: Uint8Array<ArrayBuffer>, r: number): Uint8Array<ArrayBuffer> =>
+  morph(mask, r, 1);
+const erode = (mask: Uint8Array<ArrayBuffer>, r: number): Uint8Array<ArrayBuffer> =>
+  morph(mask, r, 0);
+
+/**
+ * Square-kernel max (value 1) or min (value 0), as two 1-D passes over running counts, so the cost
+ * does not grow with the radius. Pixels outside the mask count as 0.
+ */
+function morph(mask: Uint8Array<ArrayBuffer>, r: number, value: 0 | 1): Uint8Array<ArrayBuffer> {
+  const full = 2 * r + 1;
+  const prefix = new Int32Array(SEG + 1);
+  const pass = (src: Uint8Array<ArrayBuffer>, horizontal: boolean): Uint8Array<ArrayBuffer> => {
+    const out = new Uint8Array(src.length);
+    for (let line = 0; line < SEG; line++) {
+      for (let i = 0; i < SEG; i++) {
+        const p = horizontal ? line * SEG + i : i * SEG + line;
+        prefix[i + 1] = prefix[i]! + src[p]!;
+      }
+      for (let i = 0; i < SEG; i++) {
+        const ones = prefix[Math.min(SEG, i + r + 1)]! - prefix[Math.max(0, i - r)]!;
+        const p = horizontal ? line * SEG + i : i * SEG + line;
+        out[p] = value === 1 ? (ones > 0 ? 1 : 0) : ones === full ? 1 : 0;
+      }
+    }
+    return out;
+  };
+  return pass(pass(mask, true), false);
+}
+
+/** The connected part of the mask closest to the crop centre. */
+function componentNearCentre(mask: Uint8Array): Uint8Array<ArrayBuffer> | undefined {
+  let start = -1;
+  let best = Infinity;
+  for (let p = 0; p < mask.length; p++) {
+    if (!mask[p]) continue;
+    const d = ((p % SEG) - SEG / 2) ** 2 + (Math.floor(p / SEG) - SEG / 2) ** 2;
+    if (d < best) {
+      best = d;
+      start = p;
+    }
+  }
+  if (start < 0) return undefined;
+  const out = new Uint8Array(mask.length);
+  const queue = [start];
+  out[start] = 1;
+  while (queue.length > 0) {
+    const p = queue.pop()!;
+    const x = p % SEG;
+    const y = Math.floor(p / SEG);
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const xx = x + dx;
+      const yy = y + dy;
+      if (xx < 0 || yy < 0 || xx >= SEG || yy >= SEG) continue;
+      const q = yy * SEG + xx;
+      if (mask[q] && !out[q]) {
+        out[q] = 1;
+        queue.push(q);
+      }
+    }
+  }
+  return out;
+}
+
+const RAYS = 72;
+
+/**
+ * A star-shaped outline around the mask: on rays from its centre, the farthest pixel that is on.
+ * It never crosses itself (a traced boundary can, and the even-odd fill then punches holes in the
+ * mosaic), and a hand in front of the face stays inside it.
+ */
+function radialOutline(mask: Uint8Array): Point[] {
+  let cx = 0;
+  let cy = 0;
+  let n = 0;
+  for (let p = 0; p < mask.length; p++) {
+    if (!mask[p]) continue;
+    cx += p % SEG;
+    cy += Math.floor(p / SEG);
+    n++;
+  }
+  if (n === 0) return [];
+  cx = cx / n + 0.5;
+  cy = cy / n + 0.5;
+  const radii: number[] = [];
+  for (let k = 0; k < RAYS; k++) {
+    const angle = (2 * Math.PI * k) / RAYS;
+    let radius = 0;
+    for (let r = SEG; r > 0; r -= 0.5) {
+      const x = Math.floor(cx + Math.cos(angle) * r);
+      const y = Math.floor(cy + Math.sin(angle) * r);
+      if (x >= 0 && y >= 0 && x < SEG && y < SEG && mask[y * SEG + x]) {
+        radius = r + 0.75;
+        break;
+      }
+    }
+    radii.push(radius);
+  }
+  // A median of three takes the spikes (a strand of hair) off, a mean of five smooths the rest.
+  // Smoothing never pulls the outline inward by more than a pixel or two.
+  const median = radii.map(
+    (_, k) =>
+      [radii[(k + RAYS - 1) % RAYS]!, radii[k]!, radii[(k + 1) % RAYS]!].sort((p, q) => p - q)[1]!,
+  );
+  return median.map((_, k) => {
+    let sum = 0;
+    for (let d = -2; d <= 2; d++) sum += median[(k + d + RAYS) % RAYS]!;
+    const r = Math.max(sum / 5, median[k]! - 1.5);
+    const angle = (2 * Math.PI * k) / RAYS;
+    return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
+  });
+}
+
+/**
+ * Outlines for `items`, in photo pixels. Per item: the outline; null when a head shows no face skin
+ * or hair at all (a balaclava, left sharp); or undefined to keep the oval (too small to trace, or a
+ * confirmed face the segmenter found nothing in).
+ */
+export async function traceOutlines(
+  img: Img,
+  items: readonly TraceItem[],
+  modelsDir: string,
+): Promise<(Point[] | null | undefined)[]> {
+  const session = await outlineModel(modelsDir, 'segmenter');
+  const out: (Point[] | null | undefined)[] = [];
+  for (const item of items) {
+    if (Math.max(item.box.w, item.box.h) < MIN_TRACE_PX) {
+      out.push(undefined);
+      continue;
+    }
+    const crop = framing(item.box, item.kind, item.angle);
+    const outline = outlineFromLabels(item, crop, await segment(img, crop, session));
+    out.push(outline ?? (item.confirmed ? undefined : null));
+  }
+  return out;
 }

@@ -154,8 +154,11 @@ function ShapeMenu() {
               }}
             >
               <ShapeIcon>{icon}</ShapeIcon>
-              <span>{label}</span>
-              <span className="hint">{hint}</span>
+              <span>
+                <span className="shapeLabel">{label}</span>
+                <span className="hint">{hint}</span>
+              </span>
+              {app.faceShape === shape ? <Icon name="check" size={14} /> : <span />}
             </button>
           ))}
         </div>

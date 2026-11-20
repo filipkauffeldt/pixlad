@@ -282,3 +282,35 @@ describe('finding all faces', () => {
     expect(faceAreas()).toHaveLength(1);
   });
 });
+
+describe('exporting while outlines are traced', () => {
+  it('leaves Export alone until the photo has its outlines', async () => {
+    const extra = api as typeof api & Record<string, unknown>;
+    extra['settings'] = vi.fn().mockResolvedValue({
+      exportTarget: 'suffix',
+      exportChosen: true,
+      checkForUpdates: false,
+      afterExport: 'keep',
+      theme: 'dark',
+    });
+    extra['warmFaces'] = vi.fn().mockResolvedValue(undefined);
+    let finish: (outlines: undefined[]) => void = () => undefined;
+    extra['trace'] = vi.fn(() => new Promise((resolve) => (finish = resolve)));
+    await actions.loadSettings();
+    await addPhoto();
+    actions.setFaceShape('outline');
+    api.detect.mockResolvedValueOnce([face(0.1)]);
+    await actions.findAllFaces();
+    expect(getState().tracing?.photoId).toBe(photo().info.id);
+
+    await actions.exportCurrent();
+    expect(api.exportPhoto).not.toHaveBeenCalled();
+
+    finish([undefined]);
+    await vi.waitFor(() => expect(getState().tracing).toBeUndefined());
+    api.exportPhoto.mockResolvedValueOnce({ ok: true, name: 'p_edit.jpg', replaced: false });
+    await actions.exportCurrent();
+    expect(api.exportPhoto).toHaveBeenCalledOnce();
+    actions.setFaceShape('rectangle');
+  });
+});

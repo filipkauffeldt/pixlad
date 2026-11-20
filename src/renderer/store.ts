@@ -693,6 +693,8 @@ export const actions = {
     const id = state.currentId;
     const photo = currentPhoto(state);
     if (!id || !photo || !hasMosaic(photo) || photo.status === 'exporting') return;
+    // Outlines still coming in would be missing from the file.
+    if (state.tracing?.photoId === id) return;
     if (!state.exportChosen) {
       set({ exportChoice: { anchor: 'export' } });
       return;

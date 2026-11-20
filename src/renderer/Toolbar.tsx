@@ -568,6 +568,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
   const flips = useFlips();
   const active = withFlips(app, flips);
   const exporting = app.batch !== undefined && !app.batch.finished;
+  const tracingThis = photo !== undefined && app.tracing?.photoId === photo.info.id;
   const anyMosaic = app.photos.some(hasMosaic);
   void unexportedCount;
   return (
@@ -712,13 +713,17 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
                 type="button"
                 className="btn primary"
                 onClick={() => void actions.exportCurrent()}
-                disabled={!photo || !hasMosaic(photo) || photo.status === 'exporting'}
+                disabled={
+                  !photo || !hasMosaic(photo) || photo.status === 'exporting' || tracingThis
+                }
                 title={
                   photo && !hasMosaic(photo)
                     ? 'Draw an area or find faces first'
-                    : app.exportTarget === 'overwrite'
-                      ? `Replace the original file with the mosaic (${FLIP_KEY}+E)`
-                      : `Save a new copy with _edit next to the original (${FLIP_KEY}+E)`
+                    : tracingThis
+                      ? 'Export waits until tracing finishes'
+                      : app.exportTarget === 'overwrite'
+                        ? `Replace the original file with the mosaic (${FLIP_KEY}+E)`
+                        : `Save a new copy with _edit next to the original (${FLIP_KEY}+E)`
                 }
                 data-testid="export"
               >

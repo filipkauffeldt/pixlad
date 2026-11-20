@@ -30,6 +30,7 @@ describe('About', () => {
     expect(await about.innerText()).toContain('Copyright © 2026 Filip Kauffeldt');
     expect(await about.innerText()).toContain('github.com/filipkauffeldt/pixlad');
 
+    await page.click('[data-testid="open-licences"]');
     await page.click('[data-testid="about-gpl"]');
     expect(await about.innerText()).toContain('GNU GENERAL PUBLIC LICENSE');
     await page.locator('.noticeRow', { hasText: /^react \d/ }).click();

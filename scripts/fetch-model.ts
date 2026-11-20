@@ -1,39 +1,63 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-// Downloads the YuNet face detection model (MIT) into resources/models/ after checking its SHA-256.
-// The model is not committed. Runs after `pnpm install`; run `pnpm fetch-model` to retry.
+// Downloads the face models into resources/models/ after checking their SHA-256: YuNet (MIT) for
+// finding faces, and the DEIMv2 head detectors and the MediaPipe segmenter (Apache-2.0) for
+// outlines, from filipkauffeldt/pixlad-models. The models are not committed. Runs after
+// `pnpm install`; run `pnpm fetch-model` to retry.
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const NAME = 'face_detection_yunet_2026may.onnx';
-const URL_ =
-  'https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2026may.onnx';
-const SHA256 = 'ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0';
+const MODELS_RELEASE = 'https://github.com/filipkauffeldt/pixlad-models/releases/download/v2';
+
+const MODELS: Array<{ name: string; url: string; sha256: string }> = [
+  {
+    name: 'face_detection_yunet_2026may.onnx',
+    url: 'https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2026may.onnx',
+    sha256: 'ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0',
+  },
+  {
+    name: 'deimv2-s-wholebody34.onnx',
+    url: `${MODELS_RELEASE}/deimv2-s-wholebody34.onnx`,
+    sha256: 'ec0b4ac5a171615076e76f70f44f95f1f1adfe3d823d0574c5ba813abfe02e17',
+  },
+  {
+    name: 'deimv2-n-wholebody34.onnx',
+    url: `${MODELS_RELEASE}/deimv2-n-wholebody34.onnx`,
+    sha256: '5854666f0048caa3b9995043247a554dfe6ad2d3017eddfeed8ec90a748fbf9b',
+  },
+  {
+    name: 'selfie-multiclass.onnx',
+    url: `${MODELS_RELEASE}/selfie-multiclass.onnx`,
+    sha256: 'e794d96267759b9f15ac59382abfbde6f4fe89ae10831da2c73509de38212b14',
+  },
+];
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const target = join(root, 'resources', 'models', NAME);
 const sha = (data: Uint8Array): string => createHash('sha256').update(data).digest('hex');
 
-try {
-  if (sha(await readFile(target)) === SHA256) process.exit(0);
-} catch {
-  // not there yet
-}
-
-try {
-  const response = await fetch(URL_);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const data = new Uint8Array(await response.arrayBuffer());
-  if (sha(data) !== SHA256) throw new Error('checksum mismatch, refusing to use the download');
-  await mkdir(dirname(target), { recursive: true });
-  const temp = `${target}.part`;
-  await writeFile(temp, data);
-  await rename(temp, target);
-  console.log(`Fetched ${NAME}`);
-} catch (cause) {
-  await rm(`${target}.part`, { force: true });
-  // Do not fail the install: everything but Faces works without the model.
-  console.warn(`Could not fetch the face model (${String(cause)}). Run "pnpm fetch-model" later.`);
+for (const model of MODELS) {
+  const target = join(root, 'resources', 'models', model.name);
+  try {
+    if (sha(await readFile(target)) === model.sha256) continue;
+  } catch {
+    // not there yet
+  }
+  try {
+    const response = await fetch(model.url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = new Uint8Array(await response.arrayBuffer());
+    if (sha(data) !== model.sha256)
+      throw new Error('checksum mismatch, refusing to use the download');
+    await mkdir(dirname(target), { recursive: true });
+    const temp = `${target}.part`;
+    await writeFile(temp, data);
+    await rename(temp, target);
+    console.log(`Fetched ${model.name}`);
+  } catch (cause) {
+    await rm(`${target}.part`, { force: true });
+    // Do not fail the install: everything but Faces works without the models.
+    console.warn(`Could not fetch ${model.name} (${String(cause)}). Run "pnpm fetch-model" later.`);
+  }
 }

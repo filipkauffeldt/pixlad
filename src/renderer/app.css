@@ -45,14 +45,20 @@
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 12px;
   background: transparent;
   border: 1px solid var(--line-strong);
-  color: var(--text);
-  padding: 4px 10px;
-  height: 24px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 .btn:hover:not(:disabled) {
-  background: var(--raised);
+  color: var(--text);
+  background: var(--hover);
 }
 .btn:disabled {
   color: var(--dim);
@@ -62,11 +68,16 @@
   background: var(--text);
   color: var(--on-text);
   border-color: var(--text);
+  font-weight: 500;
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--text);
+  color: var(--on-text);
 }
 .btn.primary:disabled {
   background: var(--raised);
   color: var(--dim);
-  border-color: var(--line);
+  border-color: var(--raised);
 }
 /* A bare icon: undo, redo, settings. */
 .iconBtn {

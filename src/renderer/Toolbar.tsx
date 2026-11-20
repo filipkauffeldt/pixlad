@@ -588,7 +588,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       </button>
       <button
         type="button"
-        className="btn"
+        className="iconBtn"
         onClick={actions.undo}
         disabled={!photo || photo.undo.length === 0}
         aria-label="Undo"
@@ -598,7 +598,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       </button>
       <button
         type="button"
-        className="btn"
+        className="iconBtn"
         onClick={actions.redo}
         disabled={!photo || photo.redo.length === 0}
         aria-label="Redo"

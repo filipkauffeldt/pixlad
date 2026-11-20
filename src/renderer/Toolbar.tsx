@@ -424,6 +424,31 @@ function Settings({ exporting }: { exporting: boolean }) {
   );
 }
 
+/** How the last export of the photo went, next to its name: saved where, or why it failed. */
+function PhotoStatus({ photo }: { photo: PhotoState }) {
+  if (!photo.message) return null;
+  const tone = photo.status === 'failed' ? 'error' : photo.status === 'exported' ? 'ok' : '';
+  return (
+    <span className="photoStatus" data-testid="photo-status">
+      <span className={`dot ${tone}`} />
+      <span className="message" title={photo.message}>
+        {photo.message}
+      </span>
+      {photo.status === 'exported' && (
+        <button
+          type="button"
+          className="textButton"
+          onClick={() => void actions.showInFolder(photo.info.id)}
+          title="Show the exported file in its folder"
+          data-testid="show-in-folder"
+        >
+          Show
+        </button>
+      )}
+    </span>
+  );
+}
+
 /** Block and Padding, under the photo. */
 export function EditBar({ photo }: { photo: PhotoState | undefined }) {
   const longEdge = photo ? longEdgeOf(photo) : 1;
@@ -501,9 +526,12 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       <div className="topLeft">
         <img src={icon} alt="" width={20} height={20} />
         {photo ? (
-          <span className="fileName mono" title={photo.info.name} data-testid="file-name">
-            {photo.info.name}
-          </span>
+          <>
+            <span className="fileName mono" title={photo.info.name} data-testid="file-name">
+              {photo.info.name}
+            </span>
+            <PhotoStatus photo={photo} />
+          </>
         ) : (
           <span className="appName">Pixlad</span>
         )}

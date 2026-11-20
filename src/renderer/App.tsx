@@ -208,33 +208,11 @@ export function App() {
       </div>
       {app.photos.length > 0 && <Strip />}
       <div className="footer mono" data-testid="footer">
-        <span className="status" data-testid="photo-status">
+        <span className="status">
           {app.adding && <span>Adding photos…</span>}
           {photo && (
             <>
               <span>{`${photo.info.width}×${photo.info.height}`}</span>
-              {photo.message && (
-                <span>
-                  <span
-                    className={`dot ${photo.status === 'failed' ? 'error' : photo.status === 'exported' ? 'ok' : ''}`}
-                    style={{ display: 'inline-block', marginRight: 6 }}
-                  />
-                  {photo.message}
-                  {photo.status === 'exported' && (
-                    <>
-                      {' '}
-                      <button
-                        type="button"
-                        className="footerButton"
-                        onClick={() => void actions.showInFolder(photo.info.id)}
-                        data-testid="show-in-folder"
-                      >
-                        Show in folder
-                      </button>
-                    </>
-                  )}
-                </span>
-              )}
             </>
           )}
         </span>

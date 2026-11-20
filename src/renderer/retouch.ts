@@ -4,7 +4,7 @@
 // retouch-geometry.ts (GPL-3.0-or-later), without lens correction.
 import { clamp, pointInPolygon, rectToPolygon, shapeBounds } from '../shared/geometry';
 import { blockSizePxToRel } from '../shared/block-size';
-import type { MosaicArea, MosaicOp, Rect, Shape } from '../shared/types';
+import type { MosaicArea, MosaicOp, Polygon, Rect, Shape } from '../shared/types';
 
 export type RetouchMode = 'add' | 'subtract';
 
@@ -26,7 +26,11 @@ export interface FaceData {
   angle?: number;
   /** Photo width / height. */
   aspect?: number;
+  /** How the face is covered. Missing in older sessions: a rectangle. */
+  shape?: FaceShape;
 }
+
+export type FaceShape = 'rectangle' | 'oval';
 
 /**
  * Padding around a detected face, as a fraction of its width. Height padding is 1.4x wider and
@@ -46,8 +50,63 @@ export function padFaceBox(box: Rect, padding: number): Rect {
   return { type: 'rect', x: left, y: top, w: right - left, h: bottom - top };
 }
 
+const OVAL_EXPONENT = 2.5;
+const OVAL_POINTS = 48;
+
+/**
+ * A superellipse, |x/a|^2.5 + |y/b|^2.5 = 1, rotated by `angle`. Rounder than a box, fuller than an
+ * ellipse. Worked out with x in pixel proportions (normalized x times `aspect`).
+ */
+function superellipse(
+  cx: number,
+  cy: number,
+  a: number,
+  b: number,
+  angle: number,
+  aspect: number,
+): Polygon {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const power = 2 / OVAL_EXPONENT;
+  const points = Array.from({ length: OVAL_POINTS }, (_, i) => {
+    const t = (2 * Math.PI * i) / OVAL_POINTS;
+    const u = a * Math.sign(Math.cos(t)) * Math.abs(Math.cos(t)) ** power;
+    const v = b * Math.sign(Math.sin(t)) * Math.abs(Math.sin(t)) ** power;
+    return {
+      x: clamp((cx + u * cos - v * sin) / aspect, 0, 1),
+      y: clamp(cy + u * sin + v * cos, 0, 1),
+    };
+  });
+  return { type: 'polygon', points };
+}
+
+/**
+ * An oval in the padded box around a face, tilted with the head. The padding is the same as for
+ * the rectangle: 1.4x vertically, mostly upward.
+ */
+export function faceOval(face: FaceData, padding: number): Polygon {
+  const aspect = face.aspect ?? 1;
+  const angle = face.angle ?? 0;
+  const w = face.box.w * aspect;
+  const h = face.box.h;
+  const horizontal = w * padding;
+  const vertical = h * padding * FACE_PADDING_VERTICAL;
+  const up = vertical * FACE_PADDING_UP_BIAS;
+  const a = w / 2 + horizontal;
+  const b = (h + vertical) / 2;
+  // The padding is uneven, so the oval's centre sits above the box's, along the head's axis.
+  const shift = (vertical - up) / 2 - up / 2;
+  const cx = (face.box.x + face.box.w / 2) * aspect - shift * Math.sin(angle);
+  const cy = face.box.y + face.box.h / 2 + shift * Math.cos(angle);
+  return superellipse(cx, cy, a, b, angle, aspect);
+}
+
+export function faceShape(face: FaceData, padding: number): Shape {
+  return face.shape === 'oval' ? faceOval(face, padding) : padFaceBox(face.box, padding);
+}
+
 export function areaShape(area: RetouchArea, facePadding: number): Shape {
-  if (area.face) return padFaceBox(area.face.box, facePadding);
+  if (area.face) return faceShape(area.face, facePadding);
   if (!area.shape) throw new Error('a retouch area has neither a shape nor a face');
   return area.shape;
 }

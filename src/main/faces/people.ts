@@ -437,7 +437,14 @@ async function yunetPyramid(
     const scale = edge === Infinity ? 1 : edge / longest;
     all.push(...found.filter((f) => edge === Infinity || Math.max(f.box.w, f.box.h) * scale >= 40));
   }
-  return withoutFragments(nonMaximumSuppression(all, 0.4));
+  const kept = withoutFragments(nonMaximumSuppression(all, 0.4));
+  // Find all faces' tile merge can join two neighbouring faces into one tall or wide box. When
+  // another face fills a good part of it, the box is that pair, not a face.
+  return kept.filter((f) => {
+    const ratio = f.box.h / f.box.w;
+    if (ratio <= 1.55 && ratio >= 0.65) return true;
+    return !kept.some((o) => o !== f && overlap(o.box, f.box) >= 0.35 * area(f.box));
+  });
 }
 
 /**

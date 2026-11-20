@@ -20,6 +20,15 @@
   align-items: center;
   gap: 2px;
 }
+/* Block and Padding, centred under the photo */
+.editBar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 22px;
+  height: 36px;
+  flex: none;
+}
 .control {
   display: flex;
   align-items: center;

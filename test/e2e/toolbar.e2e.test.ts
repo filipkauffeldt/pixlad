@@ -131,14 +131,20 @@ describe('adding photos to a running session', () => {
     expect(await thumbs()).toBe(3);
   });
 
-  it('works while a number field has focus, and before any photo is open', async () => {
+  it('works before any photo is open, and while a number field has focus', async () => {
     running = await launch();
     const { page, app } = running;
     await page.waitForSelector('[data-testid="empty"]');
     await answerOpenDialog(app, [await writePhoto('a.jpg')]);
-    await page.focus('[aria-label="Block size in px"]');
     await page.keyboard.press('ControlOrMeta+o');
     await page.waitForSelector('[data-testid="photo"]');
+
+    await answerOpenDialog(app, [await writePhoto('b.jpg')]);
+    await page.focus('[aria-label="Block size in px"]');
+    await page.keyboard.press('ControlOrMeta+o');
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-testid="thumb"]').length === 2,
+    );
   });
 });
 
@@ -267,9 +273,7 @@ describe('the sliders', () => {
 
 describe('the slider labels', () => {
   it('use the muted text colour, not the dim one reserved for disabled states', async () => {
-    running = await launch();
-    const { page } = running;
-    await page.waitForSelector('[data-testid="empty"]');
+    const page = await openPhoto();
     const colours = await page.evaluate(() => {
       const root = getComputedStyle(document.documentElement);
       const resolve = (token: string): string => {

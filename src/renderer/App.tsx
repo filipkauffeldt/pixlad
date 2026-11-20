@@ -11,7 +11,7 @@ import { RemovePhoto } from './RemovePhoto';
 import { Shortcuts } from './Shortcuts';
 import { Stage } from './Stage';
 import { Strip } from './Strip';
-import { Toolbar } from './Toolbar';
+import { EditBar, Toolbar } from './Toolbar';
 import { UpdateStatus } from './UpdateStatus';
 import { actions, currentPhoto, useApp } from './store';
 
@@ -204,6 +204,7 @@ export function App() {
           </div>
         )}
       </div>
+      {photo && <EditBar photo={photo} />}
       {app.photos.length > 0 && <Strip />}
       <div className="footer mono" data-testid="footer">
         <span className="status" data-testid="photo-status">

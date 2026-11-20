@@ -463,14 +463,74 @@ function Settings({ exporting }: { exporting: boolean }) {
   );
 }
 
-export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
-  const app = useApp();
-  const flips = useFlips();
-  const active = withFlips(app, flips);
+/** Block and Padding, under the photo. */
+export function EditBar({ photo }: { photo: PhotoState | undefined }) {
   const longEdge = photo ? longEdgeOf(photo) : 1;
   const px = photo
     ? blockSizeRelToPx(blockSizePxToRel(photo.blockPx, longEdge), longEdge)
     : BLOCK_SIZE_PX.min;
+  return (
+    <div className="editBar" data-testid="edit-bar">
+      <label
+        className="control"
+        title="Block edge in pixels of the full-resolution photo. Small selections get larger blocks, so a face stays unrecognisable."
+      >
+        <span className="label">Block</span>
+        <NumberField
+          key={`block-${px}`}
+          label="Block size in px"
+          value={px}
+          min={BLOCK_SIZE_PX.min}
+          max={BLOCK_SIZE_PX.max}
+          onCommit={actions.setBlockPx}
+        />
+        <span className="unit mono">px</span>
+        <input
+          type="range"
+          aria-label="Mosaic block size"
+          min={BLOCK_SIZE_PX.min}
+          max={BLOCK_SIZE_PX.max}
+          step={1}
+          value={px}
+          disabled={!photo}
+          onChange={(e) => actions.setBlockPx(Number(e.target.value))}
+          onPointerUp={(e) => e.currentTarget.blur()}
+        />
+      </label>
+      <label
+        className="control"
+        title="How far the mosaic grows beyond each detected face, as a share of the face's size"
+      >
+        <span className="label">Padding</span>
+        <NumberField
+          key={`pad-${Math.round((photo?.facePadding ?? 0.15) * 100)}`}
+          label="Face padding in percent"
+          value={Math.round((photo?.facePadding ?? 0.15) * 100)}
+          min={0}
+          max={50}
+          onCommit={(percent) => actions.setFacePadding(percent / 100)}
+        />
+        <span className="unit mono">%</span>
+        <input
+          type="range"
+          aria-label="Face padding"
+          min={0}
+          max={0.5}
+          step={0.01}
+          value={photo?.facePadding ?? 0.15}
+          disabled={!photo}
+          onChange={(e) => actions.setFacePadding(Number(e.target.value))}
+          onPointerUp={(e) => e.currentTarget.blur()}
+        />
+      </label>
+    </div>
+  );
+}
+
+export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
+  const app = useApp();
+  const flips = useFlips();
+  const active = withFlips(app, flips);
   const exporting = app.batch !== undefined && !app.batch.finished;
   const anyMosaic = app.photos.some(hasMosaic);
   void unexportedCount;
@@ -524,58 +584,6 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
         Find all faces
       </button>
       <ShapeMenu />
-      <label
-        className="control"
-        title="Block edge in pixels of the full-resolution photo. Small selections get larger blocks, so a face stays unrecognisable."
-      >
-        <span className="label">Block</span>
-        <NumberField
-          key={`block-${px}`}
-          label="Block size in px"
-          value={px}
-          min={BLOCK_SIZE_PX.min}
-          max={BLOCK_SIZE_PX.max}
-          onCommit={actions.setBlockPx}
-        />
-        <span className="unit mono">px</span>
-        <input
-          type="range"
-          aria-label="Mosaic block size"
-          min={BLOCK_SIZE_PX.min}
-          max={BLOCK_SIZE_PX.max}
-          step={1}
-          value={px}
-          disabled={!photo}
-          onChange={(e) => actions.setBlockPx(Number(e.target.value))}
-          onPointerUp={(e) => e.currentTarget.blur()}
-        />
-      </label>
-      <label
-        className="control"
-        title="How far the mosaic grows beyond each detected face, as a share of the face's size"
-      >
-        <span className="label">Padding</span>
-        <NumberField
-          key={`pad-${Math.round((photo?.facePadding ?? 0.15) * 100)}`}
-          label="Face padding in percent"
-          value={Math.round((photo?.facePadding ?? 0.15) * 100)}
-          min={0}
-          max={50}
-          onCommit={(percent) => actions.setFacePadding(percent / 100)}
-        />
-        <span className="unit mono">%</span>
-        <input
-          type="range"
-          aria-label="Face padding"
-          min={0}
-          max={0.5}
-          step={0.01}
-          value={photo?.facePadding ?? 0.15}
-          disabled={!photo}
-          onChange={(e) => actions.setFacePadding(Number(e.target.value))}
-          onPointerUp={(e) => e.currentTarget.blur()}
-        />
-      </label>
       <div className="spacer" />
       <button
         type="button"

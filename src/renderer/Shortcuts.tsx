@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef } from 'react';
+import { Icon } from './Icon';
 import { SHORTCUTS } from './shortcut-list';
 import { actions } from './store';
 
@@ -46,11 +47,11 @@ export function Shortcuts() {
           <button
             ref={close}
             type="button"
-            className="close"
+            className="iconBtn close"
             aria-label="Close"
             onClick={() => actions.setShortcutsOpen(false)}
           >
-            ×
+            <Icon name="close" size={14} />
           </button>
         </header>
         <div className="modalBody shortcutColumns">

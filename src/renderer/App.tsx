@@ -10,6 +10,7 @@ import { RemovePhoto } from './RemovePhoto';
 import { Shortcuts } from './Shortcuts';
 import { Stage } from './Stage';
 import { Strip } from './Strip';
+import { Icon } from './Icon';
 import { EditBar, Toolbar } from './Toolbar';
 import { UpdateStatus } from './UpdateStatus';
 import { actions, currentPhoto, useApp } from './store';
@@ -144,11 +145,11 @@ export function App() {
               </div>
               <button
                 type="button"
-                className="close"
+                className="iconBtn close"
                 aria-label="Dismiss"
                 onClick={() => actions.dismissNotice(notice.id)}
               >
-                ×
+                <Icon name="close" size={14} />
               </button>
             </div>
           ))}
@@ -162,11 +163,11 @@ export function App() {
               </div>
               <button
                 type="button"
-                className="close"
+                className="iconBtn close"
                 aria-label="Dismiss"
                 onClick={() => actions.dismissNotice(toast.id)}
               >
-                ×
+                <Icon name="close" size={14} />
               </button>
             </div>
           ))}
@@ -179,11 +180,11 @@ export function App() {
               {app.update.phase === 'opened' && (
                 <button
                   type="button"
-                  className="close"
+                  className="iconBtn close"
                   aria-label="Dismiss"
                   onClick={actions.hideUpdatePrompt}
                 >
-                  ×
+                  <Icon name="close" size={14} />
                 </button>
               )}
             </div>

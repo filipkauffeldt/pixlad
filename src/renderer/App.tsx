@@ -213,12 +213,6 @@ export function App() {
           {photo && (
             <>
               <span>{`${photo.info.width}×${photo.info.height}`}</span>
-              {app.tracing?.photoId === photo.info.id && (
-                <span className="tracing" data-testid="tracing">
-                  <span className="spinner" aria-hidden="true" />
-                  {`Tracing outlines ${app.tracing.done}/${app.tracing.total}`}
-                </span>
-              )}
               {photo.message && (
                 <span>
                   <span

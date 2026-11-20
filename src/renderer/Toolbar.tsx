@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
 import type { AfterExport, ExportTarget, Theme } from '../shared/ipc';
+import icon from '../../build/icon.svg';
 import { ExportChoice } from './ExportChoice';
 import { Icon } from './Icon';
 import { isMac, useFlips } from './flips';
@@ -495,7 +496,16 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
   void unexportedCount;
   return (
     <div className="toolbar" data-testid="toolbar">
-      <div className="topLeft" />
+      <div className="topLeft">
+        <img src={icon} alt="" width={20} height={20} />
+        {photo ? (
+          <span className="fileName mono" title={photo.info.name} data-testid="file-name">
+            {photo.info.name}
+          </span>
+        ) : (
+          <span className="appName">Pixlad</span>
+        )}
+      </div>
       <div className="toolGroup" role="toolbar" aria-label="Tools">
         <TargetToggle />
         <span className="sep" />

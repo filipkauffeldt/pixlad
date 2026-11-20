@@ -30,6 +30,18 @@
   gap: 10px;
   min-width: 0;
 }
+.topLeft img {
+  display: block;
+  flex: none;
+}
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appName {
+  font-weight: 500;
+}
 .topRight {
   display: flex;
   justify-content: flex-end;

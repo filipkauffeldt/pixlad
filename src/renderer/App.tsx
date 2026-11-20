@@ -211,7 +211,6 @@ export function App() {
           {app.adding && <span>Adding photos…</span>}
           {photo && (
             <>
-              <span>{photo.info.name}</span>
               <span>{`${photo.info.width}×${photo.info.height}`}</span>
               <AreaCounts photo={photo} />
               {app.tracing?.photoId === photo.info.id && (

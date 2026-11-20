@@ -104,14 +104,25 @@
 .findAll:disabled {
   color: var(--dim);
 }
-/* Block and Padding, centred under the photo */
+/* Under the photo: the counts, Block and Padding. Block stays centred and the counts grow to the
+   left, so a count that gets wider never moves the controls. */
 .editBar {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 22px;
   height: 36px;
   flex: none;
+}
+.editBar > :first-child {
+  justify-self: end;
+  padding-right: 22px;
+}
+.editBar > .control {
+  padding: 0 22px;
+  border-left: 1px solid var(--line);
+}
+.editBar > :last-child {
+  justify-self: start;
 }
 .control {
   display: flex;
@@ -131,10 +142,21 @@
 }
 .counts {
   display: flex;
-  gap: 12px;
+  gap: 22px;
 }
-.counts:empty {
-  display: none;
+.readout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.readout .label {
+  color: var(--muted);
+}
+.readout .value {
+  color: var(--text);
+}
+.readout .total {
+  color: var(--dim);
 }
 
 .btn {

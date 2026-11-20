@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useCallback, useEffect, useState } from 'react';
 import { About } from './About';
-import { AreaCounts } from './AreaCounts';
 import { OverwriteConfirm } from './OverwriteConfirm';
 import { ReleaseNotes } from './ReleaseNotes';
 import { isMac } from './flips';
@@ -212,7 +211,6 @@ export function App() {
           {photo && (
             <>
               <span>{`${photo.info.width}×${photo.info.height}`}</span>
-              <AreaCounts photo={photo} />
               {app.tracing?.photoId === photo.info.id && (
                 <span className="tracing" data-testid="tracing">
                   <span className="spinner" aria-hidden="true" />

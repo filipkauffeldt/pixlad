@@ -185,7 +185,7 @@ describe('drawing with the real mouse', () => {
         );
       });
     const text = (await page.locator('[data-testid="face-count"]').textContent())!;
-    const total = Number(/of (\d+)/.exec(text)![1]);
+    const total = Number(/\/(\d+)/.exec(text)![1]);
     expect(total).toBeGreaterThanOrEqual(3);
     // click the first face off and on
     const first = (await page
@@ -194,7 +194,7 @@ describe('drawing with the real mouse', () => {
       .boundingBox())!;
     await page.mouse.click(first.x + first.width / 2, first.y + first.height / 2);
     await expect(page.locator('[data-testid="face-count"]').textContent()).resolves.toContain(
-      `${total - 1} of ${total}`,
+      `${total - 1}/${total}`,
     );
     // Subtract in Faces removes every face in the dragged area
     await page.click('[data-mode="subtract"]');

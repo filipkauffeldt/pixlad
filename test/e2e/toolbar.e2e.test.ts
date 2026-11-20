@@ -152,7 +152,7 @@ describe('finding all faces', () => {
   const crew = resolve(import.meta.dirname, '../../fixtures/apollo11_crew.jpg');
   const faceCount = async (page: Page): Promise<number> => {
     const text = await page.locator('[data-testid="face-count"]').textContent();
-    return Number(/of (\d+)/.exec(text ?? '')?.[1] ?? 0);
+    return Number(/\/(\d+)/.exec(text ?? '')?.[1] ?? 0);
   };
 
   it('is off with no photo open', async () => {
@@ -336,27 +336,24 @@ describe('tooltips', () => {
 });
 
 describe('the area counts', () => {
-  it('are in the footer, and the toolbar stays on one row in the default window', async () => {
+  it('are under the photo, and the toolbar stays the same height', async () => {
     const page = await openPhoto();
     const toolbar = page.locator('[data-testid="toolbar"]');
-    const singleRow = (await toolbar.boundingBox())!.height;
-    expect(await page.locator('[data-testid="footer"] [data-testid="area-counts"]').count()).toBe(
+    const height = (await toolbar.boundingBox())!.height;
+    expect(await page.locator('[data-testid="edit-bar"] [data-testid="area-counts"]').count()).toBe(
       1,
     );
     expect(await page.locator('[data-testid="drawn-count"]').count()).toBe(0);
 
     await drag(page, [0.2, 0.2], [0.5, 0.5]);
     await drag(page, [0.6, 0.6], [0.8, 0.8]);
-    const counts = page.locator('[data-testid="footer"] [data-testid="drawn-count"]');
-    expect(await counts.textContent()).toBe('2 of 2 areas on');
+    const counts = page.locator('[data-testid="edit-bar"] [data-testid="drawn-count"]');
+    expect(await counts.textContent()).toBe('2/2');
     expect(await toolbar.locator('[data-testid="area-counts"]').count()).toBe(0);
-    expect((await toolbar.boundingBox())!.height).toBe(singleRow);
+    expect((await toolbar.boundingBox())!.height).toBe(height);
 
     await page.mouse.click(...(await centreOfFirstArea(page)));
-    expect(await counts.textContent()).toBe('1 of 2 areas on');
-    // The readout comes after the photo's name and size.
-    const status = await page.locator('[data-testid="photo-status"]').innerText();
-    expect(status.indexOf('1600×1200')).toBeLessThan(status.indexOf('areas on'));
+    expect(await counts.textContent()).toBe('1/2');
   });
 });
 

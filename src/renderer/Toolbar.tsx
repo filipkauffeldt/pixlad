@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
 import type { AfterExport, ExportTarget, Theme } from '../shared/ipc';
 import icon from '../../build/icon.svg';
+import { AreaCounts } from './AreaCounts';
 import { ExportChoice } from './ExportChoice';
 import { Icon } from './Icon';
 import { isMac, useFlips } from './flips';
@@ -431,6 +432,7 @@ export function EditBar({ photo }: { photo: PhotoState | undefined }) {
     : BLOCK_SIZE_PX.min;
   return (
     <div className="editBar" data-testid="edit-bar">
+      {photo && <AreaCounts photo={photo} />}
       <label
         className="control"
         title="Block edge in pixels of the full-resolution photo. Small selections get larger blocks, so a face stays unrecognisable."

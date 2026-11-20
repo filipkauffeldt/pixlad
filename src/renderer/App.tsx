@@ -213,6 +213,12 @@ export function App() {
               <span>{photo.info.name}</span>
               <span>{`${photo.info.width}×${photo.info.height}`}</span>
               <AreaCounts photo={photo} />
+              {app.tracing?.photoId === photo.info.id && (
+                <span className="tracing" data-testid="tracing">
+                  <span className="spinner" aria-hidden="true" />
+                  {`Tracing outlines ${app.tracing.done}/${app.tracing.total}`}
+                </span>
+              )}
               {photo.message && (
                 <span>
                   <span

@@ -18,6 +18,9 @@ const required = [
   'LICENSE',
   'THIRD_PARTY_NOTICES.txt',
   'resources/models/face_detection_yunet_2026may.onnx',
+  'resources/models/deimv2-s-wholebody34.onnx',
+  'resources/models/deimv2-n-wholebody34.onnx',
+  'resources/models/selfie-multiclass.onnx',
 ];
 
 export default function checkPackageInputs() {
@@ -28,7 +31,7 @@ export default function checkPackageInputs() {
   if (missing.length > 0) {
     throw new Error(
       `Cannot package: missing or empty ${missing.join(', ')}. ` +
-        'Run "pnpm fetch-model" for the model and "pnpm build" for out/.',
+        'Run "pnpm fetch-model" for the models and "pnpm build" for out/.',
     );
   }
 }

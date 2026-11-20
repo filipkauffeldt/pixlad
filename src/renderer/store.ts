@@ -10,6 +10,8 @@ import {
   opFromAreas,
   withDetectedFaces,
   withoutFacesInside,
+  type FaceData,
+  type FaceShape,
   type RetouchArea,
   type Outline,
   type RetouchMode,
@@ -83,6 +85,10 @@ export interface AppState {
   photos: PhotoState[];
   currentId: string | undefined;
   target: Target;
+  /** How found faces are covered. */
+  faceShape: FaceShape;
+  /** Outlines being traced after a detection, for the status bar. */
+  tracing: { photoId: string; done: number; total: number } | undefined;
   outline: Outline;
   mode: RetouchMode;
   detecting: boolean;
@@ -127,6 +133,8 @@ const initial: AppState = {
   photos: [],
   currentId: undefined,
   target: 'faces',
+  faceShape: 'rectangle',
+  tracing: undefined,
   outline: 'rect',
   mode: 'add',
   detecting: false,
@@ -311,11 +319,82 @@ const removeNow = (id: string): void => {
   });
 };
 
+const sameBox = (a: Rect, b: Rect): boolean =>
+  a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+
+/** Faces traced per request, so outlines appear as they finish. */
+const TRACE_BATCH = 8;
+
+/**
+ * Trace outlines for faces just added and put each batch in place as it comes, without a separate
+ * Undo step. A face the tracing drops (a balaclava with nothing showing, a tattoo) is taken out.
+ */
+async function traceOutlines(id: string, faces: readonly FaceData[]): Promise<void> {
+  set({ tracing: { photoId: id, done: 0, total: faces.length } });
+  try {
+    for (let start = 0; start < faces.length; start += TRACE_BATCH) {
+      const batch = faces.slice(start, start + TRACE_BATCH);
+      const outlines = await window.api.trace(
+        id,
+        batch.map(({ box, kind, angle, confirmed, eyes }) => ({
+          box,
+          kind,
+          angle,
+          confirmed,
+          eyes,
+        })),
+      );
+      updatePhoto(id, (p) => ({
+        ...p,
+        areas: p.areas.flatMap((a) => {
+          if (!a.face) return [a];
+          const k = batch.findIndex((f) => sameBox(f.box, a.face!.box));
+          if (k < 0) return [a];
+          const outline = outlines[k];
+          if (outline === null) return [];
+          return outline ? [{ ...a, face: { ...a.face, outline } }] : [a];
+        }),
+        rev: p.rev + 1,
+      }));
+      set({ tracing: { photoId: id, done: start + batch.length, total: faces.length } });
+    }
+  } catch (cause) {
+    document.dispatchEvent(
+      new CustomEvent('pixlad:detect-failed', {
+        detail: cause instanceof Error ? cause.message : String(cause),
+      }),
+    );
+  } finally {
+    set({ tracing: undefined });
+  }
+}
+
 export const actions = {
   setDragging: (dragging: boolean): void => set({ dragging }),
   setAboutOpen: (aboutOpen: boolean): void => set({ aboutOpen }),
   setShortcutsOpen: (shortcutsOpen: boolean): void => set({ shortcutsOpen }),
   setTarget: (target: Target): void => set({ target }),
+  /** Load the Outlines models ahead of use; nothing happens when they are loaded already. */
+  warmFaces(): void {
+    void window.api.warmFaces().catch(() => undefined);
+  },
+
+  /** How faces are covered; the faces already found on the current photo change with it. */
+  setFaceShape(shape: FaceShape): void {
+    set({ faceShape: shape });
+    // Load the models now, while an area is picked, so the first Outlines run doesn't wait.
+    if (shape === 'outline') actions.warmFaces();
+    const id = state.currentId;
+    if (!id) return;
+    // Outlines are traced when faces are found: faces without one keep their shape.
+    editAreas(id, (areas) =>
+      areas.map((a) =>
+        !a.face || (shape === 'outline' && !a.face.outline)
+          ? a
+          : { ...a, face: { ...a.face, shape } },
+      ),
+    );
+  },
   setOutline: (outline: Outline): void => set({ outline }),
   /**
    * The answer to the remove question: true takes the photos out of the session. `dontAsk` saves
@@ -435,7 +514,7 @@ export const actions = {
     });
   },
 
-  addFaces(id: string, faces: { box: Rect; score?: number }[], mode: RetouchMode): void {
+  addFaces(id: string, faces: FaceData[], mode: RetouchMode): void {
     editAreas(id, (areas) => {
       const next = withDetectedFaces(areas, faces, mode);
       return next.length === areas.length ? areas : next;
@@ -481,16 +560,19 @@ export const actions = {
         ? { type: 'polygon', points: [...lasso] }
         : region;
     actions.setDetecting(true, shape);
+    const faceShape = state.faceShape;
     try {
-      const found = await window.api.detect(id, region);
+      const found = await window.api.detect(id, region, { people: faceShape === 'outline' });
       const inside = lasso ? facesInLasso(found, lasso) : found;
       // Nothing found is not an error, but the user should see it, where the detector looked.
       if (inside.length === 0) actions.noFacesFound();
-      actions.addFaces(
-        id,
-        inside.map((f) => ({ box: f.box, score: f.score })),
-        'add',
-      );
+      const faces = inside.map(({ landmarks: _landmarks, ...f }) => ({ ...f, shape: faceShape }));
+      actions.addFaces(id, faces, 'add');
+      // The faces show (as ovals) right away; their outlines follow.
+      if (faceShape === 'outline' && faces.length > 0) {
+        actions.setDetecting(false);
+        void traceOutlines(id, faces);
+      }
     } catch (cause) {
       document.dispatchEvent(
         new CustomEvent('pixlad:detect-failed', {

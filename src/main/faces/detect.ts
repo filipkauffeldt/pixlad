@@ -118,7 +118,15 @@ function toDetection(
     },
     score: candidate.score,
     landmarks,
+    angle: eyeAngle(candidate.landmarks),
+    aspect: width / height,
   };
+}
+
+/** The roll of the head: the angle of the line from the right eye to the left (landmarks 0, 1). */
+function eyeAngle(landmarks: readonly Point[]): number {
+  const [right, left] = landmarks;
+  return right && left ? Math.atan2(left.y - right.y, left.x - right.x) : 0;
 }
 
 /**

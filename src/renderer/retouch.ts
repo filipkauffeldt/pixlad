@@ -4,7 +4,7 @@
 // retouch-geometry.ts (GPL-3.0-or-later), without lens correction.
 import { clamp, pointInPolygon, rectToPolygon, shapeBounds } from '../shared/geometry';
 import { blockSizePxToRel } from '../shared/block-size';
-import type { MosaicArea, MosaicOp, Rect, Shape } from '../shared/types';
+import type { MosaicArea, MosaicOp, Point, Polygon, Rect, Shape } from '../shared/types';
 
 export type RetouchMode = 'add' | 'subtract';
 
@@ -15,8 +15,30 @@ export interface RetouchArea {
   enabled: boolean;
   shape?: Shape;
   /** The raw detector box; its outline follows the padding slider. */
-  face?: { box: Rect; score?: number };
+  face?: FaceData;
 }
+
+/** A detection as kept in an area. */
+export interface FaceData {
+  box: Rect;
+  score?: number;
+  /** Head roll in radians, in pixel space. */
+  angle?: number;
+  /** Photo width / height. */
+  aspect?: number;
+  /** How the face is covered. Missing in older sessions: a rectangle. */
+  shape?: FaceShape;
+  /** A head box holds hair and ears; a face box does not. Missing: a face. */
+  kind?: 'face' | 'head';
+  /** A detector saw a face here. */
+  confirmed?: boolean;
+  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
+  eyes?: Rect[];
+  /** The traced outline of face and hair, normalized. */
+  outline?: Point[];
+}
+
+export type FaceShape = 'rectangle' | 'oval' | 'outline';
 
 /**
  * Padding around a detected face, as a fraction of its width. Height padding is 1.4x wider and
@@ -36,8 +58,116 @@ export function padFaceBox(box: Rect, padding: number): Rect {
   return { type: 'rect', x: left, y: top, w: right - left, h: bottom - top };
 }
 
+const OVAL_EXPONENT = 2.5;
+const OVAL_POINTS = 48;
+
+/**
+ * A superellipse, |x/a|^2.5 + |y/b|^2.5 = 1, rotated by `angle`. Rounder than a box, fuller than an
+ * ellipse. Worked out with x in pixel proportions (normalized x times `aspect`).
+ */
+function superellipse(
+  cx: number,
+  cy: number,
+  a: number,
+  b: number,
+  angle: number,
+  aspect: number,
+): Polygon {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const power = 2 / OVAL_EXPONENT;
+  const points = Array.from({ length: OVAL_POINTS }, (_, i) => {
+    const t = (2 * Math.PI * i) / OVAL_POINTS;
+    const u = a * Math.sign(Math.cos(t)) * Math.abs(Math.cos(t)) ** power;
+    const v = b * Math.sign(Math.sin(t)) * Math.abs(Math.sin(t)) ** power;
+    return {
+      x: clamp((cx + u * cos - v * sin) / aspect, 0, 1),
+      y: clamp(cy + u * sin + v * cos, 0, 1),
+    };
+  });
+  return { type: 'polygon', points };
+}
+
+/** How far (dx, dy) lies along a superellipse with half-axes a and b: 1 is on its edge. */
+const ovalDistance = (dx: number, dy: number, a: number, b: number): number =>
+  (Math.abs(dx / a) ** OVAL_EXPONENT + Math.abs(dy / b) ** OVAL_EXPONENT) ** (1 / OVAL_EXPONENT);
+
+/**
+ * An oval in the padded box around a face, tilted with the head. The padding is the same as for
+ * the rectangle: 1.4x vertically, mostly upward. The oval grows until every corner of the detector
+ * box is inside, so it never covers less of the face than the rectangle.
+ */
+export function faceOval(face: FaceData, padding: number): Polygon {
+  const aspect = face.aspect ?? 1;
+  const angle = face.angle ?? 0;
+  const w = face.box.w * aspect;
+  const h = face.box.h;
+  // A head box already holds hair and ears: padded evenly.
+  if (face.kind === 'head') {
+    const cx = (face.box.x + face.box.w / 2) * aspect;
+    const cy = face.box.y + face.box.h / 2;
+    return superellipse(cx, cy, (w / 2) * (1 + padding), (h / 2) * (1 + padding), angle, aspect);
+  }
+  const horizontal = w * padding;
+  const vertical = h * padding * FACE_PADDING_VERTICAL;
+  const up = vertical * FACE_PADDING_UP_BIAS;
+  const a = w / 2 + horizontal;
+  const b = (h + vertical) / 2;
+  // The padding is uneven, so the oval's centre sits above the box's, along the head's axis.
+  const shift = (vertical - up) / 2 - up / 2;
+  const grow = Math.max(
+    1,
+    ...[-1, 1].flatMap((sx) =>
+      [-1, 1].map((sy) => ovalDistance((sx * w) / 2, (sy * h) / 2 - shift, a, b)),
+    ),
+  );
+  const cx = (face.box.x + face.box.w / 2) * aspect - shift * Math.sin(angle);
+  const cy = face.box.y + face.box.h / 2 + shift * Math.cos(angle);
+  return superellipse(cx, cy, a * grow, b * grow, angle, aspect);
+}
+
+/** A head box padded evenly: it already holds hair and ears. */
+function padHeadBox(box: Rect, padding: number): Rect {
+  const left = clamp(box.x - (box.w * padding) / 2, 0, 1);
+  const top = clamp(box.y - (box.h * padding) / 2, 0, 1);
+  const right = clamp(box.x + box.w * (1 + padding / 2), left, 1);
+  const bottom = clamp(box.y + box.h * (1 + padding / 2), top, 1);
+  return { type: 'rect', x: left, y: top, w: right - left, h: bottom - top };
+}
+
+/** A traced outline grown from its centre by the padding. */
+function grownOutline(outline: readonly Point[], padding: number): Polygon {
+  let cx = 0;
+  let cy = 0;
+  for (const p of outline) {
+    cx += p.x / outline.length;
+    cy += p.y / outline.length;
+  }
+  return {
+    type: 'polygon',
+    points: outline.map((p) => ({
+      x: clamp(cx + (p.x - cx) * (1 + padding), 0, 1),
+      y: clamp(cy + (p.y - cy) * (1 + padding), 0, 1),
+    })),
+  };
+}
+
+export function faceShape(face: FaceData, padding: number): Shape {
+  switch (face.shape ?? 'rectangle') {
+    case 'rectangle':
+      return face.kind === 'head' ? padHeadBox(face.box, padding) : padFaceBox(face.box, padding);
+    case 'oval':
+      return faceOval(face, padding);
+    case 'outline':
+      // Not traced (yet, or too small): the oval.
+      return face.outline && face.outline.length >= 3
+        ? grownOutline(face.outline, padding)
+        : faceOval(face, padding);
+  }
+}
+
 export function areaShape(area: RetouchArea, facePadding: number): Shape {
-  if (area.face) return padFaceBox(area.face.box, facePadding);
+  if (area.face) return faceShape(area.face, facePadding);
   if (!area.shape) throw new Error('a retouch area has neither a shape nor a face');
   return area.shape;
 }
@@ -109,7 +239,7 @@ export function facesInLasso<T extends { box: Rect }>(
 /** New detections added; a face already found (its box holds the new centre) is not added twice. */
 export function withDetectedFaces(
   areas: readonly RetouchArea[],
-  detections: readonly { box: Rect; score?: number }[],
+  detections: readonly FaceData[],
   mode: RetouchMode,
 ): RetouchArea[] {
   const known = areas.flatMap((a) => (a.face ? [a.face.box] : []));
@@ -123,7 +253,7 @@ export function withDetectedFaces(
       kind: 'face',
       mode,
       enabled: true,
-      face: { box: found.box, ...(found.score === undefined ? {} : { score: found.score }) },
+      face: { ...found },
     })),
   ];
 }

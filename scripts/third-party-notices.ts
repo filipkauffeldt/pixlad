@@ -49,6 +49,21 @@ const EXTRA: Array<{ title: string; note: string; files: string[] }> = [
     files: ['third_party/yunet/LICENSE'],
   },
   {
+    title: 'DEIMv2 Wholebody34 head detection models (Apache-2.0)',
+    note:
+      'deimv2-s-wholebody34.onnx and deimv2-n-wholebody34.onnx by Katsuya Hyodo (PINTO0309), built on ' +
+      'DEIMv2 by Intellindust AI Lab, from the PINTO model zoo. Renamed, otherwise unchanged. ' +
+      'Downloaded at install.',
+    files: ['third_party/deimv2/LICENSE'],
+  },
+  {
+    title: 'MediaPipe selfie multiclass segmentation model (Apache-2.0)',
+    note:
+      'selfie-multiclass.onnx by Google, converted from TFLite to ONNX with internal names renamed; ' +
+      'weights unchanged. Downloaded at install.',
+    files: ['third_party/mediapipe-selfie/LICENSE'],
+  },
+  {
     title: 'Independent JPEG Group',
     note: 'This software is based in part on the work of the Independent JPEG Group.',
     files: [],

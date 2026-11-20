@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/block-size';
 import type { AfterExport, ExportTarget, Theme } from '../shared/ipc';
 import { ExportChoice } from './ExportChoice';
+import { Icon } from './Icon';
 import { isMac, useFlips } from './flips';
 import { withFlips, type FaceShape, type Outline } from './retouch';
 import {
@@ -370,12 +371,14 @@ function Settings({ exporting }: { exporting: boolean }) {
     <div className="settings" ref={root}>
       <button
         type="button"
-        className="btn"
+        className="iconBtn"
         aria-expanded={open}
+        aria-label="Settings"
+        title="Settings"
         onClick={() => setOpen(!open)}
         data-testid="settings"
       >
-        Settings
+        <Icon name="cog" size={18} />
       </button>
       {open && (
         <div className="settingsPanel" data-testid="settings-panel">

@@ -68,6 +68,29 @@
   color: var(--dim);
   border-color: var(--line);
 }
+/* A bare icon: undo, redo, settings. */
+.iconBtn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+}
+.iconBtn:hover:not(:disabled),
+.iconBtn[aria-expanded='true'] {
+  color: var(--text);
+  background: var(--hover);
+}
+.iconBtn:disabled {
+  color: var(--dim);
+}
+.icon {
+  display: block;
+  flex: none;
+}
 .tab {
   background: transparent;
   border: 0;

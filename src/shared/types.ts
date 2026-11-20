@@ -44,6 +44,10 @@ export interface FaceDetection {
   box: Rect;
   score: number;
   landmarks?: Point[];
+  /** Head roll in radians, in pixel space, from the eye landmarks. */
+  angle?: number;
+  /** Photo width / height, to draw tilted shapes in normalized coordinates. */
+  aspect?: number;
 }
 
 export const isAdded = (area: MosaicArea): boolean =>

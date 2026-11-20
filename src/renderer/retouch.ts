@@ -15,7 +15,17 @@ export interface RetouchArea {
   enabled: boolean;
   shape?: Shape;
   /** The raw detector box; its outline follows the padding slider. */
-  face?: { box: Rect; score?: number };
+  face?: FaceData;
+}
+
+/** A detection as kept in an area. */
+export interface FaceData {
+  box: Rect;
+  score?: number;
+  /** Head roll in radians, in pixel space. */
+  angle?: number;
+  /** Photo width / height. */
+  aspect?: number;
 }
 
 /**
@@ -109,7 +119,7 @@ export function facesInLasso<T extends { box: Rect }>(
 /** New detections added; a face already found (its box holds the new centre) is not added twice. */
 export function withDetectedFaces(
   areas: readonly RetouchArea[],
-  detections: readonly { box: Rect; score?: number }[],
+  detections: readonly FaceData[],
   mode: RetouchMode,
 ): RetouchArea[] {
   const known = areas.flatMap((a) => (a.face ? [a.face.box] : []));
@@ -123,7 +133,7 @@ export function withDetectedFaces(
       kind: 'face',
       mode,
       enabled: true,
-      face: { box: found.box, ...(found.score === undefined ? {} : { score: found.score }) },
+      face: { ...found },
     })),
   ];
 }

@@ -10,6 +10,7 @@ import {
   opFromAreas,
   withDetectedFaces,
   withoutFacesInside,
+  type FaceData,
   type RetouchArea,
   type Outline,
   type RetouchMode,
@@ -435,7 +436,7 @@ export const actions = {
     });
   },
 
-  addFaces(id: string, faces: { box: Rect; score?: number }[], mode: RetouchMode): void {
+  addFaces(id: string, faces: FaceData[], mode: RetouchMode): void {
     editAreas(id, (areas) => {
       const next = withDetectedFaces(areas, faces, mode);
       return next.length === areas.length ? areas : next;
@@ -488,7 +489,7 @@ export const actions = {
       if (inside.length === 0) actions.noFacesFound();
       actions.addFaces(
         id,
-        inside.map((f) => ({ box: f.box, score: f.score })),
+        inside.map(({ landmarks: _landmarks, ...f }) => f),
         'add',
       );
     } catch (cause) {

@@ -107,11 +107,21 @@
 /* Under the photo: the counts, Block and Padding. Block stays centred and the counts grow to the
    left, so a count that gets wider never moves the controls. */
 .editBar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  z-index: 4;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  height: 36px;
-  flex: none;
+  height: 22px; /* EDIT_BAR_HEIGHT */
+  /* A drag can still start beside the controls; a zoomed photo passes under them. */
+  pointer-events: none;
+}
+.editBar > * {
+  pointer-events: auto;
+  background: var(--bg);
 }
 .editBar > :first-child {
   justify-self: end;
@@ -909,12 +919,10 @@ input[type='range']::-webkit-slider-thumb {
 /* Strip */
 .strip {
   position: relative;
-  height: 92px;
+  height: 84px;
   flex: none;
   overflow-x: auto;
   overflow-y: hidden;
-  background: var(--panel);
-  border-top: 1px solid var(--line);
 }
 .stripInner {
   position: relative;
@@ -922,7 +930,7 @@ input[type='range']::-webkit-slider-thumb {
 }
 .thumbSlot {
   position: absolute;
-  top: 8px;
+  top: 4px;
   width: 96px;
   height: 76px;
 }

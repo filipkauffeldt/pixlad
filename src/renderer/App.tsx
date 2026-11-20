@@ -186,7 +186,10 @@ export function App() {
           )}
         </div>
         {photo ? (
-          <Stage key={`${photo.info.id}-${photo.fileVersion}`} photo={photo} onZoom={onZoom} />
+          <>
+            <Stage key={`${photo.info.id}-${photo.fileVersion}`} photo={photo} onZoom={onZoom} />
+            <EditBar photo={photo} />
+          </>
         ) : (
           <div className="empty" data-testid="empty">
             <h1>Drop JPEG photos here</h1>
@@ -203,7 +206,6 @@ export function App() {
           </div>
         )}
       </div>
-      {photo && <EditBar photo={photo} />}
       {app.photos.length > 0 && <Strip />}
       <div className="footer mono" data-testid="footer">
         <span className="status" data-testid="photo-status">

@@ -7,7 +7,9 @@ import {
   areaIndexAt,
   areaShape,
   clampToPicture,
+  FIT_BOTTOM,
   FIT_MARGIN,
+  FIT_TOP,
   isNearPicture,
   isOnPicture,
   flipsHeld,
@@ -107,9 +109,13 @@ export function Stage({
 
   const fit = Math.max(
     0.01,
-    Math.min(1 / dpr, (size.w - 2 * FIT_MARGIN) / iw, (size.h - 2 * FIT_MARGIN) / ih),
+    Math.min(1 / dpr, (size.w - 2 * FIT_MARGIN) / iw, (size.h - FIT_TOP - FIT_BOTTOM) / ih),
   );
-  const base = { scale: fit, offset: { x: (size.w - iw * fit) / 2, y: (size.h - ih * fit) / 2 } };
+  // Fitted, the picture sits on the edit bar: the photo, the bar and the filmstrip read as one block.
+  const base = {
+    scale: fit,
+    offset: { x: (size.w - iw * fit) / 2, y: size.h - FIT_BOTTOM - ih * fit },
+  };
   const context: ZoomContext = { base, image, viewport: { width: size.w, height: size.h }, dpr };
   const shown = reclamp(view, context);
   const layout = viewLayout(shown, base, image, dpr);

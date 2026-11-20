@@ -590,7 +590,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           <span className="appName">Pixlad</span>
         )}
       </div>
-      <div className="toolGroup" role="toolbar" aria-label="Tools">
+      <div className={photo ? 'toolGroup' : 'toolGroup idle'} role="toolbar" aria-label="Tools">
         <TargetToggle />
         <span className="sep" />
         <ShapeMenu />

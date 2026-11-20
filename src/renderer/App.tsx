@@ -214,8 +214,7 @@ export function App() {
               </>
             ) : (
               <>
-                <h1>Drop JPEG photos here</h1>
-                <p>One or several, or whole folders. Nothing is saved between sessions.</p>
+                <h1>Drop JPEG photos or folders</h1>
                 <button
                   type="button"
                   className="btn"
@@ -223,6 +222,7 @@ export function App() {
                   data-testid="open"
                 >
                   Open…
+                  <kbd>{isMac ? '⌘ O' : 'Ctrl O'}</kbd>
                 </button>
               </>
             )}

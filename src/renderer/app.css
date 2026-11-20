@@ -91,6 +91,10 @@
   background: var(--panel);
   border: 1px solid var(--line);
 }
+/* No photo open: the tools wait, dimmed, but can still be set up for the first one */
+.toolGroup.idle {
+  opacity: 0.5;
+}
 .toolGroup .sep {
   width: 1px;
   height: 16px;
@@ -993,19 +997,24 @@ input[type='range']::-webkit-slider-thumb {
 /* Empty state and drop overlay */
 .empty {
   position: absolute;
-  inset: 0;
+  inset: 24px 40px 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  border: 1px dashed var(--line-strong);
-  margin: 24px;
+  gap: 16px;
+  border: 1px solid var(--line);
 }
 .empty h1 {
   margin: 0;
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.btn kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--dim);
 }
 .empty p {
   margin: 0;

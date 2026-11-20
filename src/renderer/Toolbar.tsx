@@ -15,6 +15,7 @@ import {
   longEdgeOf,
   unexportedCount,
   useApp,
+  type Batch,
   type PhotoState,
   type Target,
 } from './store';
@@ -424,6 +425,49 @@ function Settings({ exporting }: { exporting: boolean }) {
   );
 }
 
+/** What the last Export all did, once it is over. */
+function batchSummary(batch: Batch): string {
+  return [
+    `${batch.ok} exported`,
+    // "0 failed" stays when nothing was cancelled; after a cancel only real failures show.
+    ...(batch.failed.length > 0 || batch.cancelled === 0 ? [`${batch.failed.length} failed`] : []),
+    ...(batch.cancelled > 0 ? [`${batch.cancelled} cancelled`] : []),
+  ].join(', ');
+}
+
+/** Export all under way: which photo of how many, and Cancel. */
+function BatchProgress({ batch }: { batch: Batch }) {
+  return (
+    <span className="readout batch">
+      <span className="label">Exporting</span>
+      <span className="value mono" data-testid="batch-status">
+        {Math.min(batch.done + 1, batch.total)}
+        <span className="total">/{batch.total}</span>
+      </span>
+      <span
+        className="progress"
+        role="progressbar"
+        aria-label="Export progress"
+        aria-valuemin={0}
+        aria-valuemax={batch.total}
+        aria-valuenow={batch.done}
+        data-testid="batch-progress"
+      >
+        <span style={{ width: `${(batch.done / Math.max(batch.total, 1)) * 100}%` }} />
+      </span>
+      <button
+        type="button"
+        className="btn"
+        disabled={batch.cancelling}
+        onClick={actions.cancelExportAll}
+        data-testid="batch-cancel"
+      >
+        {batch.cancelling ? 'Cancelling…' : 'Cancel'}
+      </button>
+    </span>
+  );
+}
+
 /** How the last export of the photo went, next to its name: saved where, or why it failed. */
 function PhotoStatus({ photo }: { photo: PhotoState }) {
   if (!photo.message) return null;
@@ -595,77 +639,88 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
         </button>
       </div>
       <div className="topRight">
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void actions.openDialog()}
-          title={`Add photos to this session (${FLIP_KEY}+O)`}
-          data-testid="add-photos"
-        >
-          Add…
-        </button>
-        <button
-          type="button"
-          className="iconBtn"
-          onClick={actions.undo}
-          disabled={!photo || photo.undo.length === 0}
-          aria-label="Undo"
-          title={`Undo the last change to the areas (${FLIP_KEY}+Z)`}
-        >
-          <Icon name="undo" size={18} />
-        </button>
-        <button
-          type="button"
-          className="iconBtn"
-          onClick={actions.redo}
-          disabled={!photo || photo.redo.length === 0}
-          aria-label="Redo"
-          title={`Redo the change you just undid (${REDO_KEYS})`}
-        >
-          <Icon name="redo" size={18} />
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={actions.reset}
-          disabled={!photo || photo.areas.length === 0}
-          title="Clear every area and face on this photo (Undo brings them back)"
-          data-testid="reset"
-        >
-          Reset
-        </button>
-        <span className="anchor">
-          <button
-            type="button"
-            className="btn"
-            onClick={() => void actions.exportAll()}
-            disabled={!anyMosaic || exporting}
-            title="Export every photo that has a mosaic"
-            data-testid="export-all"
-          >
-            Export all
-          </button>
-          {app.exportChoice?.anchor === 'all' && <ExportChoice anchor="all" />}
-        </span>
-        <span className="anchor">
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => void actions.exportCurrent()}
-            disabled={!photo || !hasMosaic(photo) || photo.status === 'exporting'}
-            title={
-              photo && !hasMosaic(photo)
-                ? 'Draw an area or find faces first'
-                : app.exportTarget === 'overwrite'
-                  ? `Replace the original file with the mosaic (${FLIP_KEY}+E)`
-                  : `Save a new copy with _edit next to the original (${FLIP_KEY}+E)`
-            }
-            data-testid="export"
-          >
-            Export
-          </button>
-          {app.exportChoice?.anchor === 'export' && <ExportChoice anchor="export" />}
-        </span>
+        {exporting && app.batch ? (
+          <BatchProgress batch={app.batch} />
+        ) : (
+          <>
+            {app.batch && (
+              <span className="batchSummary" data-testid="batch-status">
+                {batchSummary(app.batch)}
+              </span>
+            )}
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void actions.openDialog()}
+              title={`Add photos to this session (${FLIP_KEY}+O)`}
+              data-testid="add-photos"
+            >
+              Add…
+            </button>
+            <button
+              type="button"
+              className="iconBtn"
+              onClick={actions.undo}
+              disabled={!photo || photo.undo.length === 0}
+              aria-label="Undo"
+              title={`Undo the last change to the areas (${FLIP_KEY}+Z)`}
+            >
+              <Icon name="undo" size={18} />
+            </button>
+            <button
+              type="button"
+              className="iconBtn"
+              onClick={actions.redo}
+              disabled={!photo || photo.redo.length === 0}
+              aria-label="Redo"
+              title={`Redo the change you just undid (${REDO_KEYS})`}
+            >
+              <Icon name="redo" size={18} />
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={actions.reset}
+              disabled={!photo || photo.areas.length === 0}
+              title="Clear every area and face on this photo (Undo brings them back)"
+              data-testid="reset"
+            >
+              Reset
+            </button>
+            <span className="anchor">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void actions.exportAll()}
+                disabled={!anyMosaic || exporting}
+                title="Export every photo that has a mosaic"
+                data-testid="export-all"
+              >
+                Export all
+              </button>
+              {app.exportChoice?.anchor === 'all' && <ExportChoice anchor="all" />}
+            </span>
+            <span className="anchor">
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => void actions.exportCurrent()}
+                disabled={!photo || !hasMosaic(photo) || photo.status === 'exporting'}
+                title={
+                  photo && !hasMosaic(photo)
+                    ? 'Draw an area or find faces first'
+                    : app.exportTarget === 'overwrite'
+                      ? `Replace the original file with the mosaic (${FLIP_KEY}+E)`
+                      : `Save a new copy with _edit next to the original (${FLIP_KEY}+E)`
+                }
+                data-testid="export"
+              >
+                Export
+              </button>
+              {app.exportChoice?.anchor === 'export' && <ExportChoice anchor="export" />}
+            </span>
+          </>
+        )}
         <Settings exporting={exporting} />
       </div>
     </div>

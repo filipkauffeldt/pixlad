@@ -1045,11 +1045,17 @@ input[type='range']::-webkit-slider-thumb {
   align-items: center;
   gap: 8px;
 }
-/* Export all: progress next to the count, and Cancel */
-.footer .batch {
-  display: flex;
-  align-items: center;
+/* Export all in the top bar: progress and Cancel while it runs, then what it did */
+.readout.batch {
   gap: 10px;
+}
+.readout.batch .progress {
+  width: 48px;
+}
+.batchSummary {
+  margin-right: 6px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 .progress {
   display: block;

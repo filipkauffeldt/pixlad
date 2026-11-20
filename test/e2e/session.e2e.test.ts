@@ -531,7 +531,7 @@ describe('closing and exporting a batch', () => {
 
     await page.click('[data-testid="export-all"]');
     await page.waitForSelector('[data-testid="batch-progress"]');
-    expect(await page.locator('[data-testid="batch-status"]').innerText()).toBe('Exporting 1 of 3');
+    expect(await page.locator('[data-testid="batch-status"]').innerText()).toBe('1/3');
     expect(await page.getAttribute('[data-testid="batch-progress"]', 'aria-valuenow')).toBe('0');
     await page.click('[data-testid="batch-cancel"]');
     await page.waitForFunction(

@@ -1065,19 +1065,21 @@ input[type='range']::-webkit-slider-thumb {
     left: 100%;
   }
 }
+/* Remove, on hover: the top left corner, clear of the status badge */
 .thumbSlot .remove {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
   width: 16px;
   height: 16px;
-  line-height: 14px;
   padding: 0;
   opacity: 0;
   pointer-events: none;
-  background: var(--scrim);
+  background: var(--text);
   border: 0;
-  color: var(--text);
+  color: var(--on-text);
 }
 .thumbSlot:hover .remove,
 .thumbSlot:focus-within .remove {

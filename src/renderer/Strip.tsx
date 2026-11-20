@@ -145,7 +145,9 @@ export function Strip() {
                 data-name={photo.info.name}
                 onClick={() => actions.remove(photo.info.id)}
               >
-                ×
+                <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true">
+                  <path d="M1 1l6 6M7 1 1 7" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
               </button>
             </div>
           );

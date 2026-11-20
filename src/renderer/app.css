@@ -31,7 +31,7 @@
   color: var(--muted);
 }
 .control input[type='range'] {
-  width: 80px;
+  width: 40px;
 }
 .spacer {
   flex: 1;
@@ -151,6 +151,29 @@
 }
 .menuItem[aria-checked='true'] {
   background: var(--line);
+}
+/* The face shape picker: an icon of each shape, and a hint on speed in the menu. */
+.shapeIcon {
+  display: block;
+  flex: none;
+}
+.dropdown .shapeIcon,
+.shapeItem .shapeIcon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+.shapeItem {
+  display: grid;
+  grid-template-columns: 14px auto 1fr;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.shapeItem .hint {
+  color: var(--dim);
+  text-align: right;
+  padding-left: 16px;
 }
 
 .numberField {

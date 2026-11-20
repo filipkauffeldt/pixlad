@@ -5,7 +5,7 @@ import { BLOCK_SIZE_PX, blockSizePxToRel, blockSizeRelToPx } from '../shared/blo
 import type { AfterExport, ExportTarget, Theme } from '../shared/ipc';
 import { ExportChoice } from './ExportChoice';
 import { isMac, useFlips } from './flips';
-import { withFlips, type Outline } from './retouch';
+import { withFlips, type FaceShape, type Outline } from './retouch';
 import {
   actions,
   hasMosaic,
@@ -44,8 +44,8 @@ function CurvedArrow({ mirrored = false }: { mirrored?: boolean }) {
 }
 
 /** Picks what a drag acts on. */
-function TargetMenu() {
-  const app = useApp();
+/** A menu's open state; a click outside it or Escape closes it. */
+function useMenu() {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -63,6 +63,12 @@ function TargetMenu() {
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [open]);
+  return { open, setOpen, root };
+}
+
+function TargetMenu() {
+  const app = useApp();
+  const { open, setOpen, root } = useMenu();
   const current = TARGETS.find((t) => t.target === app.target)!;
   return (
     <div className="targetMenu" ref={root}>
@@ -103,6 +109,77 @@ function TargetMenu() {
               }}
             >
               {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const SHAPES: Array<{ shape: FaceShape; label: string; hint: string; icon: ReactNode }> = [
+  {
+    shape: 'rectangle',
+    label: 'Rectangles',
+    hint: 'Instant',
+    icon: <rect x="2.5" y="1.5" width="9" height="11" />,
+  },
+  {
+    shape: 'oval',
+    label: 'Ovals',
+    hint: 'Instant',
+    icon: <ellipse cx="7" cy="7" rx="4.5" ry="5.6" />,
+  },
+];
+
+function ShapeIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg className="shapeIcon" viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+/** Picks how found faces are covered. */
+function ShapeMenu() {
+  const app = useApp();
+  const { open, setOpen, root } = useMenu();
+  const current = SHAPES.find((s) => s.shape === app.faceShape)!;
+  return (
+    <div className="targetMenu" ref={root}>
+      <button
+        type="button"
+        className="btn dropdown"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={`Face shape: ${current.label}`}
+        aria-label={`Face shape: ${current.label}`}
+        data-testid="face-shape"
+        onClick={() => setOpen(!open)}
+      >
+        <ShapeIcon>{current.icon}</ShapeIcon>
+        <svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true">
+          <path d="M1 3l4 4 4-4" />
+        </svg>
+      </button>
+      {open && (
+        <div className="menu" role="menu">
+          {SHAPES.map(({ shape, label, hint, icon }) => (
+            <button
+              key={shape}
+              type="button"
+              role="menuitemradio"
+              aria-checked={app.faceShape === shape}
+              className="menuItem shapeItem"
+              data-shape={shape}
+              onClick={() => {
+                actions.setFaceShape(shape);
+                setOpen(false);
+              }}
+            >
+              <ShapeIcon>{icon}</ShapeIcon>
+              <span>{label}</span>
+              <span className="hint">{hint}</span>
             </button>
           ))}
         </div>
@@ -435,6 +512,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
       >
         Find all faces
       </button>
+      <ShapeMenu />
       <label
         className="control"
         title="Block edge in pixels of the full-resolution photo. Small selections get larger blocks, so a face stays unrecognisable."

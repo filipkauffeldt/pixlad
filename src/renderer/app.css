@@ -982,9 +982,9 @@ input[type='range']::-webkit-slider-thumb {
   display: flex;
   justify-content: center;
   gap: 8px;
-  height: 64px;
+  height: 76px;
   flex: none;
-  padding: 0 14px;
+  padding: 0 14px 12px;
 }
 .strip {
   position: relative;
@@ -1130,44 +1130,7 @@ input[type='range']::-webkit-slider-thumb {
   outline-offset: 1px;
 }
 
-/* Footer */
-.footer {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-  height: 28px;
-  flex: none;
-  padding: 0 12px;
-  background: var(--panel);
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-}
-.footer .status {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-/* Export all in the top bar: progress and Cancel while it runs, then what it did */
-.readout.batch {
-  gap: 10px;
-}
-.readout.batch .progress {
-  width: 48px;
-}
-.topRight > .batchSummary {
-  flex: 0 1 auto;
-  min-width: 0;
-  margin-right: 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--muted);
-  white-space: nowrap;
-}
+/* A thin progress bar */
 .progress {
   display: block;
   width: 96px;
@@ -1178,23 +1141,6 @@ input[type='range']::-webkit-slider-thumb {
   display: block;
   height: 100%;
   background: var(--text);
-}
-.footerButton {
-  padding: 0;
-  background: transparent;
-  border: 0;
-  color: var(--muted);
-  font: inherit;
-}
-.footerButton:hover:not(:disabled) {
-  color: var(--text);
-  text-decoration: underline;
-}
-.footer .status .footerButton {
-  margin-left: 8px;
-}
-.footerButton:disabled {
-  color: var(--dim);
 }
 .label {
   color: var(--dim);

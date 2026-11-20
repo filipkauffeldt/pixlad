@@ -119,6 +119,7 @@ export function Strip() {
         className="strip"
         ref={scroller}
         style={{ width: start * 2 + content }}
+        data-count={app.photos.length}
         data-testid="strip"
       >
         <div className="stripInner" style={{ width: start * 2 + content }}>

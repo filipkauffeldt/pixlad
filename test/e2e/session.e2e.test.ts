@@ -22,6 +22,16 @@ import {
   pickTool,
 } from './app';
 
+/** Wait until the session holds `count` photos and `name` is the one open. */
+const inSession = (page: Page, count: number, name: string, timeout?: number): Promise<unknown> =>
+  page.waitForFunction(
+    ([n, current]) =>
+      document.querySelector('[data-testid="strip"]')?.getAttribute('data-count') === String(n) &&
+      document.querySelector('[data-testid="file-name"]')?.textContent === current,
+    [count, name] as const,
+    { timeout },
+  );
+
 let running: Launched | undefined;
 afterEach(async () => {
   if (running) await stubCloseDialog(running.app, 0).catch(() => undefined);
@@ -117,11 +127,7 @@ describe('opening', () => {
     running = await launch();
     const { page } = running;
     await dropFiles(page, [folder]);
-    await page.waitForFunction(
-      () => document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 250'),
-      undefined,
-      { timeout: 30000 },
-    );
+    await inSession(page, 250, 'p000.jpg', 30000);
     // Only what is on screen is in the DOM.
     expect(await page.locator('[data-testid="thumb"]').count()).toBeLessThan(40);
     // The page answers while thumbnails are decoded.
@@ -129,9 +135,7 @@ describe('opening', () => {
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(0))));
     expect(Date.now() - before).toBeLessThan(1000);
     await page.keyboard.press('ArrowRight');
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('2 / 250'),
-    );
+    await inSession(page, 250, 'p001.jpg');
   });
 
   it('says when dropped photos were already in the session', async () => {
@@ -141,9 +145,7 @@ describe('opening', () => {
     running = await launch();
     const { page } = running;
     await dropFiles(page, [a, b]);
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
-    );
+    await inSession(page, 2, 'a.jpg');
     await dropFiles(page, [a, b]);
     await page.waitForFunction(() =>
       Array.from(document.querySelectorAll('[data-testid="notice"]')).some((notice) =>
@@ -200,9 +202,7 @@ describe('opening', () => {
     running = await launch();
     const { page } = running;
     await dropFiles(page, [join(dir, 'a.jpg'), join(dir, 'b.jpg')]);
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
-    );
+    await inSession(page, 2, 'a.jpg');
     const thumb = page.locator('[data-testid="thumb"]').first();
     const remove = page.locator('[data-testid="remove"]').first();
     const opacity = (): Promise<string> => remove.evaluate((el) => getComputedStyle(el).opacity);
@@ -245,9 +245,7 @@ describe('face padding', () => {
     running = await launch();
     const { page } = running;
     await dropFiles(page, [a, b]);
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 2'),
-    );
+    await inSession(page, 2, 'a.jpg');
     const padding = page.locator('[aria-label="Face padding in percent"]');
     expect(await padding.inputValue()).toBe('15');
     await padding.fill('30');
@@ -256,9 +254,7 @@ describe('face padding', () => {
     expect(await padding.inputValue()).toBe('30');
 
     await dropFiles(page, [c]);
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('2 / 3'),
-    );
+    await inSession(page, 3, 'b.jpg');
     await page.keyboard.press('ArrowRight');
     expect(await padding.inputValue()).toBe('30');
   });
@@ -272,9 +268,7 @@ describe('the strip', () => {
     running = await launch();
     const { page } = running;
     await dropFiles(page, files);
-    await page.waitForFunction(() =>
-      document.querySelector('[data-testid="footer"]')?.textContent?.includes('1 / 40'),
-    );
+    await inSession(page, 40, 'w0.jpg');
     const strip = page.locator('[data-testid="strip"]');
     const scrollLeft = (): Promise<number> => strip.evaluate((el) => el.scrollLeft);
     expect(await scrollLeft()).toBe(0);

@@ -230,20 +230,6 @@ export function App() {
         )}
       </div>
       {app.photos.length > 0 && <Strip />}
-      <div className="footer mono" data-testid="footer">
-        <span className="status">
-          {photo && (
-            <>
-              <span>{`${photo.info.width}×${photo.info.height}`}</span>
-            </>
-          )}
-        </span>
-        <span>
-          {app.photos.length > 0 && photo
-            ? `${app.photos.indexOf(photo) + 1} / ${app.photos.length}`
-            : ''}
-        </span>
-      </div>
       {app.removePhotoQuestion && <RemovePhoto question={app.removePhotoQuestion} />}
       {app.aboutOpen && <About />}
       {app.shortcutsOpen && <Shortcuts />}

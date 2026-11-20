@@ -571,7 +571,11 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
         <img src={icon} alt="" width={20} height={20} />
         {photo ? (
           <>
-            <span className="fileName mono" title={photo.info.name} data-testid="file-name">
+            <span
+              className="fileName mono"
+              title={`${photo.info.name}, ${photo.info.width}×${photo.info.height}`}
+              data-testid="file-name"
+            >
               {photo.info.name}
             </span>
             <PhotoStatus photo={photo} />

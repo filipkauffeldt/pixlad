@@ -33,6 +33,8 @@ export interface Person {
   from: 'yunet' | 'dehazed' | 'deimv2';
   /** A detector saw a face here. */
   confirmed?: boolean;
+  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
+  eyes?: Box[];
 }
 
 const YUNET = 'face_detection_yunet_2026may.onnx';
@@ -511,7 +513,7 @@ function oneFacePerPerson(faces: Person[]): Person[] {
 /**
  * One detection per person. Largest first, a detection mostly (60%+) inside a kept one, or
  * overlapping it by IoU 0.45+, is the same person when the kept one is at most 4x its area: it is
- * dropped, and the kept one takes its confirmation and landmarks. A loose box over two people
+ * dropped, and the kept one takes its confirmation, landmarks and eyes. A loose box over two people
  * (more than 4x a face) keeps both.
  */
 function onePerPerson(people: Person[]): Person[] {
@@ -532,6 +534,7 @@ function onePerPerson(people: Person[]): Person[] {
       ...o,
       ...(o.confirmed || d.confirmed ? { confirmed: true } : {}),
       ...(o.landmarks.length === 0 && d.landmarks.length > 0 ? { landmarks: d.landmarks } : {}),
+      ...(o.eyes || d.eyes ? { eyes: [...(o.eyes ?? []), ...(d.eyes ?? [])] } : {}),
     };
   }
   return kept;
@@ -593,12 +596,20 @@ export async function findPeople(img: Img, region: Rect, modelsDir: string): Pro
   ]);
   // Heads add the people with no visible face. A head with a face inside is that person (already
   // in) or a loose box over several; either way it goes.
-  const lone = heads.filter(
-    (h) =>
-      !faces.some((f) => centreIn(f.box, h.box)) &&
-      h.score >= LONE_HEAD_SCORE &&
-      !faces.some((f) => overlap(f.box, h.box) > CLIP * area(f.box)),
-  );
+  // A faceless head scoring low is mostly an arm or a shoulder; with eyes inside it is a balaclava,
+  // whose eyeholes get covered.
+  const eyes = [...found.eyes, ...more.eyes];
+  const lone = heads
+    .filter(
+      (h) =>
+        !faces.some((f) => centreIn(f.box, h.box)) &&
+        (h.score >= LONE_HEAD_SCORE || eyes.some((e) => inside(e, h.box))) &&
+        !faces.some((f) => overlap(f.box, h.box) > CLIP * area(f.box)),
+    )
+    .map((h): Person => {
+      const own = eyes.filter((e) => inside(e, h.box));
+      return own.length > 0 ? { ...h, eyes: own } : h;
+    });
   const hands = [...found.hands, ...more.hands];
   const kept = notOversized([...faces, ...lone], [...heads, ...faces]);
   return onePerPerson(notHands(kept, hands, deimFaces));

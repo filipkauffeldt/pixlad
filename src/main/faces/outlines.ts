@@ -27,6 +27,8 @@ export interface TraceItem {
   angle: number;
   /** A detector saw a face here. */
   confirmed: boolean;
+  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
+  eyes?: Box[];
 }
 
 /** A square crop of the photo, `side` px wide and rotated by `angle`, seen at SEG x SEG. */
@@ -169,7 +171,7 @@ function outlineFromLabels(
       if (dx * dx + dy * dy <= 1 && labels[p] !== CLOTHES && labels[p] !== OTHER) mask[p] = 1;
     }
   }
-  const component = componentNearCentre(mask);
+  let component = componentNearCentre(mask);
   if (!component) return undefined;
   let area = 0;
   for (const v of component) area += v;
@@ -201,8 +203,30 @@ function outlineFromLabels(
       );
     });
   }
+  // Little skin for the size of the face (a balaclava's eyeholes, a scarf over the face): grow it so
+  // the whole opening is covered, not just the skin seen through it.
+  if (area < 0.3 * faceW * faceH) {
+    component = dilate(component, Math.max(4, Math.round(0.15 * Math.max(faceW, faceH))));
+  }
   const ring = radialOutline(component);
   return ring.length >= 3 ? ring.map((p) => toPhoto(crop, p.x, p.y)) : undefined;
+}
+
+/** An oval over a balaclava's eyeholes: the eyes found, grown to cover the opening around them. */
+function eyeholes(eyes: readonly Box[]): Point[] {
+  const x0 = Math.min(...eyes.map((e) => e.x));
+  const y0 = Math.min(...eyes.map((e) => e.y));
+  const x1 = Math.max(...eyes.map((e) => e.x + e.w));
+  const y1 = Math.max(...eyes.map((e) => e.y + e.h));
+  const size = Math.max(x1 - x0, y1 - y0, ...eyes.map((e) => e.w * 2));
+  const cx = (x0 + x1) / 2;
+  const cy = (y0 + y1) / 2;
+  const a = Math.max(x1 - x0, size) * 0.8;
+  const b = Math.max(y1 - y0, size * 0.35) * 1.2;
+  return Array.from({ length: 32 }, (_, k) => {
+    const t = (2 * Math.PI * k) / 32;
+    return { x: cx + Math.cos(t) * a, y: cy + Math.sin(t) * b };
+  });
 }
 
 const dilate = (mask: Uint8Array<ArrayBuffer>, r: number): Uint8Array<ArrayBuffer> =>
@@ -324,8 +348,8 @@ function radialOutline(mask: Uint8Array): Point[] {
 }
 
 /**
- * Outlines for `items`, in photo pixels. Per item: the outline; null when a head shows no face skin
- * or hair at all (a balaclava, left sharp); or undefined to keep the oval (too small to trace, or a
+ * Outlines for `items`, in photo pixels. Per item: the outline; the eyeholes when a head shows no
+ * face skin or hair but has eyes; null when it has neither (a balaclava, left sharp); or undefined to keep the oval (too small to trace, or a
  * confirmed face the segmenter found nothing in).
  */
 export async function traceOutlines(
@@ -348,7 +372,7 @@ export async function traceOutlines(
       labels,
       items.filter((o) => o !== item),
     );
-    out.push(outline ?? (item.confirmed ? undefined : null));
+    out.push(outline ?? (item.confirmed ? undefined : item.eyes ? eyeholes(item.eyes) : null));
   }
   return out;
 }

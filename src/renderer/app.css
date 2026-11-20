@@ -1017,18 +1017,53 @@ input[type='range']::-webkit-slider-thumb {
   outline: 1px solid var(--text);
   outline-offset: 3px;
 }
-.thumb .badges {
+/* One badge in the top right corner of a thumbnail */
+.thumb .badge {
   position: absolute;
-  left: 3px;
-  bottom: 3px;
-  display: flex;
-  gap: 3px;
-  padding: 2px 3px;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
   background: var(--scrim);
-  align-items: center;
+  color: var(--text);
 }
-.thumb .badges svg {
+.thumb .badge svg {
   display: block;
+}
+.thumb .badge.ok {
+  color: var(--ok);
+}
+.thumb .badge.failed {
+  background: var(--error);
+  color: var(--on-text);
+}
+/* An export under way: a line that runs along the bottom */
+.thumbProgress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  overflow: hidden;
+  background: var(--scrim);
+}
+.thumbProgress span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: var(--text);
+  animation: sweep 1.2s ease-in-out infinite;
+}
+@keyframes sweep {
+  from {
+    left: -40%;
+  }
+  to {
+    left: 100%;
+  }
 }
 .thumbSlot .remove {
   position: absolute;
@@ -1161,7 +1196,8 @@ input[type='range']::-webkit-slider-thumb {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
+  .spinner,
+  .thumbProgress span {
     animation-duration: 3s;
   }
 }

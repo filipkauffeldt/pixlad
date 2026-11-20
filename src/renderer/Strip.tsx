@@ -9,79 +9,47 @@ const ITEM = THUMB + 8;
 /** Room at the ends, so the current photo's frame is never cut off. */
 const EDGE = 8;
 
+/**
+ * The photo's state, as one badge in its corner: failed, exported or has a mosaic. An export
+ * under way runs a line along the bottom instead.
+ */
 function Badges({ photo }: { photo: PhotoState }) {
-  const mosaic = hasMosaic(photo);
-  const exported = photo.status === 'exported' && photo.exportedRev === photo.rev;
-  if (!mosaic && !exported && photo.status !== 'exporting' && photo.status !== 'failed')
-    return null;
-  return (
-    <span className="badges">
-      {mosaic && (
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          aria-label="Has a mosaic"
-          data-testid="badge-mosaic"
-        >
-          <title>Has a mosaic</title>
+  if (photo.status === 'exporting') {
+    return (
+      <span className="thumbProgress" aria-label="Exporting" data-testid="badge-exporting">
+        <span />
+      </span>
+    );
+  }
+  if (photo.status === 'failed') {
+    return (
+      <span className="badge failed" title="Export failed" data-testid="badge-failed">
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-label="Export failed">
+          <path d="M5 1.5v4.2M5 8v.4" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        </svg>
+      </span>
+    );
+  }
+  if (photo.status === 'exported' && photo.exportedRev === photo.rev) {
+    return (
+      <span className="badge ok" title="Exported" data-testid="badge-exported">
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-label="Exported">
+          <path d="M1.5 5.3l2.3 2.3L8.5 2.6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+      </span>
+    );
+  }
+  if (hasMosaic(photo)) {
+    return (
+      <span className="badge" title="Has a mosaic" data-testid="badge-mosaic">
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-label="Has a mosaic">
           <path d="M0 0h5v5H0zM5 5h5v5H5z" fill="currentColor" />
-          <path d="M5 0h5v5H5zM0 5h5v5H0z" fill="none" stroke="currentColor" strokeWidth="1" />
+          <path d="M5.5 .5h4v4h-4zM.5 5.5h4v4h-4z" fill="none" stroke="currentColor" />
         </svg>
-      )}
-      {photo.status === 'exporting' && (
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          aria-label="Exporting"
-          data-testid="badge-exporting"
-        >
-          <title>Exporting</title>
-          <circle cx="5" cy="5" r="3.5" fill="none" stroke="currentColor" strokeDasharray="6 4">
-            <animateTransform
-              attributeName="transform"
-              type="rotate"
-              from="0 5 5"
-              to="360 5 5"
-              dur="1s"
-              repeatCount="indefinite"
-            />
-          </circle>
-        </svg>
-      )}
-      {exported && (
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          aria-label="Exported"
-          data-testid="badge-exported"
-        >
-          <title>Exported</title>
-          <path d="M1.5 5.5l2.3 2.3L8.5 2.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-        </svg>
-      )}
-      {photo.status === 'failed' && (
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          aria-label="Export failed"
-          data-testid="badge-failed"
-          style={{ color: 'var(--error)' }}
-        >
-          <title>Export failed</title>
-          <path
-            d="M5 1l4.5 8h-9zM5 4v2.5M5 7.6v.1"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.1"
-          />
-        </svg>
-      )}
-    </span>
-  );
+      </span>
+    );
+  }
+  return null;
 }
 
 /** A virtualised strip: only the thumbnails in view exist, so hundreds of photos stay cheap. */

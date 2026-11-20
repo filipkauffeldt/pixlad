@@ -146,9 +146,11 @@ function outlineFromLabels(
   let mask: Uint8Array<ArrayBuffer> = new Uint8Array(SEG * SEG);
   for (let p = 0; p < SEG * SEG; p++) {
     if (!near(p % SEG, Math.floor(p / SEG)) || !ours(p % SEG, Math.floor(p / SEG))) continue;
-    // Face and hair; hats, glasses, hands (body skin) and clothes stay out.
+    // Face and hair; hats, glasses, hands (body skin) and clothes stay out. Hair only down to the
+    // jaw: below it, "hair" is mostly a black scarf or a collar.
     const label = labels[p]!;
-    mask[p] = label === FACE_SKIN || label === HAIR ? 1 : 0;
+    const hairOk = Math.floor(p / SEG) <= SEG / 2 + faceH * (head ? 0.3 : 0.4);
+    mask[p] = label === FACE_SKIN || (label === HAIR && hairOk) ? 1 : 0;
   }
   // Close small gaps (glasses frames, a strand of hair) so the face stays one piece.
   mask = erode(dilate(mask, 4), 4);

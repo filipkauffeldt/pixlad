@@ -216,7 +216,7 @@ const EXPORT_TARGETS: Array<{ target: ExportTarget; label: string; note: string 
     label: 'New copy',
     note: 'Saves a copy with _edit in its name. The original stays as it is.',
   },
-  { target: 'overwrite', label: 'Replace original', note: 'Cannot be undone.' },
+  { target: 'overwrite', label: 'Replace', note: 'Writes over the original. Cannot be undone.' },
 ];
 
 const THEMES: Array<{ theme: Theme; label: string; icon: ReactNode }> = [
@@ -259,9 +259,9 @@ function ThemePicker() {
     buttons.current[index]?.focus();
   };
   return (
-    <div className="appearance">
-      <span className="label" id="appearance-label">
-        Appearance
+    <div className="settingRow">
+      <span className="settingName" id="appearance-label">
+        Theme
       </span>
       <div
         className="themePicker"
@@ -311,8 +311,12 @@ function ThemePicker() {
 
 const AFTER_EXPORT: Array<{ choice: AfterExport; label: string; note: string }> = [
   { choice: 'ask', label: 'Ask', note: 'Asks after each export.' },
-  { choice: 'keep', label: 'Keep photos in the session', note: 'The exported photos stay open.' },
-  { choice: 'remove', label: 'Remove them from the session', note: 'The files stay on disk.' },
+  { choice: 'keep', label: 'Keep', note: 'The exported photos stay in the session.' },
+  {
+    choice: 'remove',
+    label: 'Remove',
+    note: 'The exported photos leave the session. The files stay on disk.',
+  },
 ];
 
 function Settings({ exporting }: { exporting: boolean }) {
@@ -350,80 +354,83 @@ function Settings({ exporting }: { exporting: boolean }) {
       {open && (
         <div className="settingsPanel" data-testid="settings-panel">
           <fieldset disabled={exporting}>
-            <legend className="label">Export</legend>
-            {EXPORT_TARGETS.map(({ target, label, note }) => (
-              <label className="radio" key={target}>
-                <input
-                  type="radio"
-                  name="export-target"
-                  checked={app.exportTarget === target}
-                  onChange={() => void actions.setExportTarget(target)}
-                  data-testid={`export-target-${target}`}
-                />
-                <span>
-                  {label}
-                  <small>{note}</small>
+            <div className="settingRow">
+              <div>
+                <span className="settingName" id="save-as-label">
+                  Save as
                 </span>
-              </label>
-            ))}
-            <div className="label subLabel" id="after-export-label">
-              After export
+                <small>Replace can’t be undone.</small>
+              </div>
+              <div className="segmented" role="radiogroup" aria-labelledby="save-as-label">
+                {EXPORT_TARGETS.map(({ target, label, note }) => (
+                  <label className="segItem" key={target} title={note}>
+                    <input
+                      type="radio"
+                      name="export-target"
+                      checked={app.exportTarget === target}
+                      onChange={() => void actions.setExportTarget(target)}
+                      data-testid={`export-target-${target}`}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
             </div>
-            {AFTER_EXPORT.map(({ choice, label, note }) => (
-              <label className="radio" key={choice}>
-                <input
-                  type="radio"
-                  name="after-export"
-                  aria-describedby="after-export-label"
-                  checked={app.afterExport === choice}
-                  onChange={() => void actions.setAfterExport(choice)}
-                  data-testid={`after-export-${choice}`}
-                />
-                <span>
-                  {label}
-                  <small>{note}</small>
-                </span>
-              </label>
-            ))}
+            <div className="settingRow">
+              <span className="settingName" id="after-export-label">
+                After export
+              </span>
+              <div className="segmented" role="radiogroup" aria-labelledby="after-export-label">
+                {AFTER_EXPORT.map(({ choice, label, note }) => (
+                  <label className="segItem" key={choice} title={note}>
+                    <input
+                      type="radio"
+                      name="after-export"
+                      checked={app.afterExport === choice}
+                      onChange={() => void actions.setAfterExport(choice)}
+                      data-testid={`after-export-${choice}`}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
           </fieldset>
           <ThemePicker />
-          <fieldset>
-            <legend className="label">Updates</legend>
-            <label className="radio">
-              <input
-                type="checkbox"
-                checked={app.checkForUpdates}
-                onChange={(e) => void actions.setCheckForUpdates(e.target.checked)}
-                data-testid="check-for-updates"
-              />
-              <span>
-                Check for updates on start
-                <small>Asks GitHub whether a newer version exists.</small>
-              </span>
-            </label>
-          </fieldset>
-          <button
-            type="button"
-            className="linkButton"
-            onClick={() => {
-              setOpen(false);
-              actions.setShortcutsOpen(true);
-            }}
-            data-testid="open-shortcuts"
-          >
-            Keyboard shortcuts
-          </button>
-          <button
-            type="button"
-            className="linkButton"
-            onClick={() => {
-              setOpen(false);
-              actions.setAboutOpen(true);
-            }}
-            data-testid="open-about"
-          >
-            About Pixlad
-          </button>
+          <label className="settingRow" title="Asks GitHub whether a newer version exists.">
+            <span className="settingName">Check for updates on start</span>
+            <input
+              type="checkbox"
+              className="toggle"
+              checked={app.checkForUpdates}
+              onChange={(e) => void actions.setCheckForUpdates(e.target.checked)}
+              data-testid="check-for-updates"
+            />
+          </label>
+          <div className="settingsFoot">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                actions.setShortcutsOpen(true);
+              }}
+              data-testid="open-shortcuts"
+            >
+              Keyboard shortcuts
+              <kbd>?</kbd>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                actions.setAboutOpen(true);
+              }}
+              data-testid="open-about"
+            >
+              About Pixlad
+              <Icon name="chevron" size={14} />
+            </button>
+          </div>
         </div>
       )}
     </div>

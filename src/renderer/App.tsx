@@ -152,6 +152,24 @@ export function App() {
               </button>
             </div>
           ))}
+          {app.toasts.map((toast) => (
+            <div className="notice" role="alert" key={toast.id} data-testid="toast">
+              <span className="dot error" />
+              <div className="lines">
+                {toast.lines.map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="close"
+                aria-label="Dismiss"
+                onClick={() => actions.dismissNotice(toast.id)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
           {app.update.phase !== 'idle' && !app.updatePromptHidden && !app.aboutOpen && (
             <div className="notice update" role="status" data-testid="update-prompt">
               <span className="dot ok" />
@@ -219,28 +237,6 @@ export function App() {
             : ''}
         </span>
       </div>
-      {app.toasts.length > 0 && (
-        <div className="toasts" data-testid="toasts">
-          {app.toasts.map((toast) => (
-            <div className="toast" role="alert" key={toast.id} data-testid="toast">
-              <span className="dot error" />
-              <div className="lines">
-                {toast.lines.map((line, i) => (
-                  <div key={i}>{line}</div>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="close"
-                aria-label="Dismiss"
-                onClick={() => actions.dismissNotice(toast.id)}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
       {app.removePhotoQuestion && <RemovePhoto question={app.removePhotoQuestion} />}
       {app.aboutOpen && <About />}
       {app.shortcutsOpen && <Shortcuts />}

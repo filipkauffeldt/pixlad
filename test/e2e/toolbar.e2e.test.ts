@@ -118,7 +118,7 @@ describe('adding photos to a running session', () => {
     expect(await thumbs()).toBe(1);
 
     await answerOpenDialog(app, [await writePhoto('b.jpg')]);
-    await button(page, 'Add…').click();
+    await page.click('[data-testid="add-photos"]');
     await page.waitForFunction(
       () => document.querySelectorAll('[data-testid="thumb"]').length === 2,
     );

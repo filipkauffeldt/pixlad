@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef, useState } from 'react';
+import { isMac } from './flips';
+import { Icon } from './Icon';
 import { actions, hasMosaic, useApp, type PhotoState } from './store';
 
 /** A thumbnail and the gap after it. */
@@ -93,9 +95,8 @@ export function Strip() {
     return () => element.removeEventListener('wheel', onWheel);
   }, []);
 
-  // A few photos sit centred under the photo; more than fit start at the left edge and scroll.
   const content = app.photos.length * ITEM - 8;
-  const start = Math.max(EDGE, (range.width - content) / 2);
+  const start = EDGE;
 
   // Keep the current photo in view when stepping with the arrow keys.
   useEffect(() => {
@@ -111,48 +112,66 @@ export function Strip() {
 
   const first = Math.max(0, Math.floor((range.left - start) / ITEM) - 2);
   const last = Math.min(app.photos.length, Math.ceil((range.left + range.width) / ITEM) + 2);
+  // A few photos sit centred, with Add after them; more than fit scroll, and Add stays at the end.
   return (
-    <div className="strip" ref={scroller} data-testid="strip">
-      <div className="stripInner" style={{ width: start * 2 + content }}>
-        {app.photos.slice(first, last).map((photo, i) => {
-          const index = first + i;
-          return (
-            <div key={photo.info.id} className="thumbSlot" style={{ left: start + index * ITEM }}>
-              <button
-                type="button"
-                className="thumb"
-                aria-current={photo.info.id === app.currentId}
-                aria-label={photo.info.name}
-                title={photo.info.name}
-                data-testid="thumb"
-                data-name={photo.info.name}
-                onClick={() => actions.select(photo.info.id)}
-              >
-                <img
-                  src={`pixlad://thumb/${photo.info.id}?v=${photo.fileVersion}`}
-                  alt=""
-                  loading="lazy"
-                  draggable={false}
-                />
-                <Badges photo={photo} />
-              </button>
-              <button
-                type="button"
-                className="remove"
-                aria-label={`Remove ${photo.info.name} from the session`}
-                title="Remove from the session. The file stays on disk."
-                data-testid="remove"
-                data-name={photo.info.name}
-                onClick={() => actions.remove(photo.info.id)}
-              >
-                <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true">
-                  <path d="M1 1l6 6M7 1 1 7" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
-              </button>
-            </div>
-          );
-        })}
+    <div className="stripBar">
+      <div
+        className="strip"
+        ref={scroller}
+        style={{ width: start * 2 + content }}
+        data-testid="strip"
+      >
+        <div className="stripInner" style={{ width: start * 2 + content }}>
+          {app.photos.slice(first, last).map((photo, i) => {
+            const index = first + i;
+            return (
+              <div key={photo.info.id} className="thumbSlot" style={{ left: start + index * ITEM }}>
+                <button
+                  type="button"
+                  className="thumb"
+                  aria-current={photo.info.id === app.currentId}
+                  aria-label={photo.info.name}
+                  title={photo.info.name}
+                  data-testid="thumb"
+                  data-name={photo.info.name}
+                  onClick={() => actions.select(photo.info.id)}
+                >
+                  <img
+                    src={`pixlad://thumb/${photo.info.id}?v=${photo.fileVersion}`}
+                    alt=""
+                    loading="lazy"
+                    draggable={false}
+                  />
+                  <Badges photo={photo} />
+                </button>
+                <button
+                  type="button"
+                  className="remove"
+                  aria-label={`Remove ${photo.info.name} from the session`}
+                  title="Remove from the session. The file stays on disk."
+                  data-testid="remove"
+                  data-name={photo.info.name}
+                  onClick={() => actions.remove(photo.info.id)}
+                >
+                  <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true">
+                    <path d="M1 1l6 6M7 1 1 7" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
+      <button
+        type="button"
+        className="addPhotos"
+        onClick={() => void actions.openDialog()}
+        aria-label="Add photos"
+        title={`Add photos to this session (${isMac ? '⌘' : 'Ctrl'}+O)`}
+        data-testid="add-photos"
+      >
+        <Icon name="plus" />
+      </button>
     </div>
   );
 }

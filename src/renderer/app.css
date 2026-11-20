@@ -973,13 +973,37 @@ input[type='range']::-webkit-slider-thumb {
   pointer-events: none;
 }
 
-/* Strip */
-.strip {
-  position: relative;
+/* Strip: the thumbnails, then Add. Past the window's width the thumbnails scroll and Add stays. */
+.stripBar {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
   height: 64px;
   flex: none;
+  padding: 0 14px;
+}
+.strip {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
+}
+.addPhotos {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  margin-top: 4px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+.addPhotos:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
 }
 .stripInner {
   position: relative;

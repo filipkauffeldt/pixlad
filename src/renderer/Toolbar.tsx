@@ -650,15 +650,6 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
             )}
             <button
               type="button"
-              className="btn"
-              onClick={() => void actions.openDialog()}
-              title={`Add photos to this session (${FLIP_KEY}+O)`}
-              data-testid="add-photos"
-            >
-              Add…
-            </button>
-            <button
-              type="button"
               className="iconBtn"
               onClick={actions.undo}
               disabled={!photo || photo.undo.length === 0}

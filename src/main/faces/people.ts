@@ -189,9 +189,62 @@ function withoutFragments<T extends { box: Box }>(dets: T[]): T[] {
   return kept;
 }
 
-/** YuNet as Find all faces runs it. Boxes in `img` pixels. */
-async function yunet(img: Img, region: Rect, modelsDir: string): Promise<Person[]> {
-  const found = await detectFaces(img.rgba, img.width, img.height, region, {
+/** Box-filter copy whose long edge is at most `maxEdge` (the image itself when it already is). */
+function shrink(img: Img, maxEdge: number): Img {
+  const scale = maxEdge / Math.max(img.width, img.height);
+  if (scale >= 1) return img;
+  const W = img.width;
+  const outW = Math.max(1, Math.round(img.width * scale));
+  const outH = Math.max(1, Math.round(img.height * scale));
+  const out = new Uint8Array(outW * outH * 4);
+  const xs = new Int32Array(outW + 1);
+  for (let x = 0; x <= outW; x++) xs[x] = Math.min(W, Math.round((x * W) / outW));
+  const sums = new Float64Array(outW * 3);
+  const counts = new Float64Array(outW);
+  for (let y = 0; y < outH; y++) {
+    const y0 = Math.round((y * img.height) / outH);
+    const y1 = Math.max(y0 + 1, Math.round(((y + 1) * img.height) / outH));
+    sums.fill(0);
+    counts.fill(0);
+    for (let yy = y0; yy < y1; yy++) {
+      const row = yy * W * 4;
+      for (let x = 0; x < outW; x++) {
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        for (let xx = xs[x]!; xx < xs[x + 1]!; xx++) {
+          const i = row + xx * 4;
+          r += img.rgba[i]!;
+          g += img.rgba[i + 1]!;
+          b += img.rgba[i + 2]!;
+        }
+        sums[x * 3] = sums[x * 3]! + r;
+        sums[x * 3 + 1] = sums[x * 3 + 1]! + g;
+        sums[x * 3 + 2] = sums[x * 3 + 2]! + b;
+        counts[x] = counts[x]! + xs[x + 1]! - xs[x]!;
+      }
+    }
+    for (let x = 0; x < outW; x++) {
+      const o = (y * outW + x) * 4;
+      const n = counts[x]!;
+      out[o] = sums[x * 3]! / n;
+      out[o + 1] = sums[x * 3 + 1]! / n;
+      out[o + 2] = sums[x * 3 + 2]! / n;
+      out[o + 3] = 255;
+    }
+  }
+  return { rgba: out, width: outW, height: outH };
+}
+
+/** YuNet as Find all faces runs it, on a copy at most `maxEdge` long. Boxes in `img` pixels. */
+async function yunet(
+  img: Img,
+  region: Rect,
+  modelsDir: string,
+  maxEdge = Infinity,
+): Promise<Person[]> {
+  const src = shrink(img, maxEdge);
+  const found = await detectFaces(src.rgba, src.width, src.height, region, {
     modelPath: join(modelsDir, YUNET),
   });
   return found.map((f) => ({
@@ -207,6 +260,25 @@ async function yunet(img: Img, region: Rect, modelsDir: string): Promise<Person[
     from: 'yunet' as const,
     confirmed: true,
   }));
+}
+
+/**
+ * YuNet over a pyramid. Find all faces looks at full-resolution 640 px tiles and the whole photo at
+ * 640 px: on a 24 MP photo a face of 150-600 px is cut by the tile edges and only ~15 px in the
+ * whole-photo pass. Copies at 2560 and 1280 px see those faces whole.
+ */
+async function yunetPyramid(img: Img, region: Rect, modelsDir: string): Promise<Person[]> {
+  const longest = Math.max(img.width, img.height);
+  const levels = [Infinity, 2560, 1280].filter((edge) => edge === Infinity || edge < longest / 1.5);
+  const all: Person[] = [];
+  for (const edge of levels) {
+    const found = await yunet(img, region, modelsDir, edge);
+    // The shrunk copies are there for big faces the tiles cut apart; small finds there are mostly
+    // noise (a hand, a dark patch), and the full-resolution tiles see small faces anyway.
+    const scale = edge === Infinity ? 1 : edge / longest;
+    all.push(...found.filter((f) => edge === Infinity || Math.max(f.box.w, f.box.h) * scale >= 40));
+  }
+  return withoutFragments(nonMaximumSuppression(all, 0.4));
 }
 
 /**
@@ -242,7 +314,7 @@ export async function findPeople(img: Img, region: Rect, modelsDir: string): Pro
   ];
   // Faces anchor people: their boxes are tight, where head boxes in a crowd are loose and overlap
   // the neighbours.
-  const faces = await yunet(img, region, modelsDir);
+  const faces = await yunetPyramid(img, region, modelsDir);
   // Heads add the people with no visible face. A head with a face inside is that person (already
   // in) or a loose box over several; either way it goes.
   const lone = heads.filter(

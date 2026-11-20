@@ -105,8 +105,33 @@ function framing(box: Box, kind: 'face' | 'head', angle: number): Crop {
  * person's: an oval around the detection, reaching higher for hair on a face box, so the
  * neighbours' hair doesn't join up into one blob.
  */
-function outlineFromLabels(item: TraceItem, crop: Crop, labels: Uint8Array): Point[] | undefined {
+function outlineFromLabels(
+  item: TraceItem,
+  crop: Crop,
+  labels: Uint8Array,
+  others: readonly TraceItem[],
+): Point[] | undefined {
   const perPx = SEG / crop.side;
+  // And only this person's share: a pixel nearer (relative to face size) to a neighbour's centre
+  // belongs to the neighbour, so outlines in a packed crowd never overlap.
+  const ownSize = Math.max(item.box.w, item.box.h) * perPx;
+  const cos = Math.cos(crop.angle);
+  const sin = Math.sin(crop.angle);
+  const rivals = others
+    .map((o) => {
+      const dx = o.box.x + o.box.w / 2 - crop.cx;
+      const dy = o.box.y + o.box.h / 2 - crop.cy;
+      return {
+        u: SEG / 2 + (dx * cos + dy * sin) * perPx,
+        v: SEG / 2 + (-dx * sin + dy * cos) * perPx,
+        size: Math.max(o.box.w, o.box.h) * perPx,
+      };
+    })
+    .filter((r) => r.u > -SEG && r.u < 2 * SEG && r.v > -SEG && r.v < 2 * SEG);
+  const ours = (u: number, v: number): boolean => {
+    const own = Math.hypot(u - SEG / 2, v - SEG / 2) / ownSize;
+    return rivals.every((r) => Math.hypot(u - r.u, v - r.v) / r.size >= own);
+  };
   const head = item.kind === 'head';
   const faceW = item.box.w * perPx;
   const faceH = item.box.h * perPx;
@@ -120,7 +145,7 @@ function outlineFromLabels(item: TraceItem, crop: Crop, labels: Uint8Array): Poi
   };
   let mask: Uint8Array<ArrayBuffer> = new Uint8Array(SEG * SEG);
   for (let p = 0; p < SEG * SEG; p++) {
-    if (!near(p % SEG, Math.floor(p / SEG))) continue;
+    if (!near(p % SEG, Math.floor(p / SEG)) || !ours(p % SEG, Math.floor(p / SEG))) continue;
     // Face and hair; hats, glasses, hands (body skin) and clothes stay out.
     const label = labels[p]!;
     mask[p] = label === FACE_SKIN || label === HAIR ? 1 : 0;
@@ -295,7 +320,13 @@ export async function traceOutlines(
       continue;
     }
     const crop = framing(item.box, item.kind, item.angle);
-    const outline = outlineFromLabels(item, crop, await segment(img, crop, session));
+    const labels = await segment(img, crop, session);
+    const outline = outlineFromLabels(
+      item,
+      crop,
+      labels,
+      items.filter((o) => o !== item),
+    );
     out.push(outline ?? (item.confirmed ? undefined : null));
   }
   return out;

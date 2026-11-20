@@ -45,3 +45,29 @@ export function outlineModel(
   }
   return session;
 }
+
+/** The models are freed this long after the last job that used them. */
+const IDLE_MS = 90_000;
+let busy = 0;
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Run `job` with the outline models kept loaded; once nothing has used them for a while, free them. */
+export async function withOutlineModels<T>(job: () => Promise<T>): Promise<T> {
+  busy++;
+  clearTimeout(idleTimer);
+  try {
+    return await job();
+  } finally {
+    busy--;
+    if (busy === 0) idleTimer = setTimeout(releaseOutlineModels, IDLE_MS);
+  }
+}
+
+function releaseOutlineModels(): void {
+  if (busy > 0) return;
+  const loaded = [...sessions.values()];
+  sessions.clear();
+  for (const session of loaded) {
+    void session.then((s) => s.release()).catch(() => undefined);
+  }
+}

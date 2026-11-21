@@ -141,6 +141,16 @@ function onPhoto<T>(id: string, job: () => Promise<T>): Promise<T> {
 /** The window's own colour, matching --bg, so it never flashes the other theme while loading. */
 const windowBackground = (): string => (nativeTheme.shouldUseDarkColors ? '#0e0e0f' : '#ececea');
 
+/** The top bar's height, matching --topbar-h: the window buttons are drawn at the same height. */
+const TOP_BAR_HEIGHT = 56;
+
+/** Windows and Linux draw their window buttons over the top bar, in the page's colours. */
+const buttonsOverlay = (): { color: string; symbolColor: string; height: number } => ({
+  color: windowBackground(),
+  symbolColor: nativeTheme.shouldUseDarkColors ? '#e8e8e8' : '#18181a',
+  height: TOP_BAR_HEIGHT,
+});
+
 /**
  * Light or dark for the native parts and, through prefers-color-scheme, for the page. 'system'
  * hands the choice back to the operating system.
@@ -167,6 +177,11 @@ function createWindow(): BrowserWindow {
     title: 'Pixlad',
     // macOS takes the icon from the app bundle and ignores this.
     icon: iconPath(),
+    // No title bar of its own: the page's top bar carries the window buttons instead.
+    titleBarStyle: 'hidden',
+    ...(process.platform === 'darwin'
+      ? { trafficLightPosition: { x: 20, y: (TOP_BAR_HEIGHT - 14) / 2 } }
+      : { titleBarOverlay: buttonsOverlay() }),
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       partition: PARTITION,
@@ -199,7 +214,10 @@ function createWindow(): BrowserWindow {
   }
   window.on('close', saveState);
 
-  const onThemeChange = (): void => window.setBackgroundColor(windowBackground());
+  const onThemeChange = (): void => {
+    window.setBackgroundColor(windowBackground());
+    if (process.platform !== 'darwin') window.setTitleBarOverlay(buttonsOverlay());
+  };
   nativeTheme.on('updated', onThemeChange);
   window.on('closed', () => nativeTheme.off('updated', onThemeChange));
 

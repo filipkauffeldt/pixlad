@@ -51,6 +51,8 @@
 
   /* Layout */
   --topbar-h: 56px;
+  /* The window buttons drawn over the right end of the top bar; fixed width if not reported */
+  --controls-w: 0px;
   --select-outline: 2px solid var(--text);
   --select-offset: 2px;
 }
@@ -84,4 +86,12 @@
     --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.12);
     --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.18);
   }
+}
+
+/* The window buttons are on the right except on a Mac, where they are on the left. */
+:root[data-platform='other'] {
+  --controls-w: max(
+    0px,
+    calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px)))
+  );
 }

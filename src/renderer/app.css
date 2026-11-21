@@ -8,7 +8,8 @@
    right. A narrow window moves the tools to a second row; controls never resize. */
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  /* The right side never gives way: when it needs the room, the tools slide off centre. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
   align-items: center;
   gap: 8px 16px;
   min-height: var(--topbar-h);
@@ -26,6 +27,8 @@
 @media (max-width: 1180px) {
   .toolbar {
     grid-template-columns: minmax(0, 1fr) auto;
+    /* The first row is as high as the window buttons, so the two line up. */
+    grid-template-rows: calc(var(--topbar-h) - 16px) auto;
   }
   .toolGroup {
     grid-row: 2;
@@ -91,6 +94,12 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  /* Room for the window buttons */
+  padding-right: max(0px, calc(var(--controls-w) - 6px));
+}
+:root[data-platform='mac'] .toolbar {
+  /* Past the traffic lights */
+  padding-left: 86px;
 }
 .topRight > * {
   flex: none;

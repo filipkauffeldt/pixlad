@@ -13,6 +13,15 @@
   gap: 8px 16px;
   min-height: var(--topbar-h);
   padding: 8px 14px;
+  /* The top bar is the window's title bar: it drags the window, its controls do not. */
+  -webkit-app-region: drag;
+}
+.toolGroup,
+.toolGroup *,
+.topRight *,
+.toolbar button,
+.toolbar input {
+  -webkit-app-region: no-drag;
 }
 @media (max-width: 1180px) {
   .toolbar {

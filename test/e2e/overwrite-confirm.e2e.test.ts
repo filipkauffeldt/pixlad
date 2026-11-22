@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   answerRemove,
   closeWithoutAsking,
-  dropFiles,
   launch,
+  openPhotos,
   pickTool,
   tempDir,
   type Launched,
@@ -48,8 +48,7 @@ describe('confirming Replace original', () => {
     const before = await readFile(file);
     running = await launch({ userData: await replacingUser() });
     const { page } = running;
-    await dropFiles(page, [file]);
-    await page.waitForSelector('[data-testid="photo"]');
+    await openPhotos(page, [file]);
     await drawRect(page);
 
     await page.keyboard.press('ControlOrMeta+e');
@@ -77,8 +76,7 @@ describe('confirming Replace original', () => {
     const two = await writePhoto(dir, 'two.jpg', 1200, 900);
     running = await launch({ userData: await replacingUser() });
     const { page } = running;
-    await dropFiles(page, [one, two]);
-    await page.waitForSelector('[data-testid="photo"]');
+    await openPhotos(page, [one, two]);
     await drawRect(page);
     await page.keyboard.press('ArrowRight');
     await page.waitForSelector('[data-testid="photo"]');
@@ -102,8 +100,7 @@ describe('confirming Replace original', () => {
     const two = await writePhoto(dir, 'two.jpg', 1200, 900);
     running = await launch({ userData });
     let { page } = running;
-    await dropFiles(page, [one, two]);
-    await page.waitForSelector('[data-testid="photo"]');
+    await openPhotos(page, [one, two]);
     await drawRect(page);
 
     await page.keyboard.press('ControlOrMeta+e');
@@ -127,8 +124,7 @@ describe('confirming Replace original', () => {
     await closeWithoutAsking(running);
     running = await launch({ userData });
     ({ page } = running);
-    await dropFiles(page, [one]);
-    await page.waitForSelector('[data-testid="photo"]');
+    await openPhotos(page, [one]);
     await drawRect(page);
     await page.keyboard.press('ControlOrMeta+e');
     await page.waitForSelector(dialog);

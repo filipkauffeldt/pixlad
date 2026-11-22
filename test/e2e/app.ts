@@ -63,6 +63,19 @@ export async function pickTool(page: Page, tool: 'faces' | 'rect' | 'lasso'): Pr
   await page.click(`[data-outline="${tool === 'lasso' ? 'lasso' : 'rect'}"]`);
 }
 
+/** Wait until the open photo has decoded at its natural size. */
+export const waitForPhoto = (page: Page): Promise<unknown> =>
+  page.waitForFunction(() => {
+    const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
+    return !!img && img.complete && img.naturalWidth > 0;
+  });
+
+/** Drop photos onto the window and wait for the open one to decode. */
+export async function openPhotos(page: Page, paths: string[]): Promise<void> {
+  await dropFiles(page, paths);
+  await waitForPhoto(page);
+}
+
 /** A real file drop onto the window, through Chromium's drag-and-drop (CDP), not a synthetic event. */
 export async function dropFiles(
   page: Page,

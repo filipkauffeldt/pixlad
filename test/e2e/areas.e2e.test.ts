@@ -2,8 +2,8 @@ import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   closeWithoutAsking,
-  dropFiles,
   launch,
+  openPhotos,
   pickTool,
   tempDir,
   type Launched,
@@ -41,11 +41,7 @@ async function openWithTwoAreas(firstRun = false): Promise<Page> {
   const file = await writePhoto(dir, 'p.jpg');
   running = await launch({ firstRun });
   const { page } = running;
-  await dropFiles(page, [file]);
-  await page.waitForFunction(() => {
-    const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
-    return !!img && img.complete && img.naturalWidth > 0;
-  });
+  await openPhotos(page, [file]);
   await pickTool(page, 'rect');
   await drawRect(page, [0.1, 0.3], [0.3, 0.6]);
   await drawRect(page, [0.5, 0.3], [0.7, 0.6]);

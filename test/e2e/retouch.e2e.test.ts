@@ -7,8 +7,8 @@ import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
 import {
   answerRemove,
   closeWithoutAsking,
-  dropFiles,
   launch,
+  openPhotos,
   pickTool,
   tempDir,
   type Launched,
@@ -45,15 +45,6 @@ async function drag(
   for (const key of hold) await page.keyboard.up(key);
 }
 
-async function open(page: Page, paths: string[]): Promise<void> {
-  await dropFiles(page, paths);
-  await page.waitForSelector('[data-testid="photo"]', { timeout: 15000 });
-  await page.waitForFunction(() => {
-    const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
-    return !!img && img.complete && img.naturalWidth > 0;
-  });
-}
-
 const areas = (page: Page): Promise<number> => page.locator('[data-testid="area"]').count();
 
 describe('drawing with the real mouse', () => {
@@ -62,7 +53,7 @@ describe('drawing with the real mouse', () => {
     const file = await writePhoto(dir, 'p.jpg');
     running = await launch();
     const { page } = running;
-    await open(page, [file]);
+    await openPhotos(page, [file]);
     await pickTool(page, 'rect');
     const b = await photoBox(page);
     // The photo is height-bound in this window, so there is room to the left of it.
@@ -78,7 +69,7 @@ describe('drawing with the real mouse', () => {
     const file = await writePhoto(dir, 'p.jpg');
     running = await launch();
     const { page } = running;
-    await open(page, [file]);
+    await openPhotos(page, [file]);
     await pickTool(page, 'rect');
 
     await drag(page, [0.2, 0.2], [0.4, 0.5]);
@@ -138,7 +129,7 @@ describe('drawing with the real mouse', () => {
     const file = await writePhoto(dir, 'p.jpg');
     running = await launch();
     const { page } = running;
-    await open(page, [file]);
+    await openPhotos(page, [file]);
     await pickTool(page, 'rect');
     const marked = (attribute: string): Promise<string | null> =>
       page.locator(`[${attribute}][data-flipped]`).getAttribute(attribute);
@@ -176,7 +167,7 @@ describe('drawing with the real mouse', () => {
     await copyFile(source, file);
     running = await launch();
     const { page } = running;
-    await open(page, [file]);
+    await openPhotos(page, [file]);
     await drag(page, [-0.01, -0.01], [1.01, 1.01]);
     await page
       .waitForSelector('[data-testid="face-count"]', { timeout: 30000 })
@@ -213,7 +204,7 @@ describe('drawing with the real mouse', () => {
     await writeFile(file, bytes);
     running = await launch();
     const { page } = running;
-    await open(page, [file]);
+    await openPhotos(page, [file]);
     await pickTool(page, 'rect');
     await drag(page, [0.3, 0.2], [0.7, 0.6]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');

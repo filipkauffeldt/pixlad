@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, expect, it } from 'vitest';
 import { encodeJpeg, type Rgb } from '../helpers/fixtures';
-import { closeWithoutAsking, dropFiles, launch, pickTool, tempDir, type Launched } from './app';
+import { closeWithoutAsking, launch, openPhotos, pickTool, tempDir, type Launched } from './app';
 
 const out = process.env['SCREENSHOT_DIR'];
 let running: Launched | undefined;
@@ -97,11 +97,7 @@ it.skipIf(!out)(
     await useTheme(page, 'dark');
     await page.screenshot({ path: join(out!, 'empty-drop-state.png') });
 
-    await dropFiles(page, files);
-    await page.waitForFunction(() => {
-      const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
-      return !!img && img.complete && img.naturalWidth > 0;
-    });
+    await openPhotos(page, files);
     await pickTool(page, 'rect');
     await drag(page, [
       [0.12, 0.3],

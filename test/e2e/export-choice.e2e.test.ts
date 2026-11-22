@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   answerRemove,
   closeWithoutAsking,
-  dropFiles,
   launch,
+  openPhotos,
   pickTool,
   tempDir,
   type Launched,
@@ -43,8 +43,7 @@ describe('the first export', () => {
     const userData = await tempDir();
     running = await launch({ userData, firstRun: true });
     let { page } = running;
-    await dropFiles(page, [file]);
-    await page.waitForSelector('[data-testid="photo"]');
+    await openPhotos(page, [file]);
     await drawRect(page);
 
     await page.keyboard.press('ControlOrMeta+e');
@@ -88,8 +87,7 @@ describe('the first export', () => {
 
     running = await launch({ userData });
     page = running.page;
-    await dropFiles(page, [file]);
-    await page.waitForSelector('[data-testid="photo"]');
+    await openPhotos(page, [file]);
     await drawRect(page);
     await page.keyboard.press('ControlOrMeta+e');
     await page.waitForFunction(() =>
@@ -105,8 +103,7 @@ describe('the first export', () => {
     await writeFile(join(dir, 'one_edit.jpg'), 'an earlier export');
     running = await launch({ firstRun: true });
     const { page } = running;
-    await dropFiles(page, [one, two]);
-    await page.waitForSelector('[data-testid="photo"]');
+    await openPhotos(page, [one, two]);
     await drawRect(page);
     await page.keyboard.press('ArrowRight');
     await page.waitForSelector('[data-testid="photo"]');

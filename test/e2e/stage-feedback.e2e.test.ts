@@ -7,6 +7,7 @@ import {
   closeWithoutAsking,
   dropFiles,
   launch,
+  openPhotos,
   pickTool,
   tempDir,
   type Launched,
@@ -20,11 +21,7 @@ afterEach(async () => {
 });
 
 async function openPhoto(page: Page, dir: string): Promise<void> {
-  await dropFiles(page, [await writePhoto(dir, 'p.jpg')]);
-  await page.waitForFunction(() => {
-    const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
-    return !!img && img.complete && img.naturalWidth > 0;
-  });
+  await openPhotos(page, [await writePhoto(dir, 'p.jpg')]);
 }
 
 const photoBox = async (page: Page) => (await page.locator('[data-testid="photo"]').boundingBox())!;

@@ -16,11 +16,13 @@ import {
   dialogMessages,
   dropFiles,
   launch,
+  openPhotos,
   pickTool,
   removeQuestion,
   stubCloseDialog,
   tempDir,
   type Launched,
+  waitForPhoto,
   writePhoto,
 } from './app';
 
@@ -40,11 +42,6 @@ afterEach(async () => {
   running = undefined;
 });
 
-const photoReady = (page: Page): Promise<unknown> =>
-  page.waitForFunction(() => {
-    const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
-    return !!img && img.complete && img.naturalWidth > 0;
-  });
 const box = async (page: Page): Promise<{ x: number; y: number; w: number; h: number }> => {
   const b = (await page.locator('[data-testid="photo"]').boundingBox())!;
   return { x: b.x, y: b.y, w: b.width, h: b.height };
@@ -79,8 +76,7 @@ describe('opening', () => {
     );
     running = await launch();
     const { page } = running;
-    await dropFiles(page, [png, cmyk, ok]);
-    await photoReady(page);
+    await openPhotos(page, [png, cmyk, ok]);
     const notice = await page.locator('[data-testid="notice"]').first().innerText();
     expect(notice).toContain('"logo.png" is not a JPEG file');
     expect(notice).toContain('"press.jpg"');
@@ -98,8 +94,7 @@ describe('opening', () => {
     running = await launch();
     const { page } = running;
     expect(await page.locator('[data-testid="empty"]').count()).toBe(1);
-    await dropFiles(page, files);
-    await photoReady(page);
+    await openPhotos(page, files);
     const current = (): Promise<string | null> =>
       page.locator('[data-testid="thumb"][aria-current="true"]').getAttribute('data-name');
     expect(await current()).toBe('a.jpg');
@@ -155,8 +150,7 @@ describe('opening', () => {
     const file = await writePhoto(dir, 'work.jpg');
     running = await launch();
     const { page } = running;
-    await dropFiles(page, [file]);
-    await photoReady(page);
+    await openPhotos(page, [file]);
     await pickTool(page, 'rect');
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
@@ -218,8 +212,7 @@ describe('opening', () => {
     await writePhoto(dir, 'b.jpg');
     running = await launch();
     const { page } = running;
-    await dropFiles(page, [a, join(dir, 'b.jpg')]);
-    await photoReady(page);
+    await openPhotos(page, [a, join(dir, 'b.jpg')]);
     await page.locator('[data-testid="thumb"][data-name="a.jpg"]').hover();
     await page.locator('[data-testid="remove"][data-name="a.jpg"]').click();
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
@@ -286,8 +279,7 @@ describe('zoom and pan', () => {
     const file = await writePhoto(dir, 'z.jpg', 2400, 1600);
     running = await launch();
     const { page } = running;
-    await dropFiles(page, [file]);
-    await photoReady(page);
+    await openPhotos(page, [file]);
     const stage = page.locator('[data-testid="stage"]');
     expect(await stage.getAttribute('data-fit')).toBe('true');
     await page.mouse.move(700, 400);
@@ -349,8 +341,7 @@ describe('the zoom chip', () => {
     const file = await writePhoto(dir, 'readout.jpg', 2400, 1600);
     running = await launch();
     const { page } = running;
-    await dropFiles(page, [file]);
-    await photoReady(page);
+    await openPhotos(page, [file]);
     const stage = page.locator('[data-testid="stage"]');
     const chip = page.locator('[data-testid="zoom-toggle"]');
     expect(await chip.count()).toBe(0); // Fit
@@ -387,14 +378,13 @@ describe('closing and exporting a batch', () => {
     ];
     running = await launch();
     const { app, page } = running;
-    await dropFiles(page, files);
-    await photoReady(page);
+    await openPhotos(page, files);
     await pickTool(page, 'rect');
     for (let i = 0; i < 3; i++) {
       await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
       if (i < 2) {
         await page.keyboard.press('ArrowRight');
-        await photoReady(page);
+        await waitForPhoto(page);
       }
     }
     await stubCloseDialog(app, 1); // Cancel
@@ -438,14 +428,13 @@ describe('closing and exporting a batch', () => {
     try {
       running = await launch();
       const { page } = running;
-      await dropFiles(page, [good, bad, good2]);
-      await photoReady(page);
+      await openPhotos(page, [good, bad, good2]);
       await pickTool(page, 'rect');
       for (let i = 0; i < 3; i++) {
         await drawRect(page, [0.3, 0.3], [0.6, 0.6]);
         if (i < 2) {
           await page.keyboard.press('ArrowRight');
-          await photoReady(page);
+          await waitForPhoto(page);
         }
       }
       await page.click('[data-testid="export-all"]');
@@ -486,14 +475,13 @@ describe('closing and exporting a batch', () => {
     ];
     running = await launch();
     const { app, page } = running;
-    await dropFiles(page, files);
-    await photoReady(page);
+    await openPhotos(page, files);
     await pickTool(page, 'rect');
     for (let i = 0; i < 3; i++) {
       await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
       if (i < 2) {
         await page.keyboard.press('ArrowRight');
-        await photoReady(page);
+        await waitForPhoto(page);
       }
     }
     // Each export takes a moment, so Cancel can be pressed while the first one is being written.
@@ -541,8 +529,7 @@ describe('closing and exporting a batch', () => {
     const file = await writePhoto(dir, 'busy.jpg');
     running = await launch();
     const { page } = running;
-    await dropFiles(page, [file]);
-    await photoReady(page);
+    await openPhotos(page, [file]);
     await pickTool(page, 'rect');
     await drawRect(page, [0.2, 0.2], [0.4, 0.4]);
     await page.click('[data-testid="export-all"]');
@@ -557,8 +544,7 @@ describe('closing and exporting a batch', () => {
 describe('after an export', () => {
   const exportOne = async (page: Page, name: string, dir: string): Promise<string> => {
     const file = await writePhoto(dir, name);
-    await dropFiles(page, [file]);
-    await photoReady(page);
+    await openPhotos(page, [file]);
     await pickTool(page, 'rect');
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
@@ -704,8 +690,7 @@ describe('after an export', () => {
       shell.showItemInFolder = (path: string) => void shown.push(path);
     });
     const file = await writePhoto(dir, 'reveal.jpg');
-    await dropFiles(page, [file]);
-    await photoReady(page);
+    await openPhotos(page, [file]);
     await pickTool(page, 'rect');
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     expect(await page.locator('[data-testid="show-in-folder"]').count()).toBe(0);
@@ -753,8 +738,7 @@ describe('overwriting the original', () => {
     await page.keyboard.press('Escape');
     expect(await page.locator('[data-testid="settings-panel"]').count()).toBe(0);
 
-    await dropFiles(page, [file]);
-    await photoReady(page);
+    await openPhotos(page, [file]);
     await pickTool(page, 'rect');
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
@@ -768,7 +752,7 @@ describe('overwriting the original', () => {
     expect(await page.locator('[data-testid="badge-mosaic"]').count()).toBe(0);
     expect(await page.isDisabled('[data-testid="export"]')).toBe(true);
     expect(await page.getAttribute('[data-testid="photo"]', 'src')).toContain('?v=1');
-    await photoReady(page);
+    await waitForPhoto(page);
 
     await closeWithoutAsking(running);
     running = undefined;
@@ -798,8 +782,7 @@ describe('nothing survives the session', () => {
 
     running = await launch({ userData, env: { TMPDIR: tmpDir, TMP: tmpDir, TEMP: tmpDir } });
     let { page } = running;
-    await dropFiles(page, [file]);
-    await photoReady(page);
+    await openPhotos(page, [file]);
     await pickTool(page, 'rect');
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     await page.keyboard.press('Control+e');
@@ -852,8 +835,7 @@ describe('colour on screen', () => {
     await writeFile(file, withSegments(base, iccSegments(adobeRgbProfile())));
     running = await launch();
     const { page } = running;
-    await dropFiles(page, [file]);
-    await photoReady(page);
+    await openPhotos(page, [file]);
     await pickTool(page, 'rect');
     await drawRect(page, [0.3, 0.3], [0.7, 0.7]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');

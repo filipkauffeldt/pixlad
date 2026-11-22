@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { closeWithoutAsking, dropFiles, launch, tempDir, type Launched, writePhoto } from './app';
+import { closeWithoutAsking, launch, openPhotos, tempDir, type Launched, writePhoto } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -13,8 +13,7 @@ describe('About', () => {
     const file = await writePhoto(dir, 'a.jpg', 320, 240);
     running = await launch();
     const { page } = running;
-    await dropFiles(page, [file]);
-    await page.waitForSelector('[data-testid="photo"]');
+    await openPhotos(page, [file]);
 
     await page.click('[data-testid="settings"]');
     await page.click('[data-testid="open-about"]');

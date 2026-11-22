@@ -5,8 +5,8 @@ import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   closeWithoutAsking,
-  dropFiles,
   launch,
+  openPhotos,
   pickTool,
   tempDir,
   type Launched,
@@ -34,11 +34,7 @@ async function openPhoto(file?: string): Promise<Page> {
   file ??= await writePhoto(await tempDir(), 'p.jpg');
   running = await launch();
   const { page } = running;
-  await dropFiles(page, [file]);
-  await page.waitForFunction(() => {
-    const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
-    return !!img && img.complete && img.naturalWidth > 0;
-  });
+  await openPhotos(page, [file]);
   await pickTool(page, 'rect');
   return page;
 }

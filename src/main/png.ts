@@ -2,6 +2,10 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { crc32, deflateSync } from 'node:zlib';
 
+const BIT_DEPTH = 8;
+const COLOR_TYPE_RGBA = 6;
+const FAST_COMPRESSION = { level: 1 };
+
 function chunk(type: string, data: Uint8Array): Buffer {
   const head = Buffer.alloc(8);
   head.writeUInt32BE(data.length, 0);
@@ -12,11 +16,7 @@ function chunk(type: string, data: Uint8Array): Buffer {
   return Buffer.concat([head.subarray(0, 4), body, crc]);
 }
 
-/**
- * A PNG of 8-bit RGBA pixels. With `icc` the profile is embedded (iCCP), so Chromium colour-manages
- * this image exactly like the JPEG it came from: the mosaic preview and the photo under it go
- * through the same profile. Compression level 1: these are previews, speed matters.
- */
+/** `icc` is embedded so Chromium colour-manages the PNG like the JPEG it came from. */
 export function encodePng(
   rgba: Uint8Array,
   width: number,
@@ -26,8 +26,8 @@ export function encodePng(
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);
-  header[8] = 8; // bit depth
-  header[9] = 6; // RGBA
+  header[8] = BIT_DEPTH;
+  header[9] = COLOR_TYPE_RGBA;
   const raw = Buffer.alloc((width * 4 + 1) * height);
   for (let y = 0; y < height; y++) {
     raw[y * (width * 4 + 1)] = 0;
@@ -43,6 +43,6 @@ export function encodePng(
   if (icc && icc.length > 0) {
     parts.push(chunk('iCCP', Buffer.concat([Buffer.from('icc\0\0', 'latin1'), deflateSync(icc)])));
   }
-  parts.push(chunk('IDAT', deflateSync(raw, { level: 1 })), chunk('IEND', Buffer.alloc(0)));
+  parts.push(chunk('IDAT', deflateSync(raw, FAST_COMPRESSION)), chunk('IEND', Buffer.alloc(0)));
   return Buffer.concat(parts);
 }

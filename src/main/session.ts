@@ -7,12 +7,15 @@ import { JpegError } from './jpeg/errors';
 import { looksLikeJpeg, parseHeader, summarize } from './jpeg/parse';
 
 const JPEG_EXTENSION = /\.(jpe?g|jpe|jfif)$/i;
+const FIRST_READ_BYTES = 64 * 1024;
+const MAX_READ_BYTES = 8 * 1024 * 1024;
+const READ_GROWTH = 4;
+const CONCURRENT_READS = 8;
 
-/** Read just enough of a file to parse its JPEG header; never the whole file. */
 export async function readPhotoInfo(path: string, id: string): Promise<PhotoInfo> {
   const handle = await open(path, 'r');
   try {
-    let size = 64 * 1024;
+    let size = FIRST_READ_BYTES;
     for (;;) {
       const buffer = Buffer.alloc(size);
       const { bytesRead } = await handle.read(buffer, 0, size, 0);
@@ -30,8 +33,8 @@ export async function readPhotoInfo(path: string, id: string): Promise<PhotoInfo
       } catch (cause) {
         const truncated =
           cause instanceof JpegError && cause.code === 'corrupt' && bytesRead === size;
-        if (!truncated || size >= 8 * 1024 * 1024) throw cause;
-        size *= 4;
+        if (!truncated || size >= MAX_READ_BYTES) throw cause;
+        size *= READ_GROWTH;
       }
     }
   } finally {
@@ -39,10 +42,6 @@ export async function readPhotoInfo(path: string, id: string): Promise<PhotoInfo
   }
 }
 
-/**
- * The files to look at: dropped files as they are, and for a dropped folder the JPEG files
- * directly in it (not its subfolders), in name order.
- */
 export async function expandPaths(
   paths: readonly string[],
 ): Promise<{ files: string[]; notes: Refusal[] }> {
@@ -76,7 +75,6 @@ export async function expandPaths(
   return { files, notes };
 }
 
-/** The photos of this run. In memory only: nothing about it is written anywhere. */
 export class Session {
   private readonly photos = new Map<string, PhotoInfo>();
   private readonly byPath = new Map<string, string>();
@@ -102,7 +100,6 @@ export class Session {
     const photos: PhotoInfo[] = [];
     const rejected: Array<Refusal & { path: string }> = [];
     let duplicates = 0;
-    // A few at a time: headers are small, so this is fast, and the window never waits on one read.
     const queue = [...files];
     const worker = async (): Promise<void> => {
       for (let path = queue.shift(); path !== undefined; path = queue.shift()) {
@@ -125,11 +122,12 @@ export class Session {
         }
       }
     };
-    await Promise.all(Array.from({ length: 8 }, worker));
-    // Keep the order the files were given in.
+    await Promise.all(Array.from({ length: CONCURRENT_READS }, worker));
     const order = new Map(files.map((p, i) => [p, i]));
-    photos.sort((a, b) => order.get(a.path)! - order.get(b.path)!);
-    rejected.sort((a, b) => order.get(a.path)! - order.get(b.path)!);
+    const inGivenOrder = (a: { path: string }, b: { path: string }): number =>
+      order.get(a.path)! - order.get(b.path)!;
+    photos.sort(inGivenOrder);
+    rejected.sort(inGivenOrder);
     const refused: Refusal[] = [
       ...notes,
       ...rejected.map(({ name, reason }) => ({ name, reason })),

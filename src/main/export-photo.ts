@@ -19,11 +19,8 @@ import { applyPatchToCoefficients } from './jpeg/recode';
 export interface ExportRequest {
   sourcePath: string;
   op: MosaicOp;
-  /** `suffix` when left out. */
   target?: ExportTarget;
-  /** The file this session wrote for this source earlier, if any. */
   written?: WrittenEdit | undefined;
-  /** Other sources of the session, never overwritten. */
   protectedPaths?: readonly string[];
 }
 
@@ -32,12 +29,10 @@ export interface ExportResult {
   bytes: number;
   replaced: boolean;
   written: WrittenEdit;
-  /** Blocks re-encoded, and what was removed from the metadata. */
   blocksRewritten: number;
   removed: string[];
 }
 
-/** An export that failed in a way the user can act on; the message names the file or folder. */
 export class ExportFailure extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
@@ -48,7 +43,6 @@ export class ExportFailure extends Error {
 const sameBytes = (a: Uint8Array | undefined, b: Uint8Array | undefined): boolean =>
   a === b || (a !== undefined && b !== undefined && Buffer.compare(a, b) === 0);
 
-/** Windows refuses to replace a file that a search indexer, a virus scanner or a viewer has open. */
 async function renameInto(temp: string, path: string, name: string): Promise<void> {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -56,6 +50,7 @@ async function renameInto(temp: string, path: string, name: string): Promise<voi
       return;
     } catch (cause) {
       const code = (cause as NodeJS.ErrnoException).code;
+      // Windows refuses to replace a file that an indexer, a virus scanner or a viewer has open.
       const busy = code === 'EPERM' || code === 'EBUSY' || code === 'EACCES';
       if (!busy || attempt >= 5) {
         throw new ExportFailure(`${name}: cannot replace ${basename(path)} (${errorText(cause)})`, {
@@ -67,13 +62,6 @@ async function renameInto(temp: string, path: string, name: string): Promise<voi
   }
 }
 
-/**
- * Write the edit: the source's coefficients with the mosaic blocks re-encoded, its metadata with
- * thumbnails and previews removed, its modification time. It goes to `<name>_edit.jpg` next to
- * the source, whose file is then only ever read, or over the source when `target` is `overwrite`.
- * Either way the new file is complete and verified before it takes the name, so a failure leaves
- * the file that was there as it was.
- */
 export async function exportEdit(request: ExportRequest): Promise<ExportResult> {
   const { sourcePath, op } = request;
   const name = basename(sourcePath);
@@ -141,22 +129,7 @@ export async function exportEdit(request: ExportRequest): Promise<ExportResult> 
     }
     await utimes(temp, sourceStat.atimeMs / 1000, sourceStat.mtimeMs / 1000);
 
-    // Verify the bytes that were written, not the ones in memory.
-    const written = await readFile(temp);
-    const findings = inspectJpegPreviews(written);
-    if (findings.length > 0) throw new EmbeddedPreviewError(name, findings);
-    const check = decodeCoefficients(written);
-    const same = decoded.components.every((c, i) => {
-      const other = check.components[i]!;
-      return (
-        c.coeffs.length === other.coeffs.length &&
-        Buffer.compare(Buffer.from(c.coeffs.buffer), Buffer.from(other.coeffs.buffer)) === 0
-      );
-    });
-    if (!same) throw new ExportFailure(`${name}: the written file does not match what was encoded`);
-    if (!sameBytes(iccProfile(decoded.header.segments), iccProfile(check.header.segments))) {
-      throw new ExportFailure(`${name}: the colour profile changed while writing`);
-    }
+    await verifyWrittenFile(temp, decoded, name);
 
     await renameInto(temp, target.path, name);
     const info = await stat(target.path);
@@ -171,6 +144,28 @@ export async function exportEdit(request: ExportRequest): Promise<ExportResult> 
   } catch (cause) {
     await rm(temp, { force: true }).catch(() => undefined);
     throw cause;
+  }
+}
+
+async function verifyWrittenFile(
+  path: string,
+  encoded: ReturnType<typeof decodeCoefficients>,
+  name: string,
+): Promise<void> {
+  const written = await readFile(path);
+  const findings = inspectJpegPreviews(written);
+  if (findings.length > 0) throw new EmbeddedPreviewError(name, findings);
+  const check = decodeCoefficients(written);
+  const same = encoded.components.every((c, i) => {
+    const other = check.components[i]!;
+    return (
+      c.coeffs.length === other.coeffs.length &&
+      Buffer.compare(Buffer.from(c.coeffs.buffer), Buffer.from(other.coeffs.buffer)) === 0
+    );
+  });
+  if (!same) throw new ExportFailure(`${name}: the written file does not match what was encoded`);
+  if (!sameBytes(iccProfile(encoded.header.segments), iccProfile(check.header.segments))) {
+    throw new ExportFailure(`${name}: the colour profile changed while writing`);
   }
 }
 

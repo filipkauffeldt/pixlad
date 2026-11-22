@@ -10,11 +10,6 @@ import {
 } from '../shared/ipc';
 import { isWindowState } from './window-state';
 
-/**
- * The settings, the only thing kept between runs. Each value that is missing or unreadable falls
- * back to its default on its own, so a damaged file can never turn on overwriting and never
- * loses a good value next to a bad one.
- */
 export async function readSettings(file: string): Promise<Settings> {
   let text: string;
   try {
@@ -43,8 +38,7 @@ export async function readSettings(file: string): Promise<Settings> {
     exportTarget: isExportTarget(parsed?.exportTarget)
       ? parsed.exportTarget
       : DEFAULT_SETTINGS.exportTarget,
-    // A file from before this setting existed holds an export target only once the user picked
-    // one, so that counts as chosen.
+    // Files from before `exportChosen` existed hold an export target only once the user picked one.
     exportChosen:
       typeof parsed?.exportChosen === 'boolean'
         ? parsed.exportChosen
@@ -54,7 +48,6 @@ export async function readSettings(file: string): Promise<Settings> {
         ? parsed.checkForUpdates
         : DEFAULT_SETTINGS.checkForUpdates,
     theme: isTheme(parsed?.theme) ? parsed.theme : DEFAULT_SETTINGS.theme,
-    // A file from before this setting existed, or a value nobody wrote, means "ask".
     afterExport: isAfterExport(parsed?.afterExport)
       ? parsed.afterExport
       : DEFAULT_SETTINGS.afterExport,
@@ -62,8 +55,8 @@ export async function readSettings(file: string): Promise<Settings> {
   };
 }
 
-/** Written next to the file and renamed over it, so a crash or kill mid-write keeps the old file. */
 export async function writeSettings(file: string, settings: Settings): Promise<void> {
+  // Renamed over the file, so a crash mid-write keeps the old one.
   const partial = `${file}.partial`;
   await writeFile(partial, JSON.stringify(settings));
   await rename(partial, file);

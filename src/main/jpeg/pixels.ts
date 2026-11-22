@@ -3,18 +3,16 @@
 import type { Component, Decoded } from './decode';
 import { storedToOriented } from './parse';
 
-// Orthonormal 8-point DCT basis: COS[x * 8 + u] = c(u)/2 * cos((2x+1) u pi / 16).
 export const COS = new Float64Array(64);
 for (let x = 0; x < 8; x++) {
   for (let u = 0; u < 8; u++) {
-    COS[x * 8 + u] =
-      (u === 0 ? Math.SQRT1_2 : 1) * 0.5 * Math.cos(((2 * x + 1) * u * Math.PI) / 16);
+    const scale = (u === 0 ? Math.SQRT1_2 : 1) * 0.5;
+    COS[x * 8 + u] = scale * Math.cos(((2 * x + 1) * u * Math.PI) / 16);
   }
 }
 
 const tmp = new Float64Array(64);
 
-/** Dequantize and inverse-transform one block into `plane` (level shifted, clamped, rounded). */
 export function idctBlock(
   coeffs: Int16Array,
   offset: number,
@@ -37,7 +35,6 @@ export function idctBlock(
       plane.fill(v, (py + y) * planeStride + px, (py + y) * planeStride + px + 8);
     return;
   }
-  // Columns: tmp[y][u] = sum_v F[v][u] * COS[y][v]
   for (let u = 0; u < 8; u++) {
     for (let y = 0; y < 8; y++) {
       let sum = 0;
@@ -59,12 +56,11 @@ export function idctBlock(
 
 export interface Plane {
   data: Uint8Array;
-  /** Width in samples (stride), a whole number of blocks. */
+  /** Padded to whole blocks, so it can exceed the image width. */
   width: number;
   height: number;
 }
 
-/** Decode every component to its own sample plane, padded to whole MCUs. */
 export function decodePlanes(decoded: Decoded): Plane[] {
   return decoded.components.map((comp) => planeOf(decoded, comp));
 }
@@ -83,10 +79,6 @@ function planeOf(decoded: Decoded, comp: Component): Plane {
   return { data, width, height };
 }
 
-/**
- * Upright RGBA of the decoded image: chroma replicated (nearest), JFIF YCbCr to RGB, EXIF
- * orientation applied. No colour management: values are exactly what the file stores.
- */
 export function planesToRgba(decoded: Decoded, planes: Plane[]): Uint8Array {
   const { frame, orientation } = decoded.header;
   const { width, height, hmax, vmax } = frame;
@@ -101,32 +93,31 @@ export function planesToRgba(decoded: Decoded, planes: Plane[]): Uint8Array {
   for (let row = 0; row < height; row++) {
     for (let col = 0; col < width; col++) {
       const lum = y.data[row * y.width + col]!;
-      let r = lum;
-      let g = lum;
-      let b = lum;
+      let rgb: [number, number, number] = [lum, lum, lum];
       if (cb && cr) {
         const cbv = cb.data[Math.floor(row / vy[1]!) * cb.width + Math.floor(col / hx[1]!)]! - 128;
         const crv = cr.data[Math.floor(row / vy[2]!) * cr.width + Math.floor(col / hx[2]!)]! - 128;
-        r = lum + 1.402 * crv;
-        g = lum - 0.344136 * cbv - 0.714136 * crv;
-        b = lum + 1.772 * cbv;
+        rgb = yccToRgb(lum, cbv, crv);
       }
       const [ox, oy] = storedToOriented(orientation, col, row, width, height);
       const at = (oy * outWidth + ox) * 4;
-      out[at] = clamp8(r);
-      out[at + 1] = clamp8(g);
-      out[at + 2] = clamp8(b);
+      out[at] = clamp8(rgb[0]);
+      out[at + 1] = clamp8(rgb[1]);
+      out[at + 2] = clamp8(rgb[2]);
       out[at + 3] = 255;
     }
   }
   return out;
 }
 
+const yccToRgb = (lum: number, cbv: number, crv: number): [number, number, number] => [
+  lum + 1.402 * crv,
+  lum - 0.344136 * cbv - 0.714136 * crv,
+  lum + 1.772 * cbv,
+];
+
 export const clamp8 = (v: number): number => (v < 0 ? 0 : v > 255 ? 255 : Math.round(v));
 
-/**
- * An eighth-size RGB image from DC values only (each pixel is the mean of an 8x8 block), upright.
- */
 export function dcThumbnail(decoded: Decoded): { rgba: Uint8Array; width: number; height: number } {
   const { frame, orientation } = decoded.header;
   const comps = decoded.components;
@@ -146,21 +137,15 @@ export function dcThumbnail(decoded: Decoded): { rgba: Uint8Array; width: number
   for (let row = 0; row < bh; row++) {
     for (let col = 0; col < bw; col++) {
       const lum = sample(0, col, row);
-      let r = lum;
-      let g = lum;
-      let b = lum;
-      if (comps.length === 3) {
-        const cbv = sample(1, col, row) - 128;
-        const crv = sample(2, col, row) - 128;
-        r = lum + 1.402 * crv;
-        g = lum - 0.344136 * cbv - 0.714136 * crv;
-        b = lum + 1.772 * cbv;
-      }
+      const rgb =
+        comps.length === 3
+          ? yccToRgb(lum, sample(1, col, row) - 128, sample(2, col, row) - 128)
+          : ([lum, lum, lum] as const);
       const [ox, oy] = storedToOriented(orientation, col, row, bw, bh);
       const at = (oy * outW + ox) * 4;
-      out[at] = clamp8(r);
-      out[at + 1] = clamp8(g);
-      out[at + 2] = clamp8(b);
+      out[at] = clamp8(rgb[0]);
+      out[at + 1] = clamp8(rgb[1]);
+      out[at + 2] = clamp8(rgb[2]);
       out[at + 3] = 255;
     }
   }

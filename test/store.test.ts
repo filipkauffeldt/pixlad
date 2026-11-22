@@ -10,12 +10,10 @@ const api = {
   removePhoto: vi.fn(),
 };
 (globalThis as { window?: unknown }).window = { api };
-// A failed detection is reported as an event on the document.
-const events = new EventTarget();
-(globalThis as { document?: unknown }).document = events;
+const detectFailureEvents = new EventTarget();
+(globalThis as { document?: unknown }).document = detectFailureEvents;
 
 let counter = 0;
-/** Puts one fresh photo in the session and makes it the current one. */
 async function addPhoto(): Promise<PhotoInfo> {
   const info = {
     id: `photo-${++counter}`,
@@ -150,7 +148,7 @@ const faceAreas = (): { mode: string; enabled: boolean }[] =>
   photo().areas.filter((a) => a.kind === 'face');
 
 describe('finding all faces', () => {
-  it('runs the detector over the whole photo and adds each face like Faces + Add', async () => {
+  it('runs the detector over the whole photo and adds each face like Faces + Add, in one undo step', async () => {
     await addPhoto();
     api.detect.mockResolvedValueOnce([face(0.1), face(0.5)]);
     await actions.findAllFaces();
@@ -163,7 +161,7 @@ describe('finding all faces', () => {
       expect.objectContaining({ mode: 'add', enabled: true }),
       expect.objectContaining({ mode: 'add', enabled: true }),
     ]);
-    expect(photo().undo).toHaveLength(1); // one step for both faces
+    expect(photo().undo).toHaveLength(1);
   });
 
   it('adds with mosaic even while the Subtract mode is picked, as a drag would not', async () => {
@@ -222,7 +220,7 @@ describe('finding all faces', () => {
   it('says so where it looked when no face is found, and reports a failure', async () => {
     await addPhoto();
     const failures: string[] = [];
-    events.addEventListener('pixlad:detect-failed', (e) =>
+    detectFailureEvents.addEventListener('pixlad:detect-failed', (e) =>
       failures.push((e as CustomEvent).detail),
     );
     api.detect.mockResolvedValueOnce([]);
@@ -327,18 +325,17 @@ describe('exporting while outlines are traced', () => {
     draw(0.5);
     api.exportPhoto.mockResolvedValue({ ok: true, name: 'x_edit.jpg', replaced: false });
 
-    // Photos from earlier tests are in the session too; only these two matter here.
-    const exported = (): unknown[] =>
+    const exportedOurPhotos = (): unknown[] =>
       api.exportPhoto.mock.calls
         .map(([id]) => id)
         .filter((id) => id === traced.id || id === other.id);
     const running = actions.exportAll();
     await vi.waitFor(() => expect(getState().batch?.waiting).toBe(traced.id));
-    expect(exported()).toEqual([other.id]);
+    expect(exportedOurPhotos()).toEqual([other.id]);
 
     finish([undefined]);
     await running;
-    expect(exported()).toEqual([other.id, traced.id]);
+    expect(exportedOurPhotos()).toEqual([other.id, traced.id]);
     expect(getState().batch).toMatchObject({ finished: true, waiting: undefined });
   });
 });

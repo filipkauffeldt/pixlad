@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Filip Kauffeldt
+
+/**
+ * Runs every job on the current photo one at a time, and keeps the worker's open photo in step
+ * with the one a job is for. A job whose photo was superseded by a later `want` is rejected before
+ * it decodes anything.
+ */
+export class PhotoQueue {
+  private chain: Promise<unknown> = Promise.resolve();
+  private wantedId: string | undefined;
+  private openId: string | undefined;
+
+  constructor(
+    private readonly lookup: (id: string) => { path: string } | undefined,
+    private readonly openInWorker: (path: string) => Promise<unknown>,
+  ) {}
+
+  /** Marks the photo the user is looking at; jobs for any other photo that are still waiting lose. */
+  want(id: string): void {
+    this.wantedId = id;
+  }
+
+  /** The worker's copy of this photo is out of date or gone: the next job reopens it. */
+  invalidate(id: string): void {
+    if (this.openId === id) this.openId = undefined;
+  }
+
+  run<T>(id: string, job: () => Promise<T>): Promise<T> {
+    const next = this.chain.then(async () => {
+      const photo = this.lookup(id);
+      if (!photo) throw new Error('that photo is no longer in the session');
+      if (this.openId !== id) {
+        if (this.wantedId !== id) throw new Error('another photo was opened meanwhile');
+        this.openId = undefined;
+        await this.openInWorker(photo.path);
+        this.openId = id;
+      }
+      return job();
+    });
+    this.chain = next.catch(() => undefined);
+    return next;
+  }
+}

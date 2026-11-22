@@ -12,6 +12,7 @@ import {
   pickTool,
   tempDir,
   type Launched,
+  writePhoto,
 } from './app';
 
 let running: Launched | undefined;
@@ -58,8 +59,7 @@ const areas = (page: Page): Promise<number> => page.locator('[data-testid="area"
 describe('drawing with the real mouse', () => {
   it('starts a drag in the margin around the picture', async () => {
     const dir = await tempDir();
-    const file = join(dir, 'p.jpg');
-    await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
+    const file = await writePhoto(dir, 'p.jpg');
     running = await launch();
     const { page } = running;
     await open(page, [file]);
@@ -75,8 +75,7 @@ describe('drawing with the real mouse', () => {
 
   it('puts a rectangle under the pointer, clips from the margin, toggles, undoes', async () => {
     const dir = await tempDir();
-    const file = join(dir, 'p.jpg');
-    await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
+    const file = await writePhoto(dir, 'p.jpg');
     running = await launch();
     const { page } = running;
     await open(page, [file]);
@@ -136,8 +135,7 @@ describe('drawing with the real mouse', () => {
 
   it('flips the outline with Alt and add or subtract with Ctrl while a drag starts', async () => {
     const dir = await tempDir();
-    const file = join(dir, 'p.jpg');
-    await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
+    const file = await writePhoto(dir, 'p.jpg');
     running = await launch();
     const { page } = running;
     await open(page, [file]);

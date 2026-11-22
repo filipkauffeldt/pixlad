@@ -1,8 +1,5 @@
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { closeWithoutAsking, dropFiles, launch, tempDir, type Launched } from './app';
+import { closeWithoutAsking, dropFiles, launch, tempDir, type Launched, writePhoto } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -13,8 +10,7 @@ afterEach(async () => {
 describe('About', () => {
   it('shows the copyright, the version and every licence, and blocks shortcuts while open', async () => {
     const dir = await tempDir('pixlad-about-');
-    const file = join(dir, 'a.jpg');
-    await writeFile(file, await encodeJpeg(syntheticPhoto(320, 240)));
+    const file = await writePhoto(dir, 'a.jpg', 320, 240);
     running = await launch();
     const { page } = running;
     await dropFiles(page, [file]);

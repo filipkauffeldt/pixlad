@@ -2,6 +2,7 @@ import { _electron as electron, type ElectronApplication, type Page } from '@pla
 import { access, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
 
 const root = resolve(import.meta.dirname, '../..');
 
@@ -112,6 +113,18 @@ export async function stubCloseDialog(app: ElectronApplication, response: 0 | 1)
 
 /** A fresh temporary folder. */
 export const tempDir = (prefix = 'pixlad-e2e-'): Promise<string> => mkdtemp(join(tmpdir(), prefix));
+
+/** Write a generated JPEG into `dir` and return its path. */
+export async function writePhoto(
+  dir: string,
+  name: string,
+  width = 1600,
+  height = 1200,
+): Promise<string> {
+  const path = join(dir, name);
+  await writeFile(path, await encodeJpeg(syntheticPhoto(width, height)));
+  return path;
+}
 
 export const dialogMessages = (app: ElectronApplication): Promise<string[]> =>
   app.evaluate(() => (globalThis as { __dialogs?: DialogStubs }).__dialogs!.closeAsked);

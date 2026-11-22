@@ -2,7 +2,6 @@ import type { Page } from '@playwright/test';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
 import {
   answerRemove,
   closeWithoutAsking,
@@ -11,6 +10,7 @@ import {
   pickTool,
   tempDir,
   type Launched,
+  writePhoto,
 } from './app';
 
 let running: Launched | undefined;
@@ -18,12 +18,6 @@ afterEach(async () => {
   await closeWithoutAsking(running);
   running = undefined;
 });
-
-async function photo(dir: string, name: string): Promise<string> {
-  const path = join(dir, name);
-  await writeFile(path, await encodeJpeg(syntheticPhoto(1200, 900)));
-  return path;
-}
 
 async function drawRect(page: Page): Promise<void> {
   const box = (await page.locator('[data-testid="photo"]').boundingBox())!;
@@ -45,7 +39,7 @@ async function result(page: Page): Promise<string> {
 describe('the first export', () => {
   it('asks how to save, shows the file name, and remembers the choice', async () => {
     const dir = await tempDir();
-    const file = await photo(dir, '_DSC1234.JPG');
+    const file = await writePhoto(dir, '_DSC1234.JPG', 1200, 900);
     const userData = await tempDir();
     running = await launch({ userData, firstRun: true });
     let { page } = running;
@@ -106,8 +100,8 @@ describe('the first export', () => {
 
   it('asks from Export all with the number of photos, and shows the next free name', async () => {
     const dir = await tempDir();
-    const one = await photo(dir, 'one.jpg');
-    const two = await photo(dir, 'two.jpg');
+    const one = await writePhoto(dir, 'one.jpg', 1200, 900);
+    const two = await writePhoto(dir, 'two.jpg', 1200, 900);
     await writeFile(join(dir, 'one_edit.jpg'), 'an earlier export');
     running = await launch({ firstRun: true });
     const { page } = running;

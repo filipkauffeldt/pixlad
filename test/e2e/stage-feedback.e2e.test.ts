@@ -3,7 +3,15 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { closeWithoutAsking, dropFiles, launch, pickTool, tempDir, type Launched } from './app';
+import {
+  closeWithoutAsking,
+  dropFiles,
+  launch,
+  pickTool,
+  tempDir,
+  type Launched,
+  writePhoto,
+} from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -12,9 +20,7 @@ afterEach(async () => {
 });
 
 async function openPhoto(page: Page, dir: string): Promise<void> {
-  const file = join(dir, 'p.jpg');
-  await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
-  await dropFiles(page, [file]);
+  await dropFiles(page, [await writePhoto(dir, 'p.jpg')]);
   await page.waitForFunction(() => {
     const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
     return !!img && img.complete && img.naturalWidth > 0;

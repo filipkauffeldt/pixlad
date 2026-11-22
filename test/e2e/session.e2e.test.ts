@@ -21,6 +21,7 @@ import {
   stubCloseDialog,
   tempDir,
   type Launched,
+  writePhoto,
 } from './app';
 
 /** Wait until the session holds `count` photos and `name` is the one open. */
@@ -55,16 +56,11 @@ async function drawRect(page: Page, from: [number, number], to: [number, number]
   await page.mouse.move(b.x + to[0] * b.w, b.y + to[1] * b.h, { steps: 6 });
   await page.mouse.up();
 }
-const photoFile = async (dir: string, name: string, w = 1600, h = 1200): Promise<string> => {
-  const path = join(dir, name);
-  await writeFile(path, await encodeJpeg(syntheticPhoto(w, h)));
-  return path;
-};
 
 describe('opening', () => {
   it('refuses non-JPEG and CMYK files with messages that name them, and opens the rest', async () => {
     const dir = await tempDir();
-    const ok = await photoFile(dir, 'fine.jpg');
+    const ok = await writePhoto(dir, 'fine.jpg');
     const png = join(dir, 'logo.png');
     await writeFile(
       png,
@@ -95,9 +91,9 @@ describe('opening', () => {
   it('shows the empty drop state, then a strip of photos that the arrow keys step through', async () => {
     const dir = await tempDir();
     const files = [
-      await photoFile(dir, 'a.jpg'),
-      await photoFile(dir, 'b.jpg'),
-      await photoFile(dir, 'c.jpg'),
+      await writePhoto(dir, 'a.jpg'),
+      await writePhoto(dir, 'b.jpg'),
+      await writePhoto(dir, 'c.jpg'),
     ];
     running = await launch();
     const { page } = running;
@@ -139,8 +135,8 @@ describe('opening', () => {
 
   it('says when dropped photos were already in the session', async () => {
     const dir = await tempDir();
-    const a = await photoFile(dir, 'a.jpg');
-    const b = await photoFile(dir, 'b.jpg');
+    const a = await writePhoto(dir, 'a.jpg');
+    const b = await writePhoto(dir, 'b.jpg');
     running = await launch();
     const { page } = running;
     await dropFiles(page, [a, b]);
@@ -156,7 +152,7 @@ describe('opening', () => {
 
   it('asks before a photo with unexported areas leaves the session', async () => {
     const dir = await tempDir();
-    const file = await photoFile(dir, 'work.jpg');
+    const file = await writePhoto(dir, 'work.jpg');
     running = await launch();
     const { page } = running;
     await dropFiles(page, [file]);
@@ -194,8 +190,8 @@ describe('opening', () => {
 
   it('shows the thumbnail remove button on keyboard focus and removes with it', async () => {
     const dir = await tempDir();
-    await photoFile(dir, 'a.jpg');
-    await photoFile(dir, 'b.jpg');
+    await writePhoto(dir, 'a.jpg');
+    await writePhoto(dir, 'b.jpg');
     running = await launch();
     const { page } = running;
     await dropFiles(page, [join(dir, 'a.jpg'), join(dir, 'b.jpg')]);
@@ -218,8 +214,8 @@ describe('opening', () => {
 
   it('removes a photo from the session only: the file stays', async () => {
     const dir = await tempDir();
-    const a = await photoFile(dir, 'a.jpg');
-    await photoFile(dir, 'b.jpg');
+    const a = await writePhoto(dir, 'a.jpg');
+    await writePhoto(dir, 'b.jpg');
     running = await launch();
     const { page } = running;
     await dropFiles(page, [a, join(dir, 'b.jpg')]);
@@ -236,9 +232,9 @@ describe('opening', () => {
 describe('face padding', () => {
   it('starts the next photo with the padding set on the last one', async () => {
     const dir = await tempDir();
-    const a = await photoFile(dir, 'a.jpg');
-    const b = await photoFile(dir, 'b.jpg');
-    const c = await photoFile(dir, 'c.jpg');
+    const a = await writePhoto(dir, 'a.jpg');
+    const b = await writePhoto(dir, 'b.jpg');
+    const c = await writePhoto(dir, 'c.jpg');
     running = await launch();
     const { page } = running;
     await dropFiles(page, [a, b]);
@@ -261,7 +257,7 @@ describe('the strip', () => {
   it('scrolls sideways with a plain vertical wheel, and horizontal still works', async () => {
     const dir = await tempDir();
     const files: string[] = [];
-    for (let i = 0; i < 40; i++) files.push(await photoFile(dir, `w${i}.jpg`, 400, 300));
+    for (let i = 0; i < 40; i++) files.push(await writePhoto(dir, `w${i}.jpg`, 400, 300));
     running = await launch();
     const { page } = running;
     await dropFiles(page, files);
@@ -287,7 +283,7 @@ describe('the strip', () => {
 describe('zoom and pan', () => {
   it('toggles Fit and 100% on Z, returns to Fit on Ctrl+0, snaps 100% to the device pixel grid, zooms with Ctrl, and pans', async () => {
     const dir = await tempDir();
-    const file = await photoFile(dir, 'z.jpg', 2400, 1600);
+    const file = await writePhoto(dir, 'z.jpg', 2400, 1600);
     running = await launch();
     const { page } = running;
     await dropFiles(page, [file]);
@@ -350,7 +346,7 @@ describe('zoom and pan', () => {
 describe('the zoom chip', () => {
   it('shows away from Fit, names the shortcut, and goes back to Fit like Z', async () => {
     const dir = await tempDir();
-    const file = await photoFile(dir, 'readout.jpg', 2400, 1600);
+    const file = await writePhoto(dir, 'readout.jpg', 2400, 1600);
     running = await launch();
     const { page } = running;
     await dropFiles(page, [file]);
@@ -385,9 +381,9 @@ describe('closing and exporting a batch', () => {
   it('asks once with the count when mosaics are not exported, and not after exporting', async () => {
     const dir = await tempDir();
     const files = [
-      await photoFile(dir, 'one.jpg'),
-      await photoFile(dir, 'two.jpg'),
-      await photoFile(dir, 'three.jpg'),
+      await writePhoto(dir, 'one.jpg'),
+      await writePhoto(dir, 'two.jpg'),
+      await writePhoto(dir, 'three.jpg'),
     ];
     running = await launch();
     const { app, page } = running;
@@ -435,9 +431,9 @@ describe('closing and exporting a batch', () => {
     const dir = await tempDir();
     const locked = join(dir, 'locked');
     await mkdir(locked);
-    const good = await photoFile(dir, 'good.jpg');
-    const bad = await photoFile(locked, 'bad.jpg');
-    const good2 = await photoFile(dir, 'good2.jpg');
+    const good = await writePhoto(dir, 'good.jpg');
+    const bad = await writePhoto(locked, 'bad.jpg');
+    const good2 = await writePhoto(dir, 'good2.jpg');
     await chmod(locked, 0o555);
     try {
       running = await launch();
@@ -484,9 +480,9 @@ describe('closing and exporting a batch', () => {
   it('shows progress while a batch exports, and Cancel lets the photo being written finish, then stops', async () => {
     const dir = await tempDir();
     const files = [
-      await photoFile(dir, 'one.jpg'),
-      await photoFile(dir, 'two.jpg'),
-      await photoFile(dir, 'three.jpg'),
+      await writePhoto(dir, 'one.jpg'),
+      await writePhoto(dir, 'two.jpg'),
+      await writePhoto(dir, 'three.jpg'),
     ];
     running = await launch();
     const { app, page } = running;
@@ -542,7 +538,7 @@ describe('closing and exporting a batch', () => {
 
   it('can keep working while a batch exports: edits after a photo started do not change that export', async () => {
     const dir = await tempDir();
-    const file = await photoFile(dir, 'busy.jpg');
+    const file = await writePhoto(dir, 'busy.jpg');
     running = await launch();
     const { page } = running;
     await dropFiles(page, [file]);
@@ -560,7 +556,7 @@ describe('closing and exporting a batch', () => {
 
 describe('after an export', () => {
   const exportOne = async (page: Page, name: string, dir: string): Promise<string> => {
-    const file = await photoFile(dir, name);
+    const file = await writePhoto(dir, name);
     await dropFiles(page, [file]);
     await photoReady(page);
     await pickTool(page, 'rect');
@@ -707,7 +703,7 @@ describe('after an export', () => {
       (globalThis as { __shown?: string[] }).__shown = shown;
       shell.showItemInFolder = (path: string) => void shown.push(path);
     });
-    const file = await photoFile(dir, 'reveal.jpg');
+    const file = await writePhoto(dir, 'reveal.jpg');
     await dropFiles(page, [file]);
     await photoReady(page);
     await pickTool(page, 'rect');
@@ -746,11 +742,11 @@ describe('overwriting the original', () => {
   it('replaces the file, clears the areas, shows the file again and remembers the choice', async () => {
     const dir = await tempDir();
     const userData = await tempDir('pixlad-userdata-');
-    const file = await photoFile(dir, 'over.jpg');
+    const file = await writePhoto(dir, 'over.jpg');
     const before = await readFile(file);
 
     running = await launch({ userData });
-    const { app, page } = running;
+    const { page } = running;
     await page.click('[data-testid="settings"]');
     expect(await page.isChecked('[data-testid="export-target-suffix"]')).toBe(true);
     await page.click('[data-testid="export-target-overwrite"]');
@@ -797,11 +793,10 @@ describe('nothing survives the session', () => {
     const tmpDir = await tempDir('pixlad-apptmp-');
     const userData = await tempDir('pixlad-userdata-');
     const marker = 'session-marker-4f7a91';
-    const file = await photoFile(dir, `${marker}.jpg`);
+    const file = await writePhoto(dir, `${marker}.jpg`);
     const sourceBytes = await readFile(file);
 
     running = await launch({ userData, env: { TMPDIR: tmpDir, TMP: tmpDir, TEMP: tmpDir } });
-    const { app } = running;
     let { page } = running;
     await dropFiles(page, [file]);
     await photoReady(page);

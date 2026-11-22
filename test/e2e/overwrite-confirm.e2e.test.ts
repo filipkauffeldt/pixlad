@@ -2,7 +2,6 @@ import type { Page } from '@playwright/test';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
 import {
   answerRemove,
   closeWithoutAsking,
@@ -11,6 +10,7 @@ import {
   pickTool,
   tempDir,
   type Launched,
+  writePhoto,
 } from './app';
 
 let running: Launched | undefined;
@@ -20,12 +20,6 @@ afterEach(async () => {
 });
 
 const dialog = '[data-testid="overwrite-confirm"]';
-
-async function photo(dir: string, name: string): Promise<string> {
-  const path = join(dir, name);
-  await writeFile(path, await encodeJpeg(syntheticPhoto(1200, 900)));
-  return path;
-}
 
 /** A user data folder of someone who chose Replace original earlier. */
 async function replacingUser(): Promise<string> {
@@ -50,7 +44,7 @@ async function drawRect(page: Page): Promise<void> {
 describe('confirming Replace original', () => {
   it('leaves the file alone on Cancel, with the focus on Cancel, and writes on Replace', async () => {
     const dir = await tempDir();
-    const file = await photo(dir, 'one.jpg');
+    const file = await writePhoto(dir, 'one.jpg', 1200, 900);
     const before = await readFile(file);
     running = await launch({ userData: await replacingUser() });
     const { page } = running;
@@ -79,8 +73,8 @@ describe('confirming Replace original', () => {
 
   it('asks from Export all with the number of photos', async () => {
     const dir = await tempDir();
-    const one = await photo(dir, 'one.jpg');
-    const two = await photo(dir, 'two.jpg');
+    const one = await writePhoto(dir, 'one.jpg', 1200, 900);
+    const two = await writePhoto(dir, 'two.jpg', 1200, 900);
     running = await launch({ userData: await replacingUser() });
     const { page } = running;
     await dropFiles(page, [one, two]);
@@ -104,8 +98,8 @@ describe('confirming Replace original', () => {
   it('does not ask again this session when ticked, but asks again after a restart', async () => {
     const dir = await tempDir();
     const userData = await replacingUser();
-    const one = await photo(dir, 'one.jpg');
-    const two = await photo(dir, 'two.jpg');
+    const one = await writePhoto(dir, 'one.jpg', 1200, 900);
+    const two = await writePhoto(dir, 'two.jpg', 1200, 900);
     running = await launch({ userData });
     let { page } = running;
     await dropFiles(page, [one, two]);

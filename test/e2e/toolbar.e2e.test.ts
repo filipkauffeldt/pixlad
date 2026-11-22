@@ -1,22 +1,23 @@
 import { existsSync } from 'node:fs';
-import { copyFile, writeFile } from 'node:fs/promises';
+import { copyFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
-import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { closeWithoutAsking, dropFiles, launch, pickTool, tempDir, type Launched } from './app';
+import {
+  closeWithoutAsking,
+  dropFiles,
+  launch,
+  pickTool,
+  tempDir,
+  type Launched,
+  writePhoto,
+} from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
   await closeWithoutAsking(running);
   running = undefined;
 });
-
-async function writePhoto(name: string): Promise<string> {
-  const file = join(await tempDir(), name);
-  await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
-  return file;
-}
 
 /** The next Open dialog answers with these files instead of showing itself. */
 async function answerOpenDialog(app: Launched['app'], paths: string[]): Promise<void> {
@@ -30,7 +31,7 @@ async function answerOpenDialog(app: Launched['app'], paths: string[]): Promise<
 
 /** Launches with one photo open and the rectangle tool picked. */
 async function openPhoto(file?: string): Promise<Page> {
-  file ??= await writePhoto('p.jpg');
+  file ??= await writePhoto(await tempDir(), 'p.jpg');
   running = await launch();
   const { page } = running;
   await dropFiles(page, [file]);
@@ -115,13 +116,13 @@ describe('adding photos to a running session', () => {
     const thumbs = (): Promise<number> => page.locator('[data-testid="thumb"]').count();
     expect(await thumbs()).toBe(1);
 
-    await answerOpenDialog(app, [await writePhoto('b.jpg')]);
+    await answerOpenDialog(app, [await writePhoto(await tempDir(), 'b.jpg')]);
     await page.click('[data-testid="add-photos"]');
     await page.waitForFunction(
       () => document.querySelectorAll('[data-testid="thumb"]').length === 2,
     );
 
-    await answerOpenDialog(app, [await writePhoto('c.jpg')]);
+    await answerOpenDialog(app, [await writePhoto(await tempDir(), 'c.jpg')]);
     await page.keyboard.press('ControlOrMeta+o');
     await page.waitForFunction(
       () => document.querySelectorAll('[data-testid="thumb"]').length === 3,
@@ -133,11 +134,11 @@ describe('adding photos to a running session', () => {
     running = await launch();
     const { page, app } = running;
     await page.waitForSelector('[data-testid="empty"]');
-    await answerOpenDialog(app, [await writePhoto('a.jpg')]);
+    await answerOpenDialog(app, [await writePhoto(await tempDir(), 'a.jpg')]);
     await page.keyboard.press('ControlOrMeta+o');
     await page.waitForSelector('[data-testid="photo"]');
 
-    await answerOpenDialog(app, [await writePhoto('b.jpg')]);
+    await answerOpenDialog(app, [await writePhoto(await tempDir(), 'b.jpg')]);
     await page.focus('[aria-label="Block size in px"]');
     await page.keyboard.press('ControlOrMeta+o');
     await page.waitForFunction(

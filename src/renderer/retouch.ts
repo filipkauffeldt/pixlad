@@ -27,7 +27,7 @@ export interface RetouchArea {
 }
 
 /** A detection as kept in an area. */
-export interface FaceData extends NormalizedFaceTraits {
+export interface FaceData extends Omit<NormalizedFaceTraits, 'landmarks'> {
   /** How the face is covered. Missing in older sessions: a rectangle. */
   shape?: FaceShape;
   /** The traced outline of face and hair, normalized. */

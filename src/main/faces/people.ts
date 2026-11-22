@@ -23,7 +23,7 @@ export interface Box {
   h: number;
 }
 
-export interface Person extends FaceTraits<Box> {
+export interface Person extends Omit<FaceTraits<Box>, 'angle'> {
   score: number;
   landmarks: Point[];
   kind: FaceKind;

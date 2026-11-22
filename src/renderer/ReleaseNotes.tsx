@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-import { useEffect } from 'react';
 import { Icon } from './Icon';
+import { useModalKeys } from './modal';
 import { actions, useApp } from './store';
 
 /** What changed in the update that was found. */
@@ -10,14 +10,7 @@ export function ReleaseNotes() {
   const update = app.update;
   const version = update.phase === 'idle' ? '' : update.version;
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      event.stopPropagation();
-      if (event.key === 'Escape') actions.setNotesOpen(false);
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, []);
+  useModalKeys({ Escape: () => actions.setNotesOpen(false) });
 
   const primary =
     update.phase === 'available'

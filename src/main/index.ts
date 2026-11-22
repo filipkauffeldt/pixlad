@@ -247,7 +247,7 @@ function registerIpc(): void {
     session.remove(id);
     exportedFiles.delete(id);
     thumbCache.delete(id);
-    photos.invalidate(id);
+    photos.forgetOpen(id);
   });
   ipcMain.handle('photo:open', async (_e, id: string) => {
     await photos.run(id, async () => undefined);
@@ -291,7 +291,7 @@ function registerIpc(): void {
       if (overwrote) {
         // The decoded pixels and the thumbnail are of the file that was just replaced.
         thumbCache.delete(id);
-        photos.invalidate(id);
+        photos.forgetOpen(id);
       } else {
         written.set(photo.path, result.written);
       }

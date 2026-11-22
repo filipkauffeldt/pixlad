@@ -69,13 +69,13 @@ describe('PhotoQueue', () => {
     expect(opened).toEqual(['/photos/a.jpg', '/photos/b.jpg', '/photos/a.jpg']);
   });
 
-  it('opens the photo again after it was invalidated', async () => {
+  it('opens the photo again after it was forgetOpend', async () => {
     const { queue, opened } = setup();
     await queue.run('a', async () => undefined);
-    queue.invalidate('b');
+    queue.forgetOpen('b');
     await queue.run('a', async () => undefined);
     expect(opened).toHaveLength(1);
-    queue.invalidate('a');
+    queue.forgetOpen('a');
     await queue.run('a', async () => undefined);
     expect(opened).toEqual(['/photos/a.jpg', '/photos/a.jpg']);
   });

@@ -17,7 +17,7 @@ export class PhotoQueue {
   ) {}
 
   /** The worker's copy of this photo is out of date or gone: the next job reopens it. */
-  invalidate(id: string): void {
+  forgetOpen(id: string): void {
     if (this.openId === id) this.openId = undefined;
   }
 

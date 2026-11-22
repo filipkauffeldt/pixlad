@@ -20,7 +20,6 @@ beforeEach(() => {
   detector.mockResolvedValue([]);
 });
 
-/** The crops the detector was asked to look at, in photo pixels. */
 function lookedAt(photoWidth: number) {
   return detector.mock.calls.map(([, , sourceWidth, , x, y, w, h]) => ({
     x,
@@ -148,7 +147,6 @@ describe('detectFaces on the whole photo', () => {
 });
 
 describe('detectFaces in a region', () => {
-  // A 1280 px wide photo: a region of half its width and all of its height is 640 px wide.
   const half = { type: 'rect', x: 0, y: 0, w: 0.5, h: 1 } as const;
 
   it('searches a region no wider than maxInputEdge in one tile', async () => {

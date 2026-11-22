@@ -3,21 +3,17 @@ import { detectFaces } from '../src/main/faces/detect';
 import { outlineModel } from '../src/main/faces/models';
 import { findPeople, type Box, type Person } from '../src/main/faces/people';
 
-// The detectors are the external boundary: YuNet and the two DEIMv2 models are replaced by fakes
-// that return the boxes a test lays out. Everything findPeople decides about them is real.
 vi.mock('../src/main/faces/detect', () => ({ detectFaces: vi.fn() }));
 vi.mock('../src/main/faces/models', () => ({ outlineModel: vi.fn() }));
 
 const yunet = vi.mocked(detectFaces);
 const models = vi.mocked(outlineModel);
 
-// DEIMv2 classes.
 const HEAD = 7;
 const FACE = 16;
 const EYE = 17;
 const HAND = 26;
 
-/** What DEIMv2 sees: a class, a box in photo pixels (multiples of 5 stay exact) and a score. */
 type Seen = [cls: number, box: Box, score: number];
 
 const box = (x: number, y: number, w: number, h: number): Box => ({ x, y, w, h });
@@ -40,17 +36,11 @@ function fakeDeim(seen: readonly Seen[], size: number) {
 
 interface Scene {
   size?: number;
-  /** Found by DEIMv2-S over the whole photo. */
   heads?: readonly Seen[];
-  /** Found by DEIMv2-N in tiles. */
   smallHeads?: readonly Seen[];
-  /** YuNet on the photo; a function when it should see the shrunk copies differently. */
   faces?: readonly [Box, number][] | ((copyWidth: number) => readonly [Box, number][]);
-  /** YuNet on the dehazed copy. */
   hazy?: readonly [Box, number][];
-  /** Paints the photo before it is searched. */
   paint?: (rgba: Uint8Array, width: number) => void;
-  /** Photo width and height when it is not square. */
   width?: number;
   height?: number;
 }
@@ -80,7 +70,6 @@ async function look(scene: Scene): Promise<Person[]> {
       aspect: width / height,
     }));
   yunet.mockImplementation(async (source, copyWidth) => {
-    // The dehazed copy is as large as the photo, but not the photo itself.
     const dehazed = source !== rgba && copyWidth === width;
     if (!dehazed) {
       const faces = typeof scene.faces === 'function' ? scene.faces(copyWidth) : scene.faces;
@@ -164,7 +153,6 @@ describe('heads that stand for people', () => {
   });
 
   it('still counts a head that only covers the edge of a face box', async () => {
-    // 45% of the face box lies in the head and the face centre does not.
     const face = [box(0, 100, 100, 100), 0.9] as const;
     const people = await look({ heads: [[HEAD, box(55, 100, 100, 100), 0.9]], faces: [face] });
     expect(kinds(people).sort()).toEqual(['deimv2 head', 'yunet face']);
@@ -181,7 +169,6 @@ describe('heads that two models both found', () => {
   const big = box(100, 100, 100, 100);
 
   it('keeps the stronger of two heads that overlap by more than IoU 0.5', async () => {
-    // 100x55 inside 100x100: IoU 0.55.
     const small = box(100, 100, 100, 55);
     const people = await look({
       heads: [
@@ -193,7 +180,6 @@ describe('heads that two models both found', () => {
   });
 
   it('keeps the larger of two heads that overlap by IoU 0.5 or less', async () => {
-    // 100x50 inside 100x100: IoU exactly 0.5.
     const small = box(100, 100, 100, 50);
     const people = await look({
       heads: [
@@ -217,7 +203,6 @@ describe('heads that two models both found', () => {
 
   describe('against heads the small model finds in tiles', () => {
     it('adds a head overlapping one of them by less than IoU 0.3', async () => {
-      // 100x100 boxes 60 px apart: IoU 0.25.
       const people = await look({
         heads: [[HEAD, big, 0.9]],
         smallHeads: [[HEAD, box(160, 100, 100, 100), 0.9]],
@@ -226,7 +211,6 @@ describe('heads that two models both found', () => {
     });
 
     it('drops a head overlapping one of them by more than IoU 0.3', async () => {
-      // 100x100 boxes 50 px apart: IoU 0.33.
       const people = await look({
         heads: [[HEAD, big, 0.9]],
         smallHeads: [[HEAD, box(150, 100, 100, 100), 0.9]],
@@ -237,7 +221,7 @@ describe('heads that two models both found', () => {
     it('drops a head with 60% of it inside one of them, whatever the IoU', async () => {
       const people = await look({
         heads: [[HEAD, big, 0.9]],
-        smallHeads: [[HEAD, box(160, 100, 50, 50), 0.9]], // 40 of its 50 columns
+        smallHeads: [[HEAD, box(160, 100, 50, 50), 0.9]],
       });
       expect(people).toHaveLength(1);
     });
@@ -245,7 +229,7 @@ describe('heads that two models both found', () => {
     it('adds a head with only half of it inside one of them', async () => {
       const people = await look({
         heads: [[HEAD, big, 0.9]],
-        smallHeads: [[HEAD, box(175, 100, 50, 50), 0.9]], // 25 of its 50 columns
+        smallHeads: [[HEAD, box(175, 100, 50, 50), 0.9]],
       });
       expect(people).toHaveLength(2);
     });
@@ -296,8 +280,6 @@ describe('faces YuNet finds', () => {
 });
 
 describe('faces YuNet finds on shrunk copies', () => {
-  // A 2560x128 photo: the 1280 px copy is half its size, and only copies under 1/1.5 of the photo's
-  // long edge are searched.
   const wide = { width: 2560, height: 128 };
   const copiesSearched = () =>
     yunet.mock.calls.filter(([, , , , options]) => options.scoreThreshold === 0.4).map((c) => c[1]);
@@ -317,7 +299,6 @@ describe('faces YuNet finds on shrunk copies', () => {
     const face = (side: number) => box(100, 0, side, side);
     const onCopy = (side: number) => (copyWidth: number) =>
       copyWidth === 1280 ? ([[face(side), 0.9]] as const) : [];
-    // 80 px of the photo is 40 px of the half-size copy.
     expect(await look({ ...wide, faces: onCopy(80) })).toHaveLength(1);
     expect(await look({ ...wide, faces: onCopy(75) })).toEqual([]);
   });
@@ -333,7 +314,6 @@ describe('the same face found twice', () => {
   const strong = (b: Box) => [b, 0.9] as const;
 
   it('keeps the stronger of two faces overlapping by more than IoU 0.4', async () => {
-    // A 75x90 face (IoU 0.45) inside a 150x100 one.
     const large = box(100, 100, 150, 100);
     const small = box(100, 100, 75, 90);
     const people = await look({ faces: [weak(large), strong(small)] });
@@ -341,7 +321,6 @@ describe('the same face found twice', () => {
   });
 
   it('keeps the larger of two faces overlapping by IoU 0.4 or less', async () => {
-    // A 75x80 face (IoU 0.4) inside a 150x100 one.
     const large = box(100, 100, 150, 100);
     const small = box(100, 100, 75, 80);
     const people = await look({ faces: [weak(large), strong(small)] });
@@ -350,7 +329,6 @@ describe('the same face found twice', () => {
 });
 
 describe('a tall or wide face box that may be two faces', () => {
-  // `neighbour` takes 6375 px of a 100x155 box, 41% of it, without being mostly inside it.
   const neighbour = [box(125, 70, 150, 150), 0.7] as const;
 
   it('is kept when it is no taller than 1.55x its width', async () => {
@@ -384,7 +362,6 @@ describe('a tall or wide face box that may be two faces', () => {
   });
 
   it('is kept when the other face fills less than 35% of it', async () => {
-    // 100x160 is 16000 px; a box 65 columns by 80 rows into it shares 5200, 32.5%.
     const people = await look({
       faces: [
         [box(100, 100, 100, 160), 0.9],
@@ -395,7 +372,6 @@ describe('a tall or wide face box that may be two faces', () => {
   });
 
   it('is dropped when the other face fills 35% of it', async () => {
-    // A box 70 columns by 80 rows into it shares 5600, 35%.
     const people = await look({
       faces: [
         [box(100, 100, 100, 160), 0.9],
@@ -408,7 +384,6 @@ describe('a tall or wide face box that may be two faces', () => {
 
 describe('faces in smoke', () => {
   const face = box(100, 100, 100, 100);
-  /** Light and dark columns, 2 px apart, `spread` brightness either side of grey. */
   const striped =
     (spread: number) =>
     (rgba: Uint8Array, width: number): void => {
@@ -435,7 +410,6 @@ describe('faces in smoke', () => {
 
   it('prefers a plain face to a dehazed one that shares over 30% of the smaller box', async () => {
     const plain = [box(100, 100, 100, 100), 0.9] as const;
-    // 100x100 boxes 65 px apart share 35% of the smaller box; 70 px apart, 30%.
     const near = await look({ faces: [plain], hazy: [[box(165, 100, 100, 100), 0.9]] });
     const far = await look({ faces: [plain], hazy: [[box(170, 100, 100, 100), 0.9]] });
     expect(kinds(near)).toEqual(['yunet face']);

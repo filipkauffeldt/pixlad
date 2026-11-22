@@ -9,7 +9,6 @@ const box = (x: number, y: number, w: number, h: number) => ({ x, y, w, h });
 const detection = (b: ReturnType<typeof box>, score: number) => ({ box: b, score, landmarks: [] });
 
 describe('non-maximum suppression', () => {
-  // A 10x10 box shifted by 4 px overlaps it by IoU 6/14 (about 0.43).
   const strong = { box: box(0, 0, 10, 10), score: 0.9 };
 
   it('drops the weaker of two boxes that overlap by more than the threshold', () => {
@@ -18,7 +17,6 @@ describe('non-maximum suppression', () => {
   });
 
   it('keeps both boxes when they overlap by exactly the threshold', () => {
-    // IoU of 30 / 100 = 0.3 exactly: two 13x10 boxes, 6 px of overlap.
     const a = { box: box(0, 0, 13, 10), score: 0.9 };
     const b = { box: box(7, 0, 13, 10), score: 0.8 };
     expect(intersectionOverUnion(a.box, b.box)).toBe(0.3);
@@ -55,7 +53,6 @@ describe('merging overlapping detections', () => {
   const a = detection(box(0, 0, 13, 10), 0.7);
 
   it('merges two boxes that overlap by exactly the IoU threshold', () => {
-    // IoU 60 / 200 = 0.3 exactly, and only 46% of either box is shared.
     const b = detection(box(7, 0, 13, 10), 0.9);
     expect(mergeOverlappingDetections([a, b], 0.3)).toHaveLength(1);
     expect(mergeOverlappingDetections([a, b], 0.31)).toHaveLength(2);
@@ -63,13 +60,13 @@ describe('merging overlapping detections', () => {
 
   it('merges a small box that is half inside a large one even at a tiny IoU', () => {
     const large = detection(box(0, 0, 100, 100), 0.9);
-    const small = detection(box(95, 0, 10, 10), 0.8); // 50 of its 100 px inside: IoU 0.005
+    const small = detection(box(95, 0, 10, 10), 0.8);
     expect(mergeOverlappingDetections([large, small], 0.3)).toHaveLength(1);
   });
 
   it('keeps a small box apart when less than half of it is inside a large one', () => {
     const large = detection(box(0, 0, 100, 100), 0.9);
-    const small = detection(box(96, 0, 10, 10), 0.8); // 40 of its 100 px inside
+    const small = detection(box(96, 0, 10, 10), 0.8);
     expect(mergeOverlappingDetections([large, small], 0.3)).toHaveLength(2);
   });
 

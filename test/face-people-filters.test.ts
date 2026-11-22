@@ -24,7 +24,6 @@ const person = (b: Box, extra: Partial<Person> = {}): Person => ({
 
 describe('a head that holds a face', () => {
   const head = person(box(0, 0, 100, 100), { kind: 'head', from: 'deimv2', score: 0.5 });
-  /** A 50x50 face whose centre is at (cx, cy). */
   const faceAt = (cx: number, cy: number) => person(box(cx - 25, cy - 25, 50, 50));
 
   it('holds a face in the middle of it', () => {
@@ -47,8 +46,8 @@ describe('a head that holds a face', () => {
 
   it('holds a face down to a sixth of the head area, not a smaller one', () => {
     const face = (side: number) => person(box(50 - side / 2, 45 - side / 2, side, side));
-    expect(holdsFace(head, face(41))).toBe(true); // 1681 * 6 = 10086
-    expect(holdsFace(head, face(40))).toBe(false); // 1600 * 6 = 9600
+    expect(holdsFace(head, face(41))).toBe(true);
+    expect(holdsFace(head, face(40))).toBe(false);
   });
 
   it('is held by a head scoring 0.4 or better, not a weaker one', () => {
@@ -59,7 +58,6 @@ describe('a head that holds a face', () => {
 
 describe('dropping fragments', () => {
   const whole = person(box(0, 0, 100, 100));
-  /** A 10x10 box with `shared` px of its area inside the whole. */
   const shared = (area: number) => person(box(100 - area / 10, 0, 10, 10));
 
   it('drops a box with 60% of its area inside a larger one', () => {
@@ -76,7 +74,6 @@ describe('dropping fragments', () => {
 });
 
 describe('dropping what is far bigger than the crowd', () => {
-  /** Seven 10x10 faces: with the oversized one the eighth, enough for the median to count. */
   const crowd = Array.from({ length: 7 }, (_, i) => person(box(i * 20, 500, 10, 10)));
   const oversized = (area: number, extra: Partial<Person> = {}) =>
     person(box(0, 0, area / 20, 20), extra);
@@ -97,7 +94,7 @@ describe('dropping what is far bigger than the crowd', () => {
   });
 
   describe('when the other kind of detection saw something of a matching size there', () => {
-    const big = oversized(600); // a 30x20 face at the origin
+    const big = oversized(600);
     const head = (b: Box, extra: Partial<Person> = {}) =>
       person(b, { kind: 'head', from: 'deimv2', ...extra });
     const survives = (witness: Person) => notOversized([...crowd, big], [witness]).includes(big);
@@ -115,30 +112,27 @@ describe('dropping what is far bigger than the crowd', () => {
     });
 
     it('accepts a witness down to a quarter of its size, not a smaller one', () => {
-      expect(survives(head(box(0, 0, 15, 10)))).toBe(true); // 150: it is 4x
-      expect(survives(head(box(0, 0, 14.9, 10)))).toBe(false); // 149
+      expect(survives(head(box(0, 0, 15, 10)))).toBe(true);
+      expect(survives(head(box(0, 0, 14.9, 10)))).toBe(false);
     });
 
     it('accepts a witness up to 4x its size, not a larger one', () => {
-      expect(survives(head(box(-10, -10, 60, 40)))).toBe(true); // 2400: it is 0.25x
-      expect(survives(head(box(-10, -10, 49, 49)))).toBe(false); // 2401
+      expect(survives(head(box(-10, -10, 60, 40)))).toBe(true);
+      expect(survives(head(box(-10, -10, 49, 49)))).toBe(false);
     });
 
     it('wants the overlap to be 15% of the larger box', () => {
-      // Against a 60x40 head (2400 px) it must be 360 px: 18 of the face's 30 columns, 20 high.
       expect(survives(head(box(12, -10, 60, 40)))).toBe(true);
       expect(survives(head(box(12.1, -10, 60, 40)))).toBe(false);
     });
 
     it('wants the overlap to be half of the smaller box', () => {
-      // Against a 50x20 head (1000 px) it must be 300 px: 15 of the face's 30 columns, 20 high.
       expect(survives(head(box(15, 0, 50, 20)))).toBe(true);
       expect(survives(head(box(15.1, 0, 50, 20)))).toBe(false);
     });
   });
 
   it('takes the upper middle of the sorted areas as the median', () => {
-    // Four 10x10 and four 100x10: the median is the fifth of eight, 1000 px, so nothing is 5x it.
     const mixed = [
       ...Array.from({ length: 4 }, (_, i) => person(box(i * 20, 500, 10, 10))),
       ...Array.from({ length: 4 }, (_, i) => person(box(i * 200, 700, 100, 10))),
@@ -149,7 +143,6 @@ describe('dropping what is far bigger than the crowd', () => {
 
 describe('dropping a hand taken for a face', () => {
   const face = person(box(0, 0, 10, 10), { score: 0.7 });
-  /** A hand sharing `area` px of the 100 px face. */
   const handOver = (area: number) => box(10 - area / 10, 0, 10, 10);
 
   it('drops a detection with half its area inside a hand', () => {
@@ -181,20 +174,20 @@ describe('dropping a hand taken for a face', () => {
 describe('one face per person', () => {
   it('keeps a face that is covered by less than half by stronger faces', () => {
     const weak = person(box(0, 0, 10, 10), { score: 0.7 });
-    const strong = person(box(5.1, 0, 10, 10), { score: 0.9 }); // covers 49
+    const strong = person(box(5.1, 0, 10, 10), { score: 0.9 });
     expect(oneFacePerPerson([weak, strong])).toEqual([weak, strong]);
   });
 
   it('drops a face that is covered by half by stronger faces', () => {
     const weak = person(box(0, 0, 10, 10), { score: 0.7 });
-    const strong = person(box(5, 0, 10, 10), { score: 0.9 }); // covers 50
+    const strong = person(box(5, 0, 10, 10), { score: 0.9 });
     expect(oneFacePerPerson([weak, strong])).toEqual([strong]);
   });
 
   it('adds up what several stronger faces cover', () => {
     const weak = person(box(0, 0, 10, 10), { score: 0.7 });
-    const left = person(box(-7, 0, 10, 10), { score: 0.9 }); // covers 30
-    const right = person(box(7, 0, 10, 10), { score: 0.8 }); // covers 30
+    const left = person(box(-7, 0, 10, 10), { score: 0.9 });
+    const right = person(box(7, 0, 10, 10), { score: 0.8 });
     expect(oneFacePerPerson([weak, left, right])).toEqual([left, right]);
   });
 
@@ -212,7 +205,7 @@ describe('one face per person', () => {
   });
 
   describe('a big box that holds the centres of smaller faces', () => {
-    const big = person(box(0, 0, 20, 20), { score: 0.9 }); // 400 px
+    const big = person(box(0, 0, 20, 20), { score: 0.9 });
     const small = (x: number, area: number) => person(box(x, 5, 10, area / 10), { score: 0.5 });
 
     it('is a loose box over several people, and is dropped for two or more', () => {
@@ -240,7 +233,6 @@ describe('one face per person', () => {
 
 describe('one detection per person', () => {
   const large = person(box(0, 0, 20, 20));
-  /** A 10x10 box with `area` px of its 100 px inside `large`. */
   const sharing = (area: number, extra: Partial<Person> = {}) =>
     person(box(20 - area / 10, 0, 10, 10), extra);
 

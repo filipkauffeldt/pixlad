@@ -1,22 +1,33 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { JpegError } from './errors';
-import { ZIGZAG, parseHeader, type ParsedHeader } from './parse';
+import {
+  DHT,
+  DRI,
+  EOI,
+  MARKER_PREFIX,
+  RST0,
+  RST7,
+  SOS,
+  ZIGZAG,
+  isStandalone,
+  parseHeader,
+  type ParsedHeader,
+} from './parse';
 
 export interface Component {
   id: number;
   h: number;
   v: number;
   tq: number;
-  /** Blocks across / down the component's own (subsampled) size. */
   blocksPerLine: number;
   blocksPerColumn: number;
-  /** The same, padded to whole MCUs: the storage layout. */
+  /** Blocks per line and column padded to whole MCUs: the storage layout. */
   stride: number;
   rows: number;
-  /** Quantized coefficients, natural order, 64 per block, row-major in `stride` x `rows` blocks. */
+  /** Natural order (not zigzag), 64 per block, row-major in `stride` x `rows` blocks. */
   coeffs: Int16Array;
-  /** With `dcOnly`: the DC value of each block (`stride * rows` entries). */
+  /** Only set with `dcOnly`: one DC value per block, `stride * rows` entries. */
   dc?: Int16Array;
 }
 
@@ -56,7 +67,7 @@ class BitReader {
   pos: number;
   private buf = 0;
   private cnt = 0;
-  /** Set when a marker was met while reading: the stream is padded with zeros. */
+  /** After a marker the stream reads as zeros instead of failing. */
   hitMarker = false;
   constructor(
     readonly data: Uint8Array,
@@ -72,7 +83,7 @@ class BitReader {
         this.hitMarker = true;
       } else {
         byte = this.data[this.pos]!;
-        if (byte === 0xff) {
+        if (byte === MARKER_PREFIX) {
           const next = this.data[this.pos + 1];
           if (next === 0) this.pos += 2;
           else {
@@ -104,8 +115,7 @@ class BitReader {
     return table.values[table.valptr[l]! + code - table.mincode[l]!]!;
   }
 
-  /** Drop the partial byte, as at a restart marker. */
-  align(): void {
+  discardPartialByte(): void {
     this.cnt = 0;
   }
 }
@@ -119,11 +129,6 @@ interface ScanComponent {
   ac: HuffTable | undefined;
 }
 
-/**
- * Entropy-decode a JPEG into quantized DCT coefficients: baseline, extended sequential and
- * progressive Huffman. With `dcOnly` only the DC of each block is kept, which is enough for an
- * eighth-size thumbnail and needs far less memory.
- */
 export function decodeCoefficients(data: Uint8Array, options: { dcOnly?: boolean } = {}): Decoded {
   const header = parseHeader(data);
   const { frame } = header;
@@ -165,26 +170,26 @@ export function decodeCoefficients(data: Uint8Array, options: { dcOnly?: boolean
     }
   };
   for (const segment of header.segments) {
-    if (segment.marker === 0xc4) readTables(segment.payload);
-    else if (segment.marker === 0xdd)
+    if (segment.marker === DHT) readTables(segment.payload);
+    else if (segment.marker === DRI)
       restartInterval = (segment.payload[0]! << 8) | segment.payload[1]!;
   }
 
   for (;;) {
-    while (pos < data.length && data[pos] !== 0xff) pos++;
-    while (pos < data.length && data[pos] === 0xff) pos++;
+    while (pos < data.length && data[pos] !== MARKER_PREFIX) pos++;
+    while (pos < data.length && data[pos] === MARKER_PREFIX) pos++;
     if (pos >= data.length) break;
     const marker = data[pos++]!;
-    if (marker === 0xd9) break;
-    if (marker === 0 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) continue;
+    if (marker === EOI) break;
+    if (isStandalone(marker)) continue;
     const length = (data[pos]! << 8) | data[pos + 1]!;
     const payload = data.subarray(pos + 2, pos + length);
     pos += length;
-    if (marker === 0xc4) {
+    if (marker === DHT) {
       readTables(payload);
-    } else if (marker === 0xdd) {
+    } else if (marker === DRI) {
       restartInterval = (payload[0]! << 8) | payload[1]!;
-    } else if (marker === 0xda) {
+    } else if (marker === SOS) {
       const count = payload[0]!;
       const scanComps: ScanComponent[] = [];
       for (let i = 0; i < count; i++) {
@@ -198,39 +203,26 @@ export function decodeCoefficients(data: Uint8Array, options: { dcOnly?: boolean
       const se = payload[2 + count * 2]!;
       const ah = payload[3 + count * 2]! >> 4;
       const al = payload[3 + count * 2]! & 15;
-      if (dcOnly && frame.progressive && (ss !== 0 || ah !== 0)) {
-        // Only the first DC scan matters for a thumbnail; skip entropy data of the others.
-        pos = skipEntropy(data, pos);
+      const isFirstDcScan = ss === 0 && ah === 0;
+      if (dcOnly && frame.progressive && !isFirstDcScan) {
+        pos = skipEntropyData(data, pos);
         if (ss !== 0 && components.every((c) => c.dc)) break;
         continue;
       }
       const reader = new BitReader(data, pos);
-      decodeScan(
-        reader,
-        frame,
-        header,
-        scanComps,
-        mcusPerLine,
-        restartInterval,
-        ss,
-        se,
-        ah,
-        al,
-        dcOnly,
-      );
-      pos = skipEntropy(data, reader.pos);
+      decodeScan(reader, frame, scanComps, mcusPerLine, restartInterval, ss, se, ah, al, dcOnly);
+      pos = skipEntropyData(data, reader.pos);
     }
   }
   return { header, components, mcusPerLine, mcusPerColumn };
 }
 
-/** Advance to the next real marker (not a stuffed 0xFF00 or a restart marker). */
-function skipEntropy(data: Uint8Array, from: number): number {
+function skipEntropyData(data: Uint8Array, from: number): number {
   let pos = from;
   while (pos + 1 < data.length) {
-    if (data[pos] === 0xff) {
+    if (data[pos] === MARKER_PREFIX) {
       const next = data[pos + 1]!;
-      if (next !== 0 && next !== 0xff && !(next >= 0xd0 && next <= 0xd7)) return pos;
+      if (next !== 0 && next !== MARKER_PREFIX && !(next >= RST0 && next <= RST7)) return pos;
     }
     pos++;
   }
@@ -240,7 +232,6 @@ function skipEntropy(data: Uint8Array, from: number): number {
 function decodeScan(
   r: BitReader,
   frame: ParsedHeader['frame'],
-  _header: ParsedHeader,
   scanComps: ScanComponent[],
   mcusPerLine: number,
   restartInterval: number,
@@ -265,63 +256,63 @@ function decodeScan(
       throw new JpegError('corrupt', 'is missing a Huffman table');
   }
 
-  const decodeBlock = (sc: ScanComponent, index: number, c: Int16Array, off: number): void => {
-    if (!progressive) {
-      const t = r.huff(sc.dc!);
-      preds[index] = preds[index]! + (t === 0 ? 0 : extend(r.receive(t), t));
-      c[off] = preds[index]!;
-      let k = 1;
-      while (k < 64) {
-        const rs = r.huff(sc.ac!);
-        const s = rs & 15;
-        const run = rs >> 4;
-        if (s === 0) {
-          if (run < 15) break;
-          k += 16;
-          continue;
+  const decodeDc = (sc: ScanComponent, index: number): number => {
+    const t = r.huff(sc.dc!);
+    preds[index] = preds[index]! + (t === 0 ? 0 : extend(r.receive(t), t));
+    return preds[index]!;
+  };
+
+  const decodeSequentialBlock = (
+    sc: ScanComponent,
+    index: number,
+    c: Int16Array,
+    off: number,
+  ): void => {
+    c[off] = decodeDc(sc, index);
+    let k = 1;
+    while (k < 64) {
+      const rs = r.huff(sc.ac!);
+      const s = rs & 15;
+      const run = rs >> 4;
+      if (s === 0) {
+        if (run < 15) break;
+        k += 16;
+        continue;
+      }
+      k += run;
+      if (k > 63) break;
+      c[off + ZIGZAG[k]!] = extend(r.receive(s), s);
+      k++;
+    }
+  };
+
+  const decodeAcFirstBlock = (sc: ScanComponent, c: Int16Array, off: number): void => {
+    if (eobrun > 0) {
+      eobrun--;
+      return;
+    }
+    let k = ss;
+    while (k <= se) {
+      const rs = r.huff(sc.ac!);
+      const s = rs & 15;
+      const run = rs >> 4;
+      if (s === 0) {
+        if (run < 15) {
+          eobrun = r.receive(run) + (1 << run) - 1;
+          break;
         }
-        k += run;
-        if (k > 63) break;
-        c[off + ZIGZAG[k]!] = extend(r.receive(s), s);
-        k++;
+        k += 16;
+        continue;
       }
-      return;
+      k += run;
+      if (k > 63) break;
+      c[off + ZIGZAG[k]!] = extend(r.receive(s), s) * (1 << al);
+      k++;
     }
-    if (ss === 0) {
-      if (ah === 0) {
-        const t = r.huff(sc.dc!);
-        preds[index] = preds[index]! + (t === 0 ? 0 : extend(r.receive(t), t));
-        c[off] = preds[index]! * (1 << al);
-      } else if (r.bit()) c[off] = c[off]! | (1 << al);
-      return;
-    }
-    // AC scans
-    if (ah === 0) {
-      if (eobrun > 0) {
-        eobrun--;
-        return;
-      }
-      let k = ss;
-      while (k <= se) {
-        const rs = r.huff(sc.ac!);
-        const s = rs & 15;
-        const run = rs >> 4;
-        if (s === 0) {
-          if (run < 15) {
-            eobrun = r.receive(run) + (1 << run) - 1;
-            break;
-          }
-          k += 16;
-          continue;
-        }
-        k += run;
-        if (k > 63) break;
-        c[off + ZIGZAG[k]!] = extend(r.receive(s), s) * (1 << al);
-        k++;
-      }
-      return;
-    }
-    // AC refinement (libjpeg's decode_mcu_AC_refine)
+  };
+
+  // Port of libjpeg's decode_mcu_AC_refine.
+  const decodeAcRefineBlock = (sc: ScanComponent, c: Int16Array, off: number): void => {
     const p1 = 1 << al;
     const m1 = -1 << al;
     let k = ss;
@@ -355,6 +346,15 @@ function decodeScan(
     }
   };
 
+  const decodeBlock = (sc: ScanComponent, index: number, c: Int16Array, off: number): void => {
+    if (!progressive) decodeSequentialBlock(sc, index, c, off);
+    else if (ss === 0 && ah === 0) c[off] = decodeDc(sc, index) * (1 << al);
+    else if (ss === 0) {
+      if (r.bit()) c[off] = c[off]! | (1 << al);
+    } else if (ah === 0) decodeAcFirstBlock(sc, c, off);
+    else decodeAcRefineBlock(sc, c, off);
+  };
+
   const handleBlock = (sc: ScanComponent, index: number, row: number, col: number): void => {
     const comp = sc.comp;
     if (dcOnly) {
@@ -379,7 +379,7 @@ function decodeScan(
 
   for (let mcu = 0; mcu < mcuCount; mcu++) {
     if (restartInterval > 0 && mcu > 0 && mcu % restartInterval === 0) {
-      r.align();
+      r.discardPartialByte();
       r.pos = skipToRestart(r.data, r.pos);
       r.hitMarker = false;
       preds.fill(0);
@@ -402,12 +402,13 @@ function decodeScan(
   }
 }
 
-/** Find the RSTn marker that ends an interval and return the offset just after it. */
 function skipToRestart(data: Uint8Array, from: number): number {
   let pos = from;
   while (pos + 1 < data.length) {
-    if (data[pos] === 0xff && data[pos + 1]! >= 0xd0 && data[pos + 1]! <= 0xd7) return pos + 2;
-    if (data[pos] === 0xff && data[pos + 1] !== 0 && data[pos + 1] !== 0xff) return pos;
+    if (data[pos] === MARKER_PREFIX && data[pos + 1]! >= RST0 && data[pos + 1]! <= RST7)
+      return pos + 2;
+    if (data[pos] === MARKER_PREFIX && data[pos + 1] !== 0 && data[pos + 1] !== MARKER_PREFIX)
+      return pos;
     pos++;
   }
   return data.length;

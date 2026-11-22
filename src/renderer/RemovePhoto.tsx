@@ -1,20 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-import { useEffect } from 'react';
+import { useModalKeys } from './modal';
 import { actions } from './store';
 
 /** Ask before a photo with unexported areas leaves the session for good. */
 export function RemovePhoto({ question }: { question: { id: string; name: string } }) {
-  useEffect(() => {
-    // Capture phase: the app's shortcuts (Delete, Ctrl+E, Z, arrows) never see a key while the
-    // question is open. Buttons still activate, because that is the default action.
-    const onKeyDown = (event: KeyboardEvent): void => {
-      event.stopPropagation();
-      if (event.key === 'Escape') actions.answerRemovePhoto(false);
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, []);
+  useModalKeys({ Escape: () => actions.answerRemovePhoto(false) });
 
   return (
     <div className="modalScrim">

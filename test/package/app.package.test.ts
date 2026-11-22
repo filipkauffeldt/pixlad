@@ -13,8 +13,7 @@ afterEach(async () => {
   running = undefined;
 });
 
-/** A real-mouse drag between two points given as fractions of the photo. */
-async function drag(page: Page, from: [number, number], to: [number, number]): Promise<void> {
+async function dragAcrossPhoto(page: Page, from: [number, number], to: [number, number]): Promise<void> {
   const box = await page.locator('[data-testid="photo"]').boundingBox();
   if (!box) throw new Error('no photo on screen');
   const at = (p: [number, number]): [number, number] => [
@@ -35,12 +34,11 @@ describe('the packaged app', () => {
 
     running = await launch({ executablePath: packagedExecutable() });
     const { app, page } = running;
-    // The app is the packaged one, not the source tree.
     expect(await app.evaluate(({ app: electronApp }) => electronApp.isPackaged)).toBe(true);
 
-    // The window icon comes from the resources folder on Windows and Linux. macOS reads the
-    // bundle's own icon instead.
-    if (process.platform !== 'darwin') {
+    // macOS takes the icon from the bundle instead.
+    const iconComesFromResources = process.platform !== 'darwin';
+    if (iconComesFromResources) {
       const iconSize = await app.evaluate(() => {
         const { statSync } = process.getBuiltinModule('node:fs');
         const { join } = process.getBuiltinModule('node:path');
@@ -56,19 +54,16 @@ describe('the packaged app', () => {
       return !!img && img.complete && img.naturalWidth > 0;
     });
 
-    // Rectangle and export: this runs the photo and export workers from the package.
     await pickTool(page, 'rect');
-    await drag(page, [0.3, 0.2], [0.7, 0.6]);
+    await dragAcrossPhoto(page, [0.3, 0.2], [0.7, 0.6]);
     await page.waitForSelector('[data-testid="mosaic-patch"]', { timeout: 30_000 });
     await page.keyboard.press('ControlOrMeta+e');
     await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 60_000 });
     await answerRemove(page, 'keep');
     expect((await readdir(dir)).sort()).toEqual(['photo.jpg', 'photo_edit.jpg']);
 
-    // Faces on a plain area: the model and onnxruntime load, and nothing is found.
     await pickTool(page, 'faces');
-    await drag(page, [0.02, 0.02], [0.3, 0.3]);
-    // Nothing found shows at the region; a failure shows as a notice instead.
+    await dragAcrossPhoto(page, [0.02, 0.02], [0.3, 0.3]);
     await page.waitForFunction(
       () =>
         document.querySelector('[data-testid="detect-label"]')?.textContent === 'No faces found' ||
@@ -80,13 +75,11 @@ describe('the packaged app', () => {
     expect(texts.join('\n')).not.toContain('Face detection failed');
     expect(await page.locator('[data-testid="detect-label"]').innerText()).toBe('No faces found');
 
-    // About: the notices list, the GPL text and Chromium's licences come from the package.
     await page.click('[data-testid="settings"]');
     await page.click('[data-testid="open-about"]');
     const about = page.locator('[data-testid="about"]');
     await about.waitFor();
-    // About shows the version that was built in, which is the one the app reports. A local build
-    // without PIXLAD_VERSION reports the placeholder in package.json and About says "dev".
+    // A local build without PIXLAD_VERSION reports the package.json placeholder, shown as "dev".
     const reported = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
     const version = reported === '0.0.0-dev' ? 'dev' : reported;
     await page.getByText(`Version ${version}`, { exact: true }).waitFor();
@@ -104,7 +97,6 @@ describe('the packaged app', () => {
     await about.getByRole('button', { name: 'Open Chromium licences' }).waitFor();
   });
 
-  // The unpacked folder above proves the app. This proves the AppImage file around it starts too.
   it.runIf(process.platform === 'linux')('starts from the AppImage', async () => {
     running = await launch({
       executablePath: packagedAppImage(),

@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { chooseInstaller, chooseUpdater, type ReleaseAsset } from '../src/main/update-assets';
-import { parseReleaseNotes } from '../src/shared/update';
+import { parseReleaseNotes, RELEASES_OWNER, RELEASES_REPO } from '../src/shared/update';
+import { resolveUpdateEnvironment, type Machine } from '../src/main/update-environment';
 import {
   describeError,
   fetchReleaseNotes,
@@ -160,6 +161,59 @@ describe('parseTestUpdates', () => {
     expect(() => parseTestUpdates('{"url":"x","version":"dev","platform":"linux"}')).toThrow();
     expect(() => parseTestUpdates('{"url":"x","version":"1.0.0","platform":"beos"}')).toThrow();
     expect(() => parseTestUpdates('nope')).toThrow();
+  });
+});
+
+describe('resolveUpdateEnvironment', () => {
+  const machine = (overrides: Partial<Machine> = {}): Machine => ({
+    isPackaged: true,
+    version: '0.3.0',
+    platform: 'win32',
+    arch: 'x64',
+    ...overrides,
+  });
+  const testUpdates = '{"url":"http://127.0.0.1:1/","version":"0.2.0","platform":"darwin"}';
+
+  it('checks GitHub with the real values in a packaged release', () => {
+    expect(resolveUpdateEnvironment(machine(), undefined)).toEqual({
+      enabled: true,
+      currentVersion: '0.3.0',
+      platform: 'win32',
+      arch: 'x64',
+      apiUrl: `https://api.github.com/repos/${RELEASES_OWNER}/${RELEASES_REPO}`,
+      feed: { provider: 'github', owner: RELEASES_OWNER, repo: RELEASES_REPO },
+      forceDevUpdateConfig: false,
+    });
+  });
+
+  it('is off in a packaged prerelease build', () => {
+    expect(resolveUpdateEnvironment(machine({ version: '0.0.0-dev.42' }), undefined).enabled).toBe(
+      false,
+    );
+  });
+
+  it('is off in a source run', () => {
+    expect(resolveUpdateEnvironment(machine({ isPackaged: false }), undefined).enabled).toBe(false);
+  });
+
+  it('uses the fake server, the made-up system and arm64 in a test run', () => {
+    expect(
+      resolveUpdateEnvironment(machine({ isPackaged: false, arch: 'x64' }), testUpdates),
+    ).toEqual({
+      enabled: true,
+      currentVersion: '0.2.0',
+      platform: 'darwin',
+      arch: 'arm64',
+      apiUrl: 'http://127.0.0.1:1',
+      feed: { provider: 'generic', url: 'http://127.0.0.1:1' },
+      forceDevUpdateConfig: true,
+    });
+  });
+
+  it('ignores the test setup in a packaged app', () => {
+    const environment = resolveUpdateEnvironment(machine(), testUpdates);
+    expect(environment.feed.provider).toBe('github');
+    expect(environment.platform).toBe('win32');
   });
 });
 

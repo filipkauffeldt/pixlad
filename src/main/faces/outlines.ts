@@ -3,7 +3,7 @@
 // Outlines of face and hair for the Outlines face shape, from the MediaPipe selfie multiclass
 // segmenter. Boxes and points are in photo pixels.
 import * as ort from 'onnxruntime-node';
-import type { Point } from '../../shared/types';
+import type { FaceKind, FaceTraits, Point } from '../../shared/types';
 import { outlineModel } from './models';
 import type { Box, Img } from './people';
 
@@ -21,15 +21,13 @@ const OTHER = 5;
 const MIN_TRACE_PX = 100;
 
 /** A face or head to outline. */
-export interface TraceItem {
-  box: Box;
-  kind: 'face' | 'head';
-  /** Head roll in radians. */
+export interface TraceItem extends Pick<
+  FaceTraits<Box>,
+  'box' | 'kind' | 'angle' | 'confirmed' | 'eyes'
+> {
+  kind: FaceKind;
   angle: number;
-  /** A detector saw a face here. */
   confirmed: boolean;
-  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
-  eyes?: Box[];
 }
 
 /** A square crop of the photo, `side` px wide and rotated by `angle`, seen at SEG x SEG. */

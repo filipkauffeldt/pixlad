@@ -22,24 +22,18 @@ export interface RetouchArea {
   /** An area that is off stays in the list so it can be switched on again. */
   enabled: boolean;
   shape?: Shape;
-  /** The raw detector box; its outline follows the padding slider. */
   face?: FaceData;
 }
 
-/** A detection as kept in an area. */
 export interface FaceData extends Omit<NormalizedFaceTraits, 'landmarks'> {
-  /** How the face is covered. Missing in older sessions: a rectangle. */
+  /** Missing in older sessions: a rectangle. */
   shape?: FaceShape;
-  /** The traced outline of face and hair, normalized. */
   outline?: Point[];
 }
 
 export type FaceShape = 'rectangle' | 'oval' | 'outline';
 
-/**
- * Padding around a detected face, as a fraction of its width. Height padding is 1.4x wider and
- * biased upward (65% above, 35% below) so hair and chins are covered.
- */
+/** Extra height is biased upward so hair and chins are covered. */
 const FACE_PADDING_VERTICAL = 1.4;
 const FACE_PADDING_UP_BIAS = 0.65;
 
@@ -57,10 +51,7 @@ export function padFaceBox(box: Rect, padding: number): Rect {
 const OVAL_EXPONENT = 2.5;
 const OVAL_POINTS = 48;
 
-/**
- * A superellipse, |x/a|^2.5 + |y/b|^2.5 = 1, rotated by `angle`. Rounder than a box, fuller than an
- * ellipse. Worked out with x in pixel proportions (normalized x times `aspect`).
- */
+/** Rounder than a box, fuller than an ellipse. */
 function superellipse(
   cx: number,
   cy: number,
@@ -84,15 +75,10 @@ function superellipse(
   return { type: 'polygon', points };
 }
 
-/** How far (dx, dy) lies along a superellipse with half-axes a and b: 1 is on its edge. */
 const ovalDistance = (dx: number, dy: number, a: number, b: number): number =>
   (Math.abs(dx / a) ** OVAL_EXPONENT + Math.abs(dy / b) ** OVAL_EXPONENT) ** (1 / OVAL_EXPONENT);
 
-/**
- * An oval in the padded box around a face, tilted with the head. The padding is the same as for
- * the rectangle: 1.4x vertically, mostly upward. The oval grows until every corner of the detector
- * box is inside, so it never covers less of the face than the rectangle.
- */
+/** Grows so it never covers less of the face than the padded rectangle. */
 export function faceOval(face: FaceData, padding: number): Polygon {
   const aspect = face.aspect ?? 1;
   const angle = face.angle ?? 0;
@@ -122,7 +108,6 @@ export function faceOval(face: FaceData, padding: number): Polygon {
   return superellipse(cx, cy, a * grow, b * grow, angle, aspect);
 }
 
-/** A head box padded evenly: it already holds hair and ears. */
 function padHeadBox(box: Rect, padding: number): Rect {
   const left = clamp(box.x - (box.w * padding) / 2, 0, 1);
   const top = clamp(box.y - (box.h * padding) / 2, 0, 1);
@@ -131,7 +116,6 @@ function padHeadBox(box: Rect, padding: number): Rect {
   return { type: 'rect', x: left, y: top, w: right - left, h: bottom - top };
 }
 
-/** A traced outline grown from its centre by the padding. */
 function grownOutline(outline: readonly Point[], padding: number): Polygon {
   let cx = 0;
   let cy = 0;
@@ -155,7 +139,6 @@ export function faceShape(face: FaceData, padding: number): Shape {
     case 'oval':
       return faceOval(face, padding);
     case 'outline':
-      // Not traced (yet, or too small): the oval.
       return face.outline && face.outline.length >= 3
         ? grownOutline(face.outline, padding)
         : faceOval(face, padding);
@@ -185,7 +168,6 @@ export function opFromAreas(
   };
 }
 
-/** The topmost area (last drawn) whose outline holds the point, or -1. */
 export function areaIndexAt(
   areas: readonly RetouchArea[],
   point: { x: number; y: number },
@@ -224,7 +206,6 @@ const centre = (box: Rect): { x: number; y: number } => ({
   y: box.y + box.h / 2,
 });
 
-/** The faces whose box centre lies inside a lasso: faces beside the outline are dropped. */
 export function facesInLasso<T extends { box: Rect }>(
   faces: readonly T[],
   lasso: readonly { x: number; y: number }[],
@@ -232,7 +213,6 @@ export function facesInLasso<T extends { box: Rect }>(
   return faces.filter((face) => pointInPolygon(centre(face.box), lasso));
 }
 
-/** New detections added; a face already found (its box holds the new centre) is not added twice. */
 export function withDetectedFaces(
   areas: readonly RetouchArea[],
   detections: readonly FaceData[],
@@ -254,7 +234,6 @@ export function withDetectedFaces(
   ];
 }
 
-/** The areas without the detected faces whose centre lies inside `region`. Drawn areas stay. */
 export function withoutFacesInside(areas: readonly RetouchArea[], region: Shape): RetouchArea[] {
   const outline = (region.type === 'rect' ? rectToPolygon(region) : region).points;
   return areas.filter((a) => !(a.face && pointInPolygon(centre(a.face.box), outline)));
@@ -262,16 +241,12 @@ export function withoutFacesInside(areas: readonly RetouchArea[], region: Shape)
 
 export type Outline = 'rect' | 'lasso';
 
-/** Which temporary flips are held: Alt swaps rectangle and lasso, Ctrl (⌘ on a Mac) add and subtract. */
 export interface Flips {
   outline: boolean;
   mode: boolean;
 }
 
-/**
- * The flips a pointer or key event holds. AltGr (Ctrl+Alt on Windows/Linux, or the AltGraph
- * modifier) types characters on a Swedish keyboard and must never count.
- */
+/** AltGr types characters on a Swedish keyboard and must never count. */
 export function flipsHeld(
   event: {
     altKey: boolean;
@@ -285,7 +260,6 @@ export function flipsHeld(
   return { outline: event.altKey, mode: isMac ? event.metaKey : event.ctrlKey };
 }
 
-/** The outline and mode a drag would use: the chosen ones, with any held flips applied. */
 export function withFlips(
   chosen: { outline: Outline; mode: RetouchMode },
   flips: Flips,
@@ -299,7 +273,6 @@ export function withFlips(
 export const areaBounds = (area: RetouchArea, facePadding: number): Rect =>
   shapeBounds(areaShape(area, facePadding));
 
-/** The room kept beside and above the picture when it is fitted to the stage, in CSS pixels. */
 export const FIT_MARGIN = 40;
 export const FIT_TOP = 24;
 
@@ -310,10 +283,8 @@ export const FIT_TOP = 24;
 export const EDIT_BAR_HEIGHT = 22;
 export const FIT_BOTTOM = 10 + EDIT_BAR_HEIGHT + 6;
 
-/** The strip around the picture where a drag may start, in CSS pixels. */
 export const HIT_MARGIN = 100;
 
-/** Whether a point (unit picture coordinates) is on the picture or in the strip around it. */
 export const isNearPicture = (p: { x: number; y: number }, w: number, h: number): boolean =>
   p.x * w >= -HIT_MARGIN &&
   p.x * w <= w + HIT_MARGIN &&

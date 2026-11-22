@@ -29,7 +29,6 @@ const GROUPS: Array<{ group: Group; title: string }> = [
   { group: 'packages', title: 'Packages' },
 ];
 
-/** Where a part is listed: the face models, what runs the app, the fonts, or an npm package. */
 const groupOf = (title: string): Group =>
   title.startsWith('@fontsource')
     ? 'fonts'
@@ -39,13 +38,11 @@ const groupOf = (title: string): Group =>
         ? 'packages'
         : 'runtimes';
 
-/** A notice title is "name (licence)"; a few have no licence in the title. */
 function split(notice: Notice): { name: string; license: string } {
   const match = /^(.*) \((.+)\)$/.exec(notice.title);
   return match ? { name: match[1]!, license: match[2]! } : { name: notice.title, license: '' };
 }
 
-/** Every part with its licence: a filterable list, and the selected licence beside it. */
 function Licences({ info, onOpenChromium }: { info: AboutInfo; onOpenChromium: () => void }) {
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState<string>('gpl');
@@ -120,7 +117,6 @@ function Licences({ info, onOpenChromium }: { info: AboutInfo; onOpenChromium: (
   );
 }
 
-/** Copyright, the GPL, and every third-party part with its licence text. */
 export function About() {
   const app = useApp();
   const [info, setInfo] = useState<AboutInfo | undefined>();

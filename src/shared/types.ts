@@ -20,11 +20,32 @@ export interface Polygon {
 /** Shapes are in normalized (0..1) coordinates of the oriented image. */
 export type Shape = Rect | Polygon;
 
-export interface MosaicFace {
-  /** The raw detector box in normalized coordinates; padding is applied on top. */
-  box: Rect;
+export type FaceKind = 'face' | 'head';
+
+/** What a detector reports about a face; its box, eyes and landmarks share one coordinate space. */
+export interface FaceTraits<TBox> {
+  /** The raw detector box, before padding. */
+  box: TBox;
   score?: number;
+  landmarks?: Point[];
+  /** Head roll in radians, in pixel space, from the eye landmarks. */
+  angle?: number;
+  /** A head box holds hair and ears; a face box does not. Default: face. */
+  kind?: FaceKind;
+  /** A detector saw a face here (for heads: not only a head). */
+  confirmed?: boolean;
+  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
+  eyes?: TBox[];
 }
+
+/** A face in normalized (0..1) coordinates of the oriented image. */
+export interface NormalizedFaceTraits extends FaceTraits<Rect> {
+  /** Photo width / height, to draw tilted shapes in normalized coordinates. */
+  aspect?: number;
+}
+
+/** The face an area covers, in normalized coordinates. */
+export type MosaicFace = Pick<FaceTraits<Rect>, 'box' | 'score'>;
 
 /** One entry of the ordered area list: an add covers its shape, a subtract takes mosaic away. */
 export interface MosaicArea {
@@ -40,20 +61,8 @@ export interface MosaicOp {
   blockSizeRel: number;
 }
 
-export interface FaceDetection {
-  box: Rect;
+export interface FaceDetection extends NormalizedFaceTraits {
   score: number;
-  landmarks?: Point[];
-  /** Head roll in radians, in pixel space, from the eye landmarks. */
-  angle?: number;
-  /** Photo width / height, to draw tilted shapes in normalized coordinates. */
-  aspect?: number;
-  /** A head box holds hair and ears; a face box does not. Default: face. */
-  kind?: 'face' | 'head';
-  /** A detector saw a face here (for heads: not only a head). */
-  confirmed?: boolean;
-  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
-  eyes?: Rect[];
 }
 
 export interface DetectOptions {
@@ -64,17 +73,8 @@ export interface DetectOptions {
   people?: boolean;
 }
 
-/** A face to trace an outline for: its normalized box, kind and roll. */
-export interface TraceFace {
-  box: Rect;
-  /** A head box holds hair and ears; a face box does not. Default: face. */
-  kind?: 'face' | 'head';
-  angle?: number;
-  /** A detector saw a face here. Default: true for a face, false for a head. */
-  confirmed?: boolean;
-  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
-  eyes?: Rect[];
-}
+/** A normalized face to trace an outline for. */
+export type TraceFace = Pick<FaceTraits<Rect>, 'box' | 'kind' | 'angle' | 'confirmed' | 'eyes'>;
 
 export const isAdded = (area: MosaicArea): boolean =>
   area.enabled !== false && area.mode !== 'subtract';

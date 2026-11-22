@@ -2,6 +2,8 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import type { WindowState } from '../shared/ipc';
 
+const MIN_VISIBLE_PIXELS = 100;
+
 interface Area {
   x: number;
   y: number;
@@ -23,10 +25,6 @@ export function isWindowState(value: unknown): value is WindowState {
   );
 }
 
-/**
- * The saved state, when enough of it is still on a screen. A window saved on a monitor that is
- * gone would open out of reach, so then the caller falls back to the default.
- */
 export function onScreen(
   state: WindowState | undefined,
   workAreas: readonly Area[],
@@ -36,7 +34,7 @@ export function onScreen(
     const width = Math.min(state.x + state.width, area.x + area.width) - Math.max(state.x, area.x);
     const height =
       Math.min(state.y + state.height, area.y + area.height) - Math.max(state.y, area.y);
-    return width >= 100 && height >= 100;
+    return width >= MIN_VISIBLE_PIXELS && height >= MIN_VISIBLE_PIXELS;
   });
   return visible ? state : undefined;
 }

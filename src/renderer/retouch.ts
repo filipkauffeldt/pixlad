@@ -308,11 +308,10 @@ export const areaBounds = (area: RetouchArea, facePadding: number): Rect =>
 export const FIT_MARGIN = 40;
 export const FIT_TOP = 24;
 
-/**
- * The room kept under the fitted picture: the edit bar sits there, 10 px from the picture and
- * 10 px from the thumbnails (6 px to the stage's edge, and the thumbnails' 4 px inset).
- */
-export const FIT_BOTTOM = 10 + EDIT_BAR_HEIGHT + 6;
+const EDIT_BAR_GAP = 10;
+const EDIT_BAR_BOTTOM = 6;
+
+export const FIT_BOTTOM = EDIT_BAR_GAP + EDIT_BAR_HEIGHT + EDIT_BAR_BOTTOM;
 
 /** The strip around the picture where a drag may start, in CSS pixels. */
 export const HIT_MARGIN = 100;

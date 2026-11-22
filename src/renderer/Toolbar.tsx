@@ -680,7 +680,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
               onClick={actions.undo}
               disabled={!photo || photo.undo.length === 0}
               aria-label="Undo"
-              title={`Undo the last change to the areas (${FLIP_KEY}+Z)`}
+              title={`Undo (${FLIP_KEY}+Z)`}
             >
               <Icon name="undo" size={18} />
             </button>
@@ -690,7 +690,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
               onClick={actions.redo}
               disabled={!photo || photo.redo.length === 0}
               aria-label="Redo"
-              title={`Redo the change you just undid (${REDO_KEYS})`}
+              title={`Redo (${REDO_KEYS})`}
             >
               <Icon name="redo" size={18} />
             </button>

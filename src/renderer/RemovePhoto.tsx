@@ -29,7 +29,7 @@ export function RemovePhoto({ question }: { question: { id: string; name: string
         <div className="modalBody">
           <h2 id="remove-photo-title">{`Remove ${question.name} from the session?`}</h2>
           <p id="remove-photo-detail" className="muted">
-            Its areas have not been exported and will be lost. The file stays on disk.
+            Its areas have not been exported and will be lost.
           </p>
         </div>
         <footer className="modalFooter end">

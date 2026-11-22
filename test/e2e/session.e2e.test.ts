@@ -173,9 +173,7 @@ describe('opening', () => {
     await page.waitForSelector('[data-testid="remove-photo"]');
     const question = await page.locator('[data-testid="remove-photo"]').innerText();
     expect(question).toContain('Remove work.jpg from the session?');
-    expect(question).toContain(
-      'Its areas have not been exported and will be lost. The file stays on disk.',
-    );
+    expect(question).toContain('Its areas have not been exported and will be lost.');
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
 
     await page.keyboard.press('Enter'); // Keep is focused, so Enter keeps the photo

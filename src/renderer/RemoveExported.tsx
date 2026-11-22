@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
+import { useModalKeys } from './modal';
 import { actions } from './store';
 
 /** After an export: take the exported photos out of the session, or keep them? */
@@ -12,17 +13,8 @@ export function RemoveExported({
   const dontAsk = useRef<HTMLInputElement>(null);
   const answer = (remove: boolean): void => actions.answerRemove(remove, dontAsk.current?.checked);
 
-  useEffect(() => {
-    // Capture phase: the app's shortcuts (Delete, Ctrl+E, Z, arrows) never see a key while the
-    // question is open. Buttons still activate, because that is the default action.
-    const onKeyDown = (event: KeyboardEvent): void => {
-      event.stopPropagation();
-      // Escape keeps the photos for this export only; the checkbox is for the buttons.
-      if (event.key === 'Escape') actions.answerRemove(false);
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, []);
+  // Escape keeps the photos for this export only; the checkbox is for the buttons.
+  useModalKeys({ Escape: () => actions.answerRemove(false) });
 
   const title =
     question.count === 1 && question.name

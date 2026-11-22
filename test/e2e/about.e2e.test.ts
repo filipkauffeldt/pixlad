@@ -39,7 +39,6 @@ describe('About', () => {
     );
     expect(await about.innerText()).toContain('Independent JPEG Group');
 
-    // Delete would remove the photo from the session; with About open it does nothing.
     await page.keyboard.press('Delete');
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
 

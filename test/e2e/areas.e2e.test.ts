@@ -19,14 +19,12 @@ afterEach(async () => {
   running = undefined;
 });
 
-/** A point given as fractions of the photo, in page pixels. */
 async function at(page: Page, x: number, y: number): Promise<[number, number]> {
   const b = await photoBox(page);
   return [b.x + x * b.w, b.y + y * b.h];
 }
 
-/** One photo open with two rectangles: A at x 0.1–0.3 and B at x 0.5–0.7, B drawn last. */
-async function openWithTwoAreas(firstRun = false): Promise<Page> {
+async function openWithTwoAreas({ firstRun = false } = {}): Promise<Page> {
   const dir = await tempDir();
   const file = await writePhoto(dir, 'p.jpg');
   running = await launch({ firstRun });
@@ -64,7 +62,6 @@ describe('hovering an area', () => {
       page.locator('[data-testid="area"]').first().getAttribute('class'),
     ).resolves.toContain('areaHover');
 
-    // Only the topmost area is highlighted, and only where it is.
     await page.mouse.move(...(await at(page, 0.6, 0.45)));
     await expect(
       page.locator('[data-testid="area"]').nth(1).getAttribute('class'),
@@ -81,7 +78,6 @@ describe('hovering an area', () => {
     await page.mouse.move(...(await at(page, 0.2, 0.45)));
     expect(await hoveredCount(page)).toBe(1);
 
-    // A drag that starts over an area draws a new one: no hover until it ends.
     await page.mouse.down();
     await page.mouse.move(...(await at(page, 0.25, 0.5)), { steps: 4 });
     expect(await hoveredCount(page)).toBe(0);
@@ -97,7 +93,6 @@ describe('hovering an area', () => {
   });
 });
 
-// The photos in the filmstrip, by name.
 const photosInSession = (page: Page): Promise<string> =>
   page
     .locator('[data-testid="thumb"]')
@@ -106,13 +101,11 @@ const photosInSession = (page: Page): Promise<string> =>
 describe('removing an area', () => {
   it('right-click removes the topmost area under the pointer and Undo restores it', async () => {
     const page = await openWithTwoAreas();
-    // A right-click on empty photo removes nothing.
     await page.mouse.click(...(await at(page, 0.4, 0.45)), { button: 'right' });
     expect(await areaCount(page)).toBe(2);
 
     await page.mouse.click(...(await at(page, 0.2, 0.45)), { button: 'right' });
     expect(await areaCount(page)).toBe(1);
-    // What is left is B.
     const left = (await page.locator('[data-testid="area"]').first().boundingBox())!;
     const b = await photoBox(page);
     expect(left.x).toBeGreaterThan(b.x + 0.45 * b.w);
@@ -130,7 +123,6 @@ describe('removing an area', () => {
     await page.mouse.move(...(await at(page, 0.2, 0.45)));
     await page.keyboard.press('Backspace');
     expect(await areaCount(page)).toBe(0);
-    // The photo is still in the session.
     await expect(photosInSession(page)).resolves.toBe(status);
     await expect(page.locator('[data-testid="photo"]').count()).resolves.toBe(1);
   });
@@ -139,15 +131,13 @@ describe('removing an area', () => {
     const page = await openWithTwoAreas();
     await page.mouse.move(...(await at(page, 0.4, 0.45)));
     await page.keyboard.press('Delete');
-    // The areas are not exported, so the photo asks before it goes.
     await page.locator('[data-testid="remove-photo-remove"]').click();
     await page.waitForSelector('[data-testid="empty"]');
     await expect(page.locator('[data-testid="photo"]').count()).resolves.toBe(0);
   });
 
   it('leaves areas alone while a dialog is open over a resting pointer', async () => {
-    // A new install: Ctrl+E opens the "how to save" choice, with the pointer still on an area.
-    const page = await openWithTwoAreas(true);
+    const page = await openWithTwoAreas({ firstRun: true });
     await page.mouse.move(...(await at(page, 0.2, 0.45)));
     expect(await hoveredCount(page)).toBe(1);
 
@@ -159,7 +149,6 @@ describe('removing an area', () => {
     await page.keyboard.press('Backspace');
     expect(await areaCount(page)).toBe(2);
 
-    // Closed again, the pointer is still on the area and it can be removed.
     await page.keyboard.press('Escape');
     await page.waitForSelector('[data-testid="export-choice"]', { state: 'detached' });
     expect(await hoveredCount(page)).toBe(1);

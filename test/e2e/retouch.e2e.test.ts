@@ -24,7 +24,6 @@ afterEach(async () => {
   running = undefined;
 });
 
-/** A real-mouse drag between two points given as fractions of the photo (may be outside 0..1). */
 async function drag(
   page: Page,
   from: [number, number],
@@ -51,7 +50,6 @@ describe('drawing with the real mouse', () => {
     await openPhotos(page, [file]);
     await pickTool(page, 'rect');
     const b = await photoBox(page);
-    // The photo is height-bound in this window, so there is room to the left of it.
     await page.mouse.move(b.x - 32, b.y + 0.3 * b.h);
     await page.mouse.down();
     await page.mouse.move(b.x + 0.3 * b.w, b.y + 0.5 * b.h, { steps: 5 });
@@ -72,8 +70,7 @@ describe('drawing with the real mouse', () => {
     const path = page.locator('[data-testid="area"]').first();
     const area = (await path.boundingBox())!;
     const b = await photoBox(page);
-    // Playwright's box for an SVG path grows by the stroke on every side, so compare the centre
-    // (must be exact to a pixel) and the size (a few pixels more than the geometry).
+    // Playwright's box for an SVG path grows by the stroke on every side.
     const centre = (box: { x: number; y: number; width: number; height: number }): number[] => [
       box.x + box.width / 2,
       box.y + box.height / 2,
@@ -85,15 +82,12 @@ describe('drawing with the real mouse', () => {
     expect(Math.abs(area.height - 0.3 * b.h)).toBeLessThanOrEqual(6);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
 
-    // A drag that starts just outside the photo is clipped to it.
     await drag(page, [-0.01, 0.8], [0.3, 0.95]);
     expect(await areaCount(page)).toBe(2);
     const clipped = (await page.locator('[data-testid="area"]').nth(1).boundingBox())!;
-    // Clipped to the photo's left edge (the stroke adds up to 2 px outside).
     expect(clipped.x).toBeGreaterThanOrEqual(b.x - 3);
     expect(clipped.x).toBeLessThanOrEqual(b.x + 1);
 
-    // A click toggles the area under it.
     const click = { x: b.x + 0.3 * b.w, y: b.y + 0.35 * b.h };
     await page.mouse.click(click.x, click.y);
     await expect(
@@ -104,14 +98,12 @@ describe('drawing with the real mouse', () => {
       page.locator('[data-testid="area"]').first().getAttribute('data-enabled'),
     ).resolves.toBe('true');
 
-    // Subtract adds an area that takes mosaic away; Undo removes it again.
     await page.click('[data-mode="subtract"]');
     await drag(page, [0.25, 0.25], [0.3, 0.3]);
     expect(await areaCount(page)).toBe(3);
     await page.keyboard.press('Control+z');
     expect(await areaCount(page)).toBe(2);
 
-    // Reset clears every area, and Undo brings them back.
     await page.click('[data-testid="reset"]');
     expect(await areaCount(page)).toBe(0);
     await expect(page.locator('[data-testid="reset"]').isDisabled()).resolves.toBe(true);
@@ -137,7 +129,6 @@ describe('drawing with the real mouse', () => {
     await page.keyboard.up('Control');
     expect(await page.locator('[data-flipped]').count()).toBe(0);
 
-    // A lasso needs a path that bends; a straight drag has no area.
     const b = await photoBox(page);
     const at = (x: number, y: number): [number, number] => [b.x + x * b.w, b.y + y * b.h];
     await page.keyboard.down('Alt');
@@ -174,19 +165,16 @@ describe('drawing with the real mouse', () => {
     const text = (await page.locator('[data-testid="face-count"]').textContent())!;
     const total = Number(/\/(\d+)/.exec(text)![1]);
     expect(total).toBeGreaterThanOrEqual(3);
-    // click the first face off and on
     const first = (await page
       .locator('[data-testid="area"][data-kind="face"]')
       .first()
       .boundingBox())!;
-    // The face under the pointer is tagged with the detector's confidence.
     await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
     expect(await page.locator('[data-testid="face-tag"]').textContent()).toMatch(/^Face \d+%$/);
     await page.mouse.click(first.x + first.width / 2, first.y + first.height / 2);
     await expect(page.locator('[data-testid="face-count"]').textContent()).resolves.toContain(
       `${total - 1}/${total}`,
     );
-    // Subtract in Faces removes every face in the dragged area
     await page.click('[data-mode="subtract"]');
     await drag(page, [-0.01, -0.01], [1.01, 1.01]);
     await expect(page.locator('[data-testid="face-count"]').count()).resolves.toBe(0);
@@ -208,7 +196,6 @@ describe('drawing with the real mouse', () => {
     await answerRemove(page, 'keep');
     expect((await readdir(dir)).sort()).toEqual(['_DSC1234.JPG', '_DSC1234_edit.JPG']);
     expect(Buffer.compare(await readFile(file), bytes)).toBe(0);
-    // Exporting the same photo again replaces this session's own file.
     await drag(page, [0.1, 0.7], [0.2, 0.9]);
     await page.keyboard.press('Control+e');
     await page.waitForFunction(() =>

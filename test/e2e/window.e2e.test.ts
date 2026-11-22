@@ -43,7 +43,6 @@ describe('the window', () => {
       running = await launch();
       const { page } = running;
       const { settingsRight, buttonsLeft } = await page.evaluate(() => {
-        // The strip of the top bar that the window buttons do not cover.
         const probe = document.createElement('div');
         probe.style.cssText = 'position:fixed;top:0;left:0;width:env(titlebar-area-width, 100vw)';
         document.body.append(probe);

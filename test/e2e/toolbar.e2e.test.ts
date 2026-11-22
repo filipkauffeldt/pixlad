@@ -23,7 +23,6 @@ afterEach(async () => {
   running = undefined;
 });
 
-/** The next Open dialog answers with these files instead of showing itself. */
 async function answerOpenDialog(app: Launched['app'], paths: string[]): Promise<void> {
   await app.evaluate(({ dialog }, files) => {
     dialog.showOpenDialog = (async () => ({
@@ -33,7 +32,6 @@ async function answerOpenDialog(app: Launched['app'], paths: string[]): Promise<
   }, paths);
 }
 
-/** Launches with one photo open and the rectangle tool picked. */
 async function openPhoto(file?: string): Promise<Page> {
   file ??= await writePhoto(await tempDir(), 'p.jpg');
   running = await launch();
@@ -183,17 +181,14 @@ describe('finding all faces', () => {
     const total = await faceCount(page);
     expect(total).toBeGreaterThanOrEqual(3);
     expect(await button(page, 'Find all faces').isEnabled()).toBe(true);
-    // Found faces and their count do not push the toolbar onto a second row.
     expect((await page.locator('[data-testid="toolbar"]').boundingBox())!.height).toBe(
       toolbarHeight,
     );
 
-    // The same faces found again are not added twice.
     await button(page, 'Find all faces').click();
     await page.locator('[data-testid="detect-label"]').waitFor({ state: 'detached' });
     expect(await faceCount(page)).toBe(total);
 
-    // Take them away with Subtract over the whole photo, then F brings them back.
     await pickTool(page, 'faces');
     await page.click('[data-mode="subtract"]');
     await dragOnPhoto(
@@ -211,7 +206,6 @@ describe('finding all faces', () => {
     await page.waitForSelector('[data-testid="face-count"]', { timeout: 30000 });
     expect(await faceCount(page)).toBe(total);
 
-    // Typing an f into a field is typing, not a command.
     const field = page.locator('[aria-label="Block size in px"]');
     await field.focus();
     await page.keyboard.press('f');
@@ -266,7 +260,6 @@ describe('the Export tooltip', () => {
     expect(await exportButton.isEnabled()).toBe(true);
     expect(await exportButton.getAttribute('title')).toContain('Save a new copy');
 
-    // An area switched off is no mosaic either.
     await page.mouse.click(...(await centreOfFirstArea(page)));
     expect(await exportButton.isDisabled()).toBe(true);
     expect(await exportButton.getAttribute('title')).toBe('Draw an area or find faces first');
@@ -279,13 +272,12 @@ describe('the sliders', () => {
     const slider = page.locator('[aria-label="Face padding"]');
     const box = (await slider.boundingBox())!;
     const value = async (): Promise<number> => Number(await slider.inputValue());
-    const start = await value(); // 0.15 of 0..0.5
+    const start = await value();
     // Chromium keeps the thumb's own width inside the track at both ends.
     const thumb = 14;
     const centre = box.x + thumb / 2 + (start / 0.5) * (box.width - thumb);
     const y = box.y + box.height / 2;
 
-    // Pressing on the track outside the thumb would jump the value to the pointer.
     await page.mouse.move(centre + 5, y);
     await page.mouse.down();
     expect(await value()).toBe(start);
@@ -340,7 +332,7 @@ describe('tooltips', () => {
         [0.5, 0.5],
       ],
       8,
-    ); // Export has its usual tooltip once there is a mosaic
+    );
 
     const titles = {
       add: await title('[data-testid="add-photos"]'),
@@ -470,7 +462,7 @@ describe('the new shortcuts under a dialog', () => {
         ],
         8,
       );
-      await page.keyboard.press('ControlOrMeta+z'); // one area on screen, one to redo
+      await page.keyboard.press('ControlOrMeta+z');
       expect(await areaCount(page)).toBe(1);
 
       await open(page);
@@ -484,7 +476,6 @@ describe('the new shortcuts under a dialog', () => {
       expect(await page.locator('[data-testid="detect-label"]').count()).toBe(0);
       expect(await app.evaluate(() => (globalThis as { __opened?: number }).__opened)).toBe(0);
 
-      // Closed again, the same keys work.
       await page.keyboard.press('Escape');
       await page.locator(selector).waitFor({ state: 'detached' });
       await page.keyboard.press('ControlOrMeta+Shift+z');

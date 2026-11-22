@@ -32,7 +32,6 @@ import {
   writePhoto,
 } from './app';
 
-/** Wait until the session holds `count` photos and `name` is the one open. */
 const inSession = (page: Page, count: number, name: string, timeout?: number): Promise<unknown> =>
   page.waitForFunction(
     ([n, current]) =>
@@ -112,7 +111,6 @@ describe('opening', () => {
     await inSession(page, 250, 'p000.jpg', 30000);
     // Only what is on screen is in the DOM.
     expect(await page.locator('[data-testid="thumb"]').count()).toBeLessThan(40);
-    // The page answers while thumbnails are decoded.
     const before = Date.now();
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(0))));
     expect(Date.now() - before).toBeLessThan(1000);
@@ -158,13 +156,13 @@ describe('opening', () => {
     expect(question).toContain('Its areas have not been exported and will be lost.');
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
 
-    await page.keyboard.press('Enter'); // Keep is focused, so Enter keeps the photo
+    await page.keyboard.press('Enter');
     expect(await page.locator('[data-testid="remove-photo"]').count()).toBe(0);
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
 
     await page.keyboard.press('Delete');
     await page.waitForSelector('[data-testid="remove-photo"]');
-    await page.keyboard.press('Escape'); // Escape keeps the photo
+    await page.keyboard.press('Escape');
     expect(await page.locator('[data-testid="remove-photo"]').count()).toBe(0);
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
 
@@ -279,7 +277,8 @@ describe('zoom and pan', () => {
     await page.keyboard.press('z');
     expect(await stage.getAttribute('data-fit')).toBe('false');
     const b = await photoBox(page);
-    expect(b.w).toBe(2400); // 100%: one image pixel per device pixel
+    expect(b.w).toBe(2400);
+
     const dpr = await page.evaluate(() => window.devicePixelRatio);
     const left = await page
       .locator('[data-testid="photo"]')
@@ -290,7 +289,6 @@ describe('zoom and pan', () => {
         document.querySelector('[data-testid="zoom-toggle"]')?.firstChild?.textContent === '100%',
     );
 
-    // pan with the wheel and with Space + drag
     const x0 = (await photoBox(page)).x;
     await page.mouse.wheel(120, 0);
     await page.waitForTimeout(100);
@@ -303,9 +301,8 @@ describe('zoom and pan', () => {
     await page.mouse.up();
     await page.keyboard.up('Space');
     expect(Math.round((await photoBox(page)).x - x1)).toBe(-60);
-    expect(await page.locator('[data-testid="area"]').count()).toBe(0); // Space-drag draws nothing
+    expect(await page.locator('[data-testid="area"]').count()).toBe(0);
 
-    // Ctrl + plus zooms in, Ctrl + 0 returns to Fit; Z brings back 100%, Ctrl + minus zooms out
     await page.keyboard.press('Control+=');
     expect((await photoBox(page)).w).toBeGreaterThan(2400);
     await page.keyboard.press('Control+0');
@@ -318,7 +315,6 @@ describe('zoom and pan', () => {
     expect(await stage.getAttribute('data-fit')).toBe('false');
     await page.keyboard.press('z');
     expect(await stage.getAttribute('data-fit')).toBe('true');
-    // Ctrl + wheel
     await page.mouse.move(700, 400);
     await page.keyboard.down('Control');
     await page.mouse.wheel(0, -200);
@@ -337,7 +333,7 @@ describe('the zoom chip', () => {
     await openPhotos(page, [file]);
     const stage = page.locator('[data-testid="stage"]');
     const chip = page.locator('[data-testid="zoom-toggle"]');
-    expect(await chip.count()).toBe(0); // Fit
+    expect(await chip.count()).toBe(0);
 
     await page.mouse.move(700, 400);
     await page.keyboard.press('z');
@@ -349,7 +345,6 @@ describe('the zoom chip', () => {
     await chip.waitFor({ state: 'detached' });
     expect(await stage.getAttribute('data-fit')).toBe('true');
 
-    // Zoomed to something else, it goes back to Fit too.
     await page.keyboard.down('Control');
     await page.mouse.wheel(0, -200);
     await page.keyboard.up('Control');
@@ -383,12 +378,11 @@ describe('closing and exporting a batch', () => {
         await waitForPhoto(page);
       }
     }
-    await stubCloseDialog(app, 1); // Cancel
+    await stubCloseDialog(app, 'cancel');
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.close());
     await new Promise((resolve) => setTimeout(resolve, 500));
     expect(await dialogMessages(app)).toEqual(['3 photos have unexported mosaics. Close anyway?']);
-    expect(await page.locator('[data-testid="toolbar"]').count()).toBe(1); // still open
-
+    expect(await page.locator('[data-testid="toolbar"]').count()).toBe(1);
     await page.click('[data-testid="export-all"]');
     await page.waitForFunction(
       () =>
@@ -405,7 +399,6 @@ describe('closing and exporting a batch', () => {
       'two.jpg',
       'two_edit.jpg',
     ]);
-    // Nothing left to lose: closing does not ask again.
     const asked = (await dialogMessages(app)).length;
     await closeWithoutAsking(running);
     running = undefined;
@@ -450,7 +443,6 @@ describe('closing and exporting a batch', () => {
         expect.arrayContaining(['good_edit.jpg', 'good2_edit.jpg']),
       );
       expect(await readdir(locked)).toEqual(['bad.jpg']);
-      // Only the photos that made it are offered; the failed one stays to be dealt with.
       await page.waitForSelector('[data-testid="remove-exported"]');
       expect(await removeQuestion(page)).toBe('Remove 2 exported photos from the session?');
       await answerRemove(page, 'remove');
@@ -511,10 +503,8 @@ describe('closing and exporting a batch', () => {
       undefined,
       { timeout: 30000 },
     );
-    // The bar and Cancel go away when the batch is over.
     expect(await page.locator('[data-testid="batch-progress"]').count()).toBe(0);
     expect(await page.locator('[data-testid="batch-cancel"]').count()).toBe(0);
-    // The photo being written finished; the others were never started.
     await page.waitForSelector('[data-testid="remove-exported"]');
     expect(await removeQuestion(page)).toBe('Remove one.jpg from the session?');
     await answerRemove(page, 'keep');
@@ -541,7 +531,8 @@ describe('closing and exporting a batch', () => {
     await dragOnPhoto(page, [
       [0.6, 0.6],
       [0.8, 0.8],
-    ]); // drawn while the export runs
+    ]);
+
     await page.waitForSelector('[data-testid="badge-exported"], [data-testid="batch-status"]', {
       timeout: 30000,
     });
@@ -603,7 +594,6 @@ describe('after an export', () => {
     expect(await page.isChecked('[data-testid="after-export-remove"]')).toBe(true);
     await page.keyboard.press('Escape');
 
-    // The next export removes the photo without asking.
     await exportOne(page, 'second.jpg', dir);
     await page.waitForSelector('[data-testid="empty"]', { timeout: 30000 });
     expect(await page.locator('[data-testid="remove-exported"]').count()).toBe(0);
@@ -728,7 +718,8 @@ describe('after an export', () => {
     await dragOnPhoto(page, [
       [0.6, 0.6],
       [0.8, 0.8],
-    ]); // drawn while the export runs
+    ]);
+
     await page.waitForFunction(
       () => document.querySelector('[data-testid="photo-status"]')?.textContent?.includes('Saved'),
       undefined,
@@ -813,11 +804,9 @@ describe('nothing survives the session', () => {
     await closeWithoutAsking(running);
     running = undefined;
 
-    // Only the source and its export are in the photo's folder; the source is untouched.
     expect((await readdir(dir)).sort()).toEqual([`${marker}.jpg`, `${marker}_edit.jpg`]);
     expect(Buffer.compare(await readFile(file), sourceBytes)).toBe(0);
 
-    // No file in the app's data or temp folders mentions the photo or its areas.
     const hits: string[] = [];
     const scan = async (folder: string): Promise<void> => {
       for (const entry of await readdir(folder, { withFileTypes: true }).catch(() => [])) {
@@ -833,7 +822,6 @@ describe('nothing survives the session', () => {
     await scan(tmpDir);
     expect(hits).toEqual([]);
 
-    // A fresh start with the same profile folder is empty.
     running = await launch({ userData, env: { TMPDIR: tmpDir } });
     page = running.page;
     expect(await page.locator('[data-testid="empty"]').count()).toBe(1);
@@ -883,7 +871,6 @@ describe('colour on screen', () => {
     const inside = at(b.x + 0.5 * b.w, b.y + 0.5 * b.h);
     // The patch and the photo go through the same profile: no seam.
     for (let c = 0; c < 3; c++) expect(Math.abs(outside[c]! - inside[c]!)).toBeLessThanOrEqual(2);
-    // And the profile really is applied: the screen differs from the stored values (0, 200, 60).
     expect(Math.max(...outside.map((v, c) => Math.abs(v - [0, 200, 60][c]!)))).toBeGreaterThan(8);
   });
 });

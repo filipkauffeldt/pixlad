@@ -49,7 +49,6 @@ describe('notices over the stage', () => {
     expect(await photoBox(page)).toEqual(before);
     expect(await page.locator('[data-testid="stage"]').boundingBox()).toEqual(stage);
 
-    // The notices sit inside the stage area, and the gap between two of them is not a hit target.
     const [first, second] = await page.locator('[data-testid="notice"]').all();
     const a = (await first!.boundingBox())!;
     const b = (await second!.boundingBox())!;
@@ -72,7 +71,6 @@ describe('notices over the stage', () => {
   });
 });
 
-/** Replace the main process's face detector: hang for good, find nothing, or fail. */
 async function stubDetect(app: Launched['app'], mode: 'hang' | 'none' | 'fail'): Promise<void> {
   await app.evaluate(({ ipcMain }, how) => {
     ipcMain.removeHandler('photo:detect');
@@ -210,7 +208,7 @@ describe('holding B to peek at the original', () => {
     await page.keyboard.up('b');
     expect(await shown(page)).toEqual([true, true]);
     await page.keyboard.down('Shift');
-    await page.keyboard.down('B'); // Caps Lock or Shift
+    await page.keyboard.down('B');
     expect(await shown(page)).toEqual([false, false]);
     await page.keyboard.up('B');
     await page.keyboard.up('Shift');
@@ -263,7 +261,6 @@ describe('the shortcuts sheet', () => {
     const text = await sheet(page).innerText();
     for (const part of ['Undo', 'Export the photo', 'Toggle Fit and 100%', 'Hold and drag to pan'])
       expect(text).toContain(part);
-    // Only this platform's modifier
     expect(text).toContain('Ctrl');
     expect(text).not.toContain('⌘');
     await page.keyboard.press('Escape');

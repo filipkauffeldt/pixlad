@@ -21,7 +21,6 @@ export async function launch(
   } = {},
 ): Promise<Launched> {
   const userData = options.userData ?? (await mkdtemp(join(tmpdir(), 'pixlad-userdata-')));
-  // Most tests act as a user who already chose how to save.
   const settings = join(userData, 'settings.json');
   const exists = await access(settings).then(
     () => true,
@@ -149,13 +148,16 @@ async function stubDialogs(app: ElectronApplication): Promise<void> {
 }
 
 export async function closeWithoutAsking(running: Launched | undefined): Promise<void> {
-  if (running) await stubCloseDialog(running.app, 0).catch(() => undefined);
+  if (running) await stubCloseDialog(running.app, 'close').catch(() => undefined);
   await running?.app.close().catch(() => undefined);
 }
 
-export async function stubCloseDialog(app: ElectronApplication, response: 0 | 1): Promise<void> {
+export async function stubCloseDialog(
+  app: ElectronApplication,
+  response: 'close' | 'cancel',
+): Promise<void> {
   await app.evaluate((_electron, answer) => {
-    (globalThis as { __dialogs?: DialogStubs }).__dialogs!.close = answer;
+    (globalThis as { __dialogs?: DialogStubs }).__dialogs!.close = answer === 'close' ? 0 : 1;
   }, response);
 }
 

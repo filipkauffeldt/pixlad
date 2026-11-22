@@ -8,10 +8,8 @@ import { launch, openAbout, tempDir, type Launched } from './app';
 let running: Launched | undefined;
 let server: Server;
 let base: string;
-/** What the fake GitHub does: the latest version it offers, or an error status. */
 let latest: { version: string } | { status: number };
 let requests: string[];
-/** Whether the fake GitHub has a release body to show. */
 let notes: boolean;
 
 beforeEach(async () => {
@@ -80,7 +78,6 @@ afterEach(async () => {
   await new Promise((resolve) => server.close(resolve));
 });
 
-/** The app thinks it is version 0.2.0 on this system, and asks the fake server. */
 const start = async (
   platform: 'darwin' | 'win32' | 'linux',
   options: { userData?: string } = {},
@@ -166,7 +163,6 @@ describe.each(['darwin', 'linux'] as const)('updates, as seen on %s', (platform)
     expect(await page.locator('[data-testid="notice"]').count()).toBe(0);
     expect(await page.locator('[data-testid="toast"]').count()).toBe(0);
 
-    // A second start-up check, with a listener that is there in time, leaves a console warning.
     const warnings: string[] = [];
     page.on('console', (message) => {
       if (message.type() === 'warning') warnings.push(message.text());
@@ -189,7 +185,6 @@ describe.each(['darwin', 'linux'] as const)('updates, as seen on %s', (platform)
     await writeFile(join(userData, 'settings.json'), '{"checkForUpdates":false}');
     const { page } = await start(platform, { userData });
     await settle();
-    // The setting is off, so nothing was asked and nothing is shown.
     expect(requests).toEqual([]);
     expect(await page.locator('[data-testid="update-prompt"]').count()).toBe(0);
 

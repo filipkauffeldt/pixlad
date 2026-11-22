@@ -21,7 +21,6 @@ afterEach(async () => {
 
 const dialog = '[data-testid="overwrite-confirm"]';
 
-/** A user data folder of someone who chose Replace original earlier. */
 async function replacingUser(): Promise<string> {
   const userData = await tempDir();
   await writeFile(

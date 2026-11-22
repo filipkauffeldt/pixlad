@@ -1,4 +1,3 @@
-// Takes the README screenshots with generated photos. Skipped unless SCREENSHOT_DIR is set:
 //   SCREENSHOT_DIR=/abs/folder xvfb-run -a pnpm vitest run --config vitest.e2e.config.ts test/e2e/screenshots.e2e.test.ts
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -22,7 +21,6 @@ afterEach(async () => {
   running = undefined;
 });
 
-/** A generated scene: sky, hills and a group of face-like discs with fine detail. */
 function scene(width: number, height: number, seed: number): Rgb {
   const data = Buffer.alloc(width * height * 3);
   const faces = [0.22, 0.42, 0.62, 0.8].map((x, i) => ({
@@ -68,7 +66,6 @@ function scene(width: number, height: number, seed: number): Rgb {
   return { width, height, data };
 }
 
-/** Pick a theme in Settings and close the panel again. */
 async function useTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
   await page.click('[data-testid="settings"]');
   await page.click(`[data-testid="theme-${theme}"]`);
@@ -98,7 +95,7 @@ it.skipIf(!out)(
     await dragOnPhoto(page, [
       [0.12, 0.3],
       [0.32, 0.62],
-    ]); // the first face
+    ]);
     await pickTool(page, 'lasso');
     await dragOnPhoto(page, [
       [0.34, 0.3],
@@ -106,7 +103,7 @@ it.skipIf(!out)(
       [0.52, 0.55],
       [0.4, 0.64],
       [0.33, 0.55],
-    ]); // the second, freehand
+    ]);
     await pickTool(page, 'rect');
     await dragOnPhoto(page, [
       [0.55, 0.32],

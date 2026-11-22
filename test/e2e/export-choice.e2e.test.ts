@@ -20,7 +20,6 @@ afterEach(async () => {
   running = undefined;
 });
 
-/** The line under the options, once the file name has loaded. */
 async function result(page: Page): Promise<string> {
   const line = page.locator('[data-testid="export-choice-result"]');
   await expect.poll(() => line.innerText()).not.toContain('…');
@@ -47,16 +46,13 @@ describe('the first export', () => {
     expect(await result(page)).toContain('(cannot be undone)');
     expect(await result(page)).toContain('_DSC1234.JPG');
 
-    // Delete would remove the photo. While the choice is open it does nothing.
     await page.keyboard.press('Delete');
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(1);
 
-    // Escape closes it and nothing is written.
     await page.keyboard.press('Escape');
     await page.waitForSelector('[data-testid="export-choice"]', { state: 'detached' });
     expect(await readdir(dir)).toEqual(['_DSC1234.JPG']);
 
-    // It asks again, and Enter exports with the chosen option.
     await page.click('[data-testid="export"]');
     await page.waitForSelector('[data-testid="export-choice"]');
     await page.click('[data-testid="export-choice-suffix"]');
@@ -67,7 +63,6 @@ describe('the first export', () => {
     const saved = JSON.parse(await readFile(join(userData, 'settings.json'), 'utf8')) as object;
     expect(saved).toMatchObject({ exportTarget: 'suffix', exportChosen: true });
 
-    // The next export does not ask, and neither does a new start.
     await drawMosaic(page);
     await page.keyboard.press('ControlOrMeta+e');
     await page.waitForFunction(() =>

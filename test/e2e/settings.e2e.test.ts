@@ -28,7 +28,6 @@ describe('the update check setting', () => {
     running = await launch({ userData });
     await running.page.click('[data-testid="settings"]');
     await running.page.waitForSelector('[data-testid="check-for-updates"]:not(:checked)');
-    // The export setting next to it is untouched.
     expect(await running.page.isChecked('[data-testid="export-target-suffix"]')).toBe(true);
 
     await running.page.click('[data-testid="check-for-updates"]');
@@ -49,7 +48,6 @@ describe('the after export setting', () => {
     expect(await running.page.isChecked('[data-testid="after-export-ask"]')).toBe(true);
     await running.page.click('[data-testid="after-export-remove"]');
     expect(await running.page.isChecked('[data-testid="after-export-remove"]')).toBe(true);
-    // The export target next to it is untouched.
     expect(await running.page.isChecked('[data-testid="export-target-suffix"]')).toBe(true);
     await running.app.close();
     running = undefined;
@@ -97,7 +95,6 @@ describe('the theme setting', () => {
     await expect.poll(() => prefersLight(running!)).toBe(false);
     expect(await background(running)).toBe('rgb(14, 14, 15)');
 
-    // Arrow keys move the choice and stay inside the picker.
     await running.page.keyboard.press('ArrowLeft');
     await running.page.waitForSelector('[data-testid="theme-light"][aria-checked="true"]');
     await running.app.close();

@@ -108,7 +108,7 @@ export function exifOrientation(segments: readonly Segment[]): number {
   return DEFAULT_ORIENTATION;
 }
 
-const isStandalone = (marker: number): boolean =>
+export const isStandalone = (marker: number): boolean =>
   marker === 0 || marker === SOI || marker === TEM || (marker >= RST0 && marker <= RST7);
 
 const isFrameMarker = (marker: number): boolean =>

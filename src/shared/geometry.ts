@@ -12,7 +12,7 @@ export interface PixelRect {
   h: number;
 }
 
-/** Even-odd point-in-polygon test. */
+/** Even-odd rule: overlapping contours cancel out. */
 export function pointInPolygon(point: Point, points: readonly Point[]): boolean {
   if (points.length < 3) return false;
   let inside = false;
@@ -84,7 +84,7 @@ function squaredDistanceToSegment(point: Point, a: Point, b: Point): number {
   return (point.x - (a.x + t * dx)) ** 2 + (point.y - (a.y + t * dy)) ** 2;
 }
 
-/** Ramer-Douglas-Peucker for an open polyline; endpoints are kept. */
+/** Ramer-Douglas-Peucker; both endpoints are kept. */
 export function simplifyPolyline(points: readonly Point[], epsilon: number): Point[] {
   if (points.length <= 2) return points.map((p) => ({ ...p }));
   const keep = new Uint8Array(points.length);
@@ -110,7 +110,6 @@ export function simplifyPolyline(points: readonly Point[], epsilon: number): Poi
   return points.filter((_, i) => keep[i]).map((p) => ({ ...p }));
 }
 
-/** Simplify a closed ring. */
 export function simplifyPolygon(points: readonly Point[], epsilon: number): Point[] {
   if (points.length <= 3) return points.map((p) => ({ ...p }));
   let farthest = 0;

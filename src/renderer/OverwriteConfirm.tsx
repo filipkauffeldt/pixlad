@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef, useState } from 'react';
+import { useModalKeys } from './modal';
 import { actions, currentPhoto, hasMosaic, useApp } from './store';
 
 /** How many file names the dialog lists before it says "and N more". */
@@ -24,18 +25,13 @@ export function OverwriteConfirm({ anchor }: { anchor: 'export' | 'all' }) {
 
   useEffect(() => {
     cancel.current?.focus();
-    // Capture phase on the window: the app's shortcuts (Delete, Ctrl+E, Z, arrows) never see a
-    // key while the dialog is open. Buttons still activate, because that is the default action.
-    const onKeyDown = (event: KeyboardEvent): void => {
-      event.stopPropagation();
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        actions.cancelOverwrite();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, []);
+  useModalKeys({
+    Escape: (event) => {
+      event.preventDefault();
+      actions.cancelOverwrite();
+    },
+  });
 
   return (
     <div

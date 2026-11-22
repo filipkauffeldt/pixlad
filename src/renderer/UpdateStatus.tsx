@@ -2,16 +2,11 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { actions, useApp, type UpdateState } from './store';
 
-/**
- * What the app says about an update and the buttons that go with it. The prompt under the
- * toolbar and the About dialog both show it, so they always agree.
- */
 export function UpdateStatus({
   update,
   withLater,
 }: {
   update: Exclude<UpdateState, { phase: 'idle' }>;
-  /** The prompt can be put off. The About dialog has nothing to put off. */
   withLater: boolean;
 }) {
   const hasNotes = (useApp().updateNotes?.length ?? 0) > 0;

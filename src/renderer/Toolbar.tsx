@@ -517,10 +517,7 @@ export function EditBar({ photo }: { photo: PhotoState | undefined }) {
   return (
     <div className="editBar" data-testid="edit-bar">
       {photo && <AreaCounts photo={photo} />}
-      <label
-        className="control"
-        title="Block edge in pixels of the full-resolution photo. Small selections get larger blocks, so a face stays unrecognisable."
-      >
+      <label className="control" title="Size of the mosaic blocks">
         <span className="label">Block</span>
         <NumberField
           key={`block-${px}`}

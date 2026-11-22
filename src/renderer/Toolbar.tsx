@@ -711,7 +711,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
                 className="btn"
                 onClick={() => void actions.exportAll()}
                 disabled={!anyMosaic || exporting}
-                title="Export every photo that has a mosaic"
+                title="Export all edited photos"
                 data-testid="export-all"
               >
                 Export all

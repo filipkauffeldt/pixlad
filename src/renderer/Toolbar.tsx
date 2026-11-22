@@ -314,11 +314,11 @@ function ThemePicker() {
 
 const AFTER_EXPORT: Array<{ choice: AfterExport; label: string; note?: string }> = [
   { choice: 'ask', label: 'Ask' },
-  { choice: 'keep', label: 'Keep', note: 'The exported photos stay in the session.' },
+  { choice: 'keep', label: 'Keep', note: 'Stay in the session' },
   {
     choice: 'remove',
     label: 'Remove',
-    note: 'The exported photos leave the session. The files stay on disk.',
+    note: 'Leave the session',
   },
 ];
 

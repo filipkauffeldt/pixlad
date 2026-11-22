@@ -43,23 +43,28 @@ export interface ParsedHeader {
   hasJfif: boolean;
 }
 
-const MARKER_PREFIX = 0xff;
+export const MARKER_PREFIX = 0xff;
 const TEM = 0x01;
-const SOF2_PROGRESSIVE = 0xc2;
-const DHT = 0xc4;
+export const SOF0_BASELINE = 0xc0;
+export const SOF1_EXTENDED = 0xc1;
+export const SOF2_PROGRESSIVE = 0xc2;
+export const DHT = 0xc4;
 const JPG = 0xc8;
 const DAC = 0xcc;
 const SOF_UNSUPPORTED = new Set([0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
-const RST0 = 0xd0;
-const RST7 = 0xd7;
-const SOI = 0xd8;
-const EOI = 0xd9;
-const SOS = 0xda;
-const DQT = 0xdb;
-const APP0 = 0xe0;
-const APP1 = 0xe1;
-const APP2 = 0xe2;
-const APP14 = 0xee;
+export const RST0 = 0xd0;
+export const RST7 = 0xd7;
+export const SOI = 0xd8;
+export const EOI = 0xd9;
+export const SOS = 0xda;
+export const DQT = 0xdb;
+export const DRI = 0xdd;
+export const APP0 = 0xe0;
+export const APP1 = 0xe1;
+export const APP2 = 0xe2;
+export const APP13_PHOTOSHOP = 0xed;
+export const APP14 = 0xee;
+export const COM = 0xfe;
 
 const JFIF_ID = 'JFIF\0';
 const EXIF_ID = 'Exif\0\0';

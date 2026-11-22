@@ -4,14 +4,14 @@
 // Differences: the result is a sparse patch (bounding box plus a touched mask) instead of a full
 // copy of the image, so memory stays proportional to the retouched area, and the export can tell
 // exactly which pixels changed.
-import { clamp, shapeBounds, shapesBounds } from './geometry';
+import { clamp, shapeBounds, shapesBounds, type PixelRect } from './geometry';
 import { maskBounds, rasterizePolygonPixels, rasterizeRectPixels, type Mask } from './mask';
-import { isAdded, type MosaicArea, type MosaicOp, type Shape } from './types';
+import { isAdded, type MosaicArea, type MosaicOp, type Rect, type Shape } from './types';
 
-/** The floor for the block size: smaller blocks would leave a face recognisable. */
+// Smaller blocks leave a face recognisable.
 export const MIN_BLOCK_SIZE = 8;
-/** At most this many blocks across the short side of any shape. */
-export const MAX_BLOCKS_ACROSS = 8;
+// A 40 px face at 8 px blocks is still recognisable, so small shapes get bigger blocks.
+export const MAX_BLOCKS_ACROSS_SHORT_SIDE = 8;
 
 function validateBlockSizeRel(blockSizeRel: number): void {
   if (!Number.isFinite(blockSizeRel) || blockSizeRel <= 0) {
@@ -22,10 +22,7 @@ function validateBlockSizeRel(blockSizeRel: number): void {
 const requestedBlockSize = (rel: number, width: number, height: number): number =>
   Math.max(MIN_BLOCK_SIZE, Math.round(rel * Math.max(width, height)));
 
-/**
- * Block size for one shape: the requested one, never below 8 px, enlarged so the shape spans at
- * most 8 blocks across its short side (a 40 px face with 8 px blocks is still recognisable).
- */
+/** The block edge in image pixels. `width` and `height` are the image's, the shape is 0..1. */
 export function blockSizeForShape(
   shape: Shape,
   blockSizeRel: number,
@@ -36,17 +33,17 @@ export function blockSizeForShape(
   const requested = requestedBlockSize(blockSizeRel, width, height);
   const bounds = shapeBounds(shape);
   if (bounds.w <= 0 || bounds.h <= 0) return requested;
-  const shortSide = Math.min(bounds.w * width, bounds.h * height);
-  return Math.max(requested, Math.ceil(shortSide / MAX_BLOCKS_ACROSS), 1);
+  const shortSidePx = Math.min(bounds.w * width, bounds.h * height);
+  const coarsestForShape = Math.ceil(shortSidePx / MAX_BLOCKS_ACROSS_SHORT_SIDE);
+  return Math.max(requested, coarsestForShape, 1);
 }
 
-/** The mosaicked pixels: an RGBA patch at (x, y), and which of its pixels the mosaic covers. */
 export interface MosaicPatch {
   x: number;
   y: number;
   width: number;
   height: number;
-  /** RGBA, `width * height * 4`; only pixels with `touched = 1` are mosaic. */
+  /** `width * height * 4` bytes; only pixels with `touched = 1` are mosaic. */
   rgba: Uint8Array;
   touched: Mask;
 }
@@ -73,6 +70,18 @@ function readAverage(
   const pixels = (x1 - x0) * (y1 - y0);
   return [Math.round(r / pixels), Math.round(g / pixels), Math.round(b / pixels)];
 }
+
+function pixelRegion(bounds: Rect, width: number, height: number): PixelRect | undefined {
+  const x0 = clamp(Math.floor(bounds.x * width), 0, width);
+  const y0 = clamp(Math.floor(bounds.y * height), 0, height);
+  const x1 = clamp(Math.ceil((bounds.x + bounds.w) * width), 0, width);
+  const y1 = clamp(Math.ceil((bounds.y + bounds.h) * height), 0, height);
+  if (x1 <= x0 || y1 <= y0) return undefined;
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+const alignDownToGrid = (value: number, blockSize: number): number =>
+  Math.floor(value / blockSize) * blockSize;
 
 function paintShape(
   mask: Mask,
@@ -114,10 +123,24 @@ interface Ordered {
   blockSize: number;
 }
 
-/**
- * Mosaic one block-size class into the patch. Every enabled area is walked in render order: this
- * class's adds set pixels, any subtract clears them, so a later add covers a subtracted area again.
- */
+function maskInRenderOrder(
+  region: PixelRect,
+  width: number,
+  height: number,
+  ordered: readonly Ordered[],
+  blockSize: number,
+): Mask {
+  const mask: Mask = new Uint8Array(region.w * region.h);
+  for (const { area, blockSize: size } of ordered) {
+    if (!isAdded(area)) {
+      paintShape(mask, region.w, region.h, region.x, region.y, area.shape, width, height, true);
+    } else if (size === blockSize) {
+      paintShape(mask, region.w, region.h, region.x, region.y, area.shape, width, height, false);
+    }
+  }
+  return mask;
+}
+
 function mosaicClass(
   source: Uint8Array,
   patch: MosaicPatch,
@@ -129,49 +152,26 @@ function mosaicClass(
   const own = ordered.filter((e) => isAdded(e.area) && e.blockSize === blockSize);
   const bounds = shapesBounds(own.map((e) => e.area.shape));
   if (!bounds) return;
-  const imageX0 = clamp(Math.floor(bounds.x * width), 0, width);
-  const imageY0 = clamp(Math.floor(bounds.y * height), 0, height);
-  const imageX1 = clamp(Math.ceil((bounds.x + bounds.w) * width), 0, width);
-  const imageY1 = clamp(Math.ceil((bounds.y + bounds.h) * height), 0, height);
-  if (imageX1 <= imageX0 || imageY1 <= imageY0) return;
-
-  const localWidth = imageX1 - imageX0;
-  const localHeight = imageY1 - imageY0;
-  const mask: Mask = new Uint8Array(localWidth * localHeight);
-  for (const { area, blockSize: size } of ordered) {
-    if (isAdded(area)) {
-      if (size === blockSize) {
-        paintShape(
-          mask,
-          localWidth,
-          localHeight,
-          imageX0,
-          imageY0,
-          area.shape,
-          width,
-          height,
-          false,
-        );
-      }
-    } else {
-      paintShape(mask, localWidth, localHeight, imageX0, imageY0, area.shape, width, height, true);
-    }
-  }
-  const masked = maskBounds(mask, localWidth, localHeight);
+  const classArea = pixelRegion(bounds, width, height);
+  if (!classArea) return;
+  const mask = maskInRenderOrder(classArea, width, height, ordered, blockSize);
+  const masked = maskBounds(mask, classArea.w, classArea.h);
   if (!masked) return;
-  const regionX0 = imageX0 + masked.x;
-  const regionY0 = imageY0 + masked.y;
-  const regionX1 = regionX0 + masked.w;
-  const regionY1 = regionY0 + masked.h;
+  const selectedX0 = classArea.x + masked.x;
+  const selectedY0 = classArea.y + masked.y;
+  const selectedX1 = selectedX0 + masked.w;
+  const selectedY1 = selectedY0 + masked.h;
+  const areaX1 = classArea.x + classArea.w;
+  const areaY1 = classArea.y + classArea.h;
 
   for (
-    let blockY = Math.floor(regionY0 / blockSize) * blockSize;
-    blockY < regionY1;
+    let blockY = alignDownToGrid(selectedY0, blockSize);
+    blockY < selectedY1;
     blockY += blockSize
   ) {
     for (
-      let blockX = Math.floor(regionX0 / blockSize) * blockSize;
-      blockX < regionX1;
+      let blockX = alignDownToGrid(selectedX0, blockSize);
+      blockX < selectedX1;
       blockX += blockSize
     ) {
       const x0 = Math.max(0, blockX);
@@ -179,16 +179,15 @@ function mosaicClass(
       const x1 = Math.min(width, blockX + blockSize);
       const y1 = Math.min(height, blockY + blockSize);
       if (x1 <= x0 || y1 <= y0) continue;
-      // The average covers the whole block, also outside the selection, so the original edge
-      // pixels cannot leak into the mosaic.
+      // Averaged over the whole block, also outside the selection, so no original edge pixels leak.
       const [r, g, b] = readAverage(source, width, x0, y0, x1, y1);
-      const writeX0 = Math.max(x0, imageX0);
-      const writeY0 = Math.max(y0, imageY0);
-      const writeX1 = Math.min(x1, imageX1);
-      const writeY1 = Math.min(y1, imageY1);
+      const writeX0 = Math.max(x0, classArea.x);
+      const writeY0 = Math.max(y0, classArea.y);
+      const writeX1 = Math.min(x1, areaX1);
+      const writeY1 = Math.min(y1, areaY1);
       if (writeX1 <= writeX0 || writeY1 <= writeY0) continue;
       for (let y = writeY0; y < writeY1; y++) {
-        const maskRow = (y - imageY0) * localWidth - imageX0;
+        const maskRow = (y - classArea.y) * classArea.w - classArea.x;
         let index = ((y - patch.y) * patch.width + (writeX0 - patch.x)) * 4;
         let touchedIndex = (y - patch.y) * patch.width + (writeX0 - patch.x);
         for (let x = writeX0; x < writeX1; x++, index += 4, touchedIndex++) {
@@ -204,13 +203,7 @@ function mosaicClass(
   }
 }
 
-/**
- * Pixelate the op's areas of `rgba` (read only) into a patch, or undefined when nothing is covered.
- *
- * Blocks are aligned to the image grid, so previews and exports have the same layout. Each shape
- * gets its own block size, and shapes with the same size share one grid. Size classes run smallest
- * first; where they overlap the coarser one wins.
- */
+/** Reads `rgba` without changing it. Undefined when no area covers any pixel. */
 export function renderMosaic(
   rgba: Uint8Array,
   width: number,
@@ -234,20 +227,18 @@ export function renderMosaic(
     }));
   const bounds = shapesBounds(ordered.filter((e) => e.blockSize > 0).map((e) => e.area.shape));
   if (!bounds) return undefined;
-  const x0 = clamp(Math.floor(bounds.x * width), 0, width);
-  const y0 = clamp(Math.floor(bounds.y * height), 0, height);
-  const x1 = clamp(Math.ceil((bounds.x + bounds.w) * width), 0, width);
-  const y1 = clamp(Math.ceil((bounds.y + bounds.h) * height), 0, height);
-  if (x1 <= x0 || y1 <= y0) return undefined;
+  const region = pixelRegion(bounds, width, height);
+  if (!region) return undefined;
   const patch: MosaicPatch = {
-    x: x0,
-    y: y0,
-    width: x1 - x0,
-    height: y1 - y0,
-    rgba: new Uint8Array((x1 - x0) * (y1 - y0) * 4),
-    touched: new Uint8Array((x1 - x0) * (y1 - y0)),
+    x: region.x,
+    y: region.y,
+    width: region.w,
+    height: region.h,
+    rgba: new Uint8Array(region.w * region.h * 4),
+    touched: new Uint8Array(region.w * region.h),
   };
   const sizes = [...new Set(ordered.filter((e) => e.blockSize > 0).map((e) => e.blockSize))];
+  // Smallest first: where size classes overlap, the coarser block overwrites.
   for (const blockSize of sizes.sort((a, b) => a - b)) {
     mosaicClass(rgba, patch, width, height, ordered, blockSize);
   }

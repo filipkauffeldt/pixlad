@@ -651,7 +651,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           onClick={() => void actions.findAllFaces()}
           disabled={!photo || app.detecting}
           aria-label="Find all faces"
-          title="Find every face in this photo and add it to the mosaic (F)"
+          title="Find all faces in this photo (F)"
           data-testid="find-faces"
         >
           {app.detecting ? (

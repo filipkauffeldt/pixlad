@@ -1,8 +1,7 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { closeWithoutAsking, launch, type Launched } from './app';
+import { closeWithoutAsking, launch, tempDir, type Launched } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -12,7 +11,7 @@ afterEach(async () => {
 
 describe('the update check setting', () => {
   it('is on by default, and a change lasts across a restart', async () => {
-    const userData = await mkdtemp(join(tmpdir(), 'pixlad-userdata-'));
+    const userData = await tempDir('pixlad-userdata-');
 
     running = await launch({ userData });
     await running.page.click('[data-testid="settings"]');
@@ -43,7 +42,7 @@ describe('the update check setting', () => {
 
 describe('the after export setting', () => {
   it('asks by default, and a change lasts across a restart', async () => {
-    const userData = await mkdtemp(join(tmpdir(), 'pixlad-userdata-'));
+    const userData = await tempDir('pixlad-userdata-');
 
     running = await launch({ userData });
     await running.page.click('[data-testid="settings"]');
@@ -65,7 +64,7 @@ describe('the after export setting', () => {
   });
 
   it('is ask when the settings file has no such key', async () => {
-    const userData = await mkdtemp(join(tmpdir(), 'pixlad-userdata-'));
+    const userData = await tempDir('pixlad-userdata-');
     await writeFile(
       join(userData, 'settings.json'),
       JSON.stringify({ exportTarget: 'suffix', exportChosen: true, checkForUpdates: true }),
@@ -83,7 +82,7 @@ describe('the theme setting', () => {
     launched.page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
   it('follows the system by default, switches at once, and lasts across a restart', async () => {
-    const userData = await mkdtemp(join(tmpdir(), 'pixlad-userdata-'));
+    const userData = await tempDir('pixlad-userdata-');
 
     running = await launch({ userData });
     await running.page.click('[data-testid="settings"]');

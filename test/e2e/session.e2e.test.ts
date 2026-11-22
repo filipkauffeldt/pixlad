@@ -1,5 +1,4 @@
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import sharp from 'sharp';
@@ -20,6 +19,7 @@ import {
   pickTool,
   removeQuestion,
   stubCloseDialog,
+  tempDir,
   type Launched,
 } from './app';
 
@@ -39,7 +39,6 @@ afterEach(async () => {
   running = undefined;
 });
 
-const tmp = (prefix = 'pixlad-e2e-'): Promise<string> => mkdtemp(join(tmpdir(), prefix));
 const photoReady = (page: Page): Promise<unknown> =>
   page.waitForFunction(() => {
     const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
@@ -64,7 +63,7 @@ const photoFile = async (dir: string, name: string, w = 1600, h = 1200): Promise
 
 describe('opening', () => {
   it('refuses non-JPEG and CMYK files with messages that name them, and opens the rest', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const ok = await photoFile(dir, 'fine.jpg');
     const png = join(dir, 'logo.png');
     await writeFile(
@@ -94,7 +93,7 @@ describe('opening', () => {
   });
 
   it('shows the empty drop state, then a strip of photos that the arrow keys step through', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const files = [
       await photoFile(dir, 'a.jpg'),
       await photoFile(dir, 'b.jpg'),
@@ -118,7 +117,7 @@ describe('opening', () => {
   });
 
   it('takes hundreds of photos from a folder drop and keeps the window responsive', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const folder = join(dir, 'big');
     await mkdir(folder);
     const jpeg = await encodeJpeg(syntheticPhoto(96, 64));
@@ -139,7 +138,7 @@ describe('opening', () => {
   });
 
   it('says when dropped photos were already in the session', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const a = await photoFile(dir, 'a.jpg');
     const b = await photoFile(dir, 'b.jpg');
     running = await launch();
@@ -156,7 +155,7 @@ describe('opening', () => {
   });
 
   it('asks before a photo with unexported areas leaves the session', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const file = await photoFile(dir, 'work.jpg');
     running = await launch();
     const { page } = running;
@@ -194,7 +193,7 @@ describe('opening', () => {
   });
 
   it('shows the thumbnail remove button on keyboard focus and removes with it', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     await photoFile(dir, 'a.jpg');
     await photoFile(dir, 'b.jpg');
     running = await launch();
@@ -218,7 +217,7 @@ describe('opening', () => {
   });
 
   it('removes a photo from the session only: the file stays', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const a = await photoFile(dir, 'a.jpg');
     await photoFile(dir, 'b.jpg');
     running = await launch();
@@ -236,7 +235,7 @@ describe('opening', () => {
 
 describe('face padding', () => {
   it('starts the next photo with the padding set on the last one', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const a = await photoFile(dir, 'a.jpg');
     const b = await photoFile(dir, 'b.jpg');
     const c = await photoFile(dir, 'c.jpg');
@@ -260,7 +259,7 @@ describe('face padding', () => {
 
 describe('the strip', () => {
   it('scrolls sideways with a plain vertical wheel, and horizontal still works', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const files: string[] = [];
     for (let i = 0; i < 40; i++) files.push(await photoFile(dir, `w${i}.jpg`, 400, 300));
     running = await launch();
@@ -287,7 +286,7 @@ describe('the strip', () => {
 
 describe('zoom and pan', () => {
   it('toggles Fit and 100% on Z, returns to Fit on Ctrl+0, snaps 100% to the device pixel grid, zooms with Ctrl, and pans', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const file = await photoFile(dir, 'z.jpg', 2400, 1600);
     running = await launch();
     const { page } = running;
@@ -350,7 +349,7 @@ describe('zoom and pan', () => {
 
 describe('the zoom chip', () => {
   it('shows away from Fit, names the shortcut, and goes back to Fit like Z', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const file = await photoFile(dir, 'readout.jpg', 2400, 1600);
     running = await launch();
     const { page } = running;
@@ -384,7 +383,7 @@ describe('the zoom chip', () => {
 
 describe('closing and exporting a batch', () => {
   it('asks once with the count when mosaics are not exported, and not after exporting', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const files = [
       await photoFile(dir, 'one.jpg'),
       await photoFile(dir, 'two.jpg'),
@@ -433,7 +432,7 @@ describe('closing and exporting a batch', () => {
 
   it('exports all with one failure: counts, names the failed file, and does not stop the rest', async () => {
     if (process.platform === 'win32' || process.getuid?.() === 0) return;
-    const dir = await tmp();
+    const dir = await tempDir();
     const locked = join(dir, 'locked');
     await mkdir(locked);
     const good = await photoFile(dir, 'good.jpg');
@@ -483,7 +482,7 @@ describe('closing and exporting a batch', () => {
   });
 
   it('shows progress while a batch exports, and Cancel lets the photo being written finish, then stops', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const files = [
       await photoFile(dir, 'one.jpg'),
       await photoFile(dir, 'two.jpg'),
@@ -542,7 +541,7 @@ describe('closing and exporting a batch', () => {
   });
 
   it('can keep working while a batch exports: edits after a photo started do not change that export', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const file = await photoFile(dir, 'busy.jpg');
     running = await launch();
     const { page } = running;
@@ -572,7 +571,7 @@ describe('after an export', () => {
   };
 
   it('asks about a single photo: Remove takes it out of the session, the files stay', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     running = await launch();
     const { page } = running;
     await exportOne(page, 'single.jpg', dir);
@@ -584,7 +583,7 @@ describe('after an export', () => {
   });
 
   it('asks about a single photo: Keep leaves it in the session', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     running = await launch();
     const { page } = running;
     await exportOne(page, 'kept.jpg', dir);
@@ -597,8 +596,8 @@ describe('after an export', () => {
   });
 
   it("Don't ask again saves the answer given, so the next export does not ask", async () => {
-    const dir = await tmp();
-    const userData = await tmp('pixlad-userdata-');
+    const dir = await tempDir();
+    const userData = await tempDir('pixlad-userdata-');
     running = await launch({ userData });
     const { page } = running;
     await exportOne(page, 'first.jpg', dir);
@@ -629,8 +628,8 @@ describe('after an export', () => {
   });
 
   it("Escape keeps the photo for this export and does not save Don't ask again", async () => {
-    const dir = await tmp();
-    const userData = await tmp('pixlad-userdata-');
+    const dir = await tempDir();
+    const userData = await tempDir('pixlad-userdata-');
     running = await launch({ userData });
     const { page } = running;
     await exportOne(page, 'escape-ticked.jpg', dir);
@@ -652,8 +651,8 @@ describe('after an export', () => {
   });
 
   it('keeps the photo without asking when the setting is keep', async () => {
-    const dir = await tmp();
-    const userData = await tmp('pixlad-userdata-');
+    const dir = await tempDir();
+    const userData = await tempDir('pixlad-userdata-');
     await writeFile(
       join(userData, 'settings.json'),
       JSON.stringify({ exportTarget: 'suffix', exportChosen: true, afterExport: 'keep' }),
@@ -668,8 +667,8 @@ describe('after an export', () => {
   });
 
   it('Don’t ask again does not save anything when it is not ticked', async () => {
-    const dir = await tmp();
-    const userData = await tmp('pixlad-userdata-');
+    const dir = await tempDir();
+    const userData = await tempDir('pixlad-userdata-');
     running = await launch({ userData });
     const { page } = running;
     await exportOne(page, 'plain.jpg', dir);
@@ -682,7 +681,7 @@ describe('after an export', () => {
   });
 
   it('Escape keeps the photo, and Delete does not remove anything while the question is open', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     running = await launch();
     const { page } = running;
     await exportOne(page, 'escaped.jpg', dir);
@@ -695,8 +694,8 @@ describe('after an export', () => {
   });
 
   it('Show in folder reveals the exported file, and only appears once there is one', async () => {
-    const dir = await tmp();
-    const userData = await tmp('pixlad-userdata-');
+    const dir = await tempDir();
+    const userData = await tempDir('pixlad-userdata-');
     await writeFile(
       join(userData, 'settings.json'),
       JSON.stringify({ exportTarget: 'suffix', exportChosen: true, afterExport: 'keep' }),
@@ -727,7 +726,7 @@ describe('after an export', () => {
   });
 
   it('does not offer to remove a photo edited while it was exporting', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     running = await launch();
     const { page } = running;
     await exportOne(page, 'edited.jpg', dir);
@@ -745,8 +744,8 @@ describe('after an export', () => {
 
 describe('overwriting the original', () => {
   it('replaces the file, clears the areas, shows the file again and remembers the choice', async () => {
-    const dir = await tmp();
-    const userData = await tmp('pixlad-userdata-');
+    const dir = await tempDir();
+    const userData = await tempDir('pixlad-userdata-');
     const file = await photoFile(dir, 'over.jpg');
     const before = await readFile(file);
 
@@ -794,9 +793,9 @@ describe('the window', () => {
 
 describe('nothing survives the session', () => {
   it('starts empty after a restart and writes nothing outside the exported _edit files', async () => {
-    const dir = await tmp();
-    const tmpDir = await tmp('pixlad-apptmp-');
-    const userData = await tmp('pixlad-userdata-');
+    const dir = await tempDir();
+    const tmpDir = await tempDir('pixlad-apptmp-');
+    const userData = await tempDir('pixlad-userdata-');
     const marker = 'session-marker-4f7a91';
     const file = await photoFile(dir, `${marker}.jpg`);
     const sourceBytes = await readFile(file);
@@ -844,7 +843,7 @@ describe('nothing survives the session', () => {
 
 describe('colour on screen', () => {
   it('shows the mosaic preview in the same colour as the Adobe RGB photo under it', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const width = 1200;
     const height = 800;
     const data = Buffer.alloc(width * height * 3);

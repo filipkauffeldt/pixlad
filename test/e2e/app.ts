@@ -110,6 +110,9 @@ export async function stubCloseDialog(app: ElectronApplication, response: 0 | 1)
   }, response);
 }
 
+/** A fresh temporary folder. */
+export const tempDir = (prefix = 'pixlad-e2e-'): Promise<string> => mkdtemp(join(tmpdir(), prefix));
+
 export const dialogMessages = (app: ElectronApplication): Promise<string[]> =>
   app.evaluate(() => (globalThis as { __dialogs?: DialogStubs }).__dialogs!.closeAsked);
 

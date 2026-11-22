@@ -1,11 +1,10 @@
 import { existsSync } from 'node:fs';
-import { copyFile, mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { copyFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { closeWithoutAsking, dropFiles, launch, pickTool, type Launched } from './app';
+import { closeWithoutAsking, dropFiles, launch, pickTool, tempDir, type Launched } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -14,7 +13,7 @@ afterEach(async () => {
 });
 
 async function writePhoto(name: string): Promise<string> {
-  const file = join(await mkdtemp(join(tmpdir(), 'pixlad-e2e-')), name);
+  const file = join(await tempDir(), name);
   await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
   return file;
 }
@@ -164,7 +163,7 @@ describe('finding all faces', () => {
 
   it('finds the faces from the button and from F, and F types in a field', async (ctx) => {
     if (!existsSync(crew)) return ctx.skip(); // fetched by `pnpm fetch-fixtures`
-    const file = join(await mkdtemp(join(tmpdir(), 'pixlad-e2e-')), 'crew.jpg');
+    const file = join(await tempDir(), 'crew.jpg');
     await copyFile(crew, file);
     const page = await openPhoto(file);
     expect(await button(page, 'Find all faces').isEnabled()).toBe(true);

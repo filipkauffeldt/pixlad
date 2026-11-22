@@ -1,18 +1,15 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { closeWithoutAsking, dropFiles, launch, pickTool, type Launched } from './app';
+import { closeWithoutAsking, dropFiles, launch, pickTool, tempDir, type Launched } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
   await closeWithoutAsking(running);
   running = undefined;
 });
-
-const tmp = (): Promise<string> => mkdtemp(join(tmpdir(), 'pixlad-e2e-'));
 
 async function openPhoto(page: Page, dir: string): Promise<void> {
   const file = join(dir, 'p.jpg');
@@ -28,7 +25,7 @@ const photoBox = async (page: Page) => (await page.locator('[data-testid="photo"
 
 describe('notices over the stage', () => {
   it('never move the photo when they appear or are dismissed, and let pointers through', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     running = await launch();
     const { page } = running;
     await openPhoto(page, dir);
@@ -98,7 +95,7 @@ describe('detection feedback', () => {
   it('keeps the dragged rectangle with the label beside it while it looks', async () => {
     running = await launch();
     const { page, app } = running;
-    await openPhoto(page, await tmp());
+    await openPhoto(page, await tempDir());
     await stubDetect(app, 'hang');
     await drag(page, [
       [0.2, 0.3],
@@ -121,7 +118,7 @@ describe('detection feedback', () => {
   it('keeps a lasso as drawn while it looks', async () => {
     running = await launch();
     const { page, app } = running;
-    await openPhoto(page, await tmp());
+    await openPhoto(page, await tempDir());
     await stubDetect(app, 'hang');
     await page.keyboard.down('Alt');
     await drag(page, [
@@ -139,7 +136,7 @@ describe('detection feedback', () => {
   it('says "No faces found" at the region for a moment, with no notice', async () => {
     running = await launch();
     const { page, app } = running;
-    await openPhoto(page, await tmp());
+    await openPhoto(page, await tempDir());
     await stubDetect(app, 'none');
     await drag(page, [
       [0.2, 0.3],
@@ -160,7 +157,7 @@ describe('detection feedback', () => {
   it('keeps the error notice when the detector fails, and drops the region', async () => {
     running = await launch();
     const { page, app } = running;
-    await openPhoto(page, await tmp());
+    await openPhoto(page, await tempDir());
     await stubDetect(app, 'fail');
     await drag(page, [
       [0.2, 0.3],
@@ -178,7 +175,7 @@ describe('holding B to peek at the original', () => {
   async function withMosaic(): Promise<Page> {
     running = await launch();
     const { page } = running;
-    await openPhoto(page, await tmp());
+    await openPhoto(page, await tempDir());
     await pickTool(page, 'rect');
     await drag(page, [
       [0.2, 0.3],
@@ -235,7 +232,7 @@ describe('the shortcuts sheet', () => {
   async function twoPhotos(): Promise<Page> {
     running = await launch();
     const { page } = running;
-    const dir = await tmp();
+    const dir = await tempDir();
     const files = [join(dir, 'a.jpg'), join(dir, 'b.jpg')];
     for (const file of files) await writeFile(file, await encodeJpeg(syntheticPhoto(800, 600)));
     await dropFiles(page, files);
@@ -303,7 +300,7 @@ describe('the remove question and the notices', () => {
   it('covers a notice, and Delete on a photo with unexported areas asks first', async () => {
     running = await launch();
     const { page } = running;
-    const dir = await tmp();
+    const dir = await tempDir();
     await openPhoto(page, dir);
     await pickTool(page, 'rect');
     await drag(page, [

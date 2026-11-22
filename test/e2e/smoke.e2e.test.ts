@@ -1,12 +1,11 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { dropFiles, launch } from './app';
+import { dropFiles, launch, tempDir } from './app';
 
 it('starts empty, opens a dropped photo and shows it', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'pixlad-smoke-'));
+  const dir = await tempDir('pixlad-smoke-');
   const file = join(dir, 'one.jpg');
   await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
   const { app, page } = await launch();

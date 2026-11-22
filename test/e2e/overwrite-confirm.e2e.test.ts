@@ -1,6 +1,5 @@
 import type { Page } from '@playwright/test';
-import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
@@ -10,6 +9,7 @@ import {
   dropFiles,
   launch,
   pickTool,
+  tempDir,
   type Launched,
 } from './app';
 
@@ -19,7 +19,6 @@ afterEach(async () => {
   running = undefined;
 });
 
-const tmp = (): Promise<string> => mkdtemp(join(tmpdir(), 'pixlad-e2e-'));
 const dialog = '[data-testid="overwrite-confirm"]';
 
 async function photo(dir: string, name: string): Promise<string> {
@@ -30,7 +29,7 @@ async function photo(dir: string, name: string): Promise<string> {
 
 /** A user data folder of someone who chose Replace original earlier. */
 async function replacingUser(): Promise<string> {
-  const userData = await tmp();
+  const userData = await tempDir();
   await writeFile(
     join(userData, 'settings.json'),
     JSON.stringify({ exportTarget: 'overwrite', exportChosen: true }),
@@ -50,7 +49,7 @@ async function drawRect(page: Page): Promise<void> {
 
 describe('confirming Replace original', () => {
   it('leaves the file alone on Cancel, with the focus on Cancel, and writes on Replace', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const file = await photo(dir, 'one.jpg');
     const before = await readFile(file);
     running = await launch({ userData: await replacingUser() });
@@ -79,7 +78,7 @@ describe('confirming Replace original', () => {
   });
 
   it('asks from Export all with the number of photos', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const one = await photo(dir, 'one.jpg');
     const two = await photo(dir, 'two.jpg');
     running = await launch({ userData: await replacingUser() });
@@ -103,7 +102,7 @@ describe('confirming Replace original', () => {
   });
 
   it('does not ask again this session when ticked, but asks again after a restart', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const userData = await replacingUser();
     const one = await photo(dir, 'one.jpg');
     const two = await photo(dir, 'two.jpg');

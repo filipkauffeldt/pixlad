@@ -1,6 +1,5 @@
 import type { Page } from '@playwright/test';
-import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
@@ -10,6 +9,7 @@ import {
   dropFiles,
   launch,
   pickTool,
+  tempDir,
   type Launched,
 } from './app';
 
@@ -18,8 +18,6 @@ afterEach(async () => {
   await closeWithoutAsking(running);
   running = undefined;
 });
-
-const tmp = (): Promise<string> => mkdtemp(join(tmpdir(), 'pixlad-e2e-'));
 
 async function photo(dir: string, name: string): Promise<string> {
   const path = join(dir, name);
@@ -46,9 +44,9 @@ async function result(page: Page): Promise<string> {
 
 describe('the first export', () => {
   it('asks how to save, shows the file name, and remembers the choice', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const file = await photo(dir, '_DSC1234.JPG');
-    const userData = await tmp();
+    const userData = await tempDir();
     running = await launch({ userData, firstRun: true });
     let { page } = running;
     await dropFiles(page, [file]);
@@ -107,7 +105,7 @@ describe('the first export', () => {
   });
 
   it('asks from Export all with the number of photos, and shows the next free name', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const one = await photo(dir, 'one.jpg');
     const two = await photo(dir, 'two.jpg');
     await writeFile(join(dir, 'one_edit.jpg'), 'an earlier export');

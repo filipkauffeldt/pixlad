@@ -1,11 +1,10 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { launch, type Launched } from './app';
+import { launch, tempDir, type Launched } from './app';
 
 let running: Launched | undefined;
 let server: Server;
@@ -193,7 +192,7 @@ describe.each(['darwin', 'linux'] as const)('updates, as seen on %s', (platform)
   });
 
   it('shows a newer version in About with an Update button', async () => {
-    const userData = await mkdtemp(join(tmpdir(), 'pixlad-userdata-'));
+    const userData = await tempDir('pixlad-userdata-');
     await writeFile(join(userData, 'settings.json'), '{"checkForUpdates":false}');
     const { page } = await start(platform, { userData });
     await settle();

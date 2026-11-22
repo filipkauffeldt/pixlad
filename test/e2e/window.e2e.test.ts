@@ -1,8 +1,7 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { closeWithoutAsking, launch, type Launched } from './app';
+import { closeWithoutAsking, launch, tempDir, type Launched } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -12,7 +11,7 @@ afterEach(async () => {
 
 describe('the window', () => {
   it('opens where it was left, and saves where it is left', async () => {
-    const userData = await mkdtemp(join(tmpdir(), 'pixlad-userdata-'));
+    const userData = await tempDir('pixlad-userdata-');
     const saved = { x: 60, y: 50, width: 1100, height: 720, maximized: false };
     await writeFile(
       join(userData, 'settings.json'),

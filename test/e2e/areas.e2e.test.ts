@@ -1,10 +1,9 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { closeWithoutAsking, dropFiles, launch, pickTool, type Launched } from './app';
+import { closeWithoutAsking, dropFiles, launch, pickTool, tempDir, type Launched } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -33,7 +32,7 @@ async function drawRect(page: Page, from: [number, number], to: [number, number]
 
 /** One photo open with two rectangles: A at x 0.1–0.3 and B at x 0.5–0.7, B drawn last. */
 async function openWithTwoAreas(firstRun = false): Promise<Page> {
-  const dir = await mkdtemp(join(tmpdir(), 'pixlad-e2e-'));
+  const dir = await tempDir();
   const file = join(dir, 'p.jpg');
   await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
   running = await launch({ firstRun });

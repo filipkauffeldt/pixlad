@@ -1,12 +1,11 @@
 // Takes the README screenshots with generated photos. Skipped unless SCREENSHOT_DIR is set:
 //   SCREENSHOT_DIR=/abs/folder xvfb-run -a pnpm vitest run --config vitest.e2e.config.ts test/e2e/screenshots.e2e.test.ts
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, expect, it } from 'vitest';
 import { encodeJpeg, type Rgb } from '../helpers/fixtures';
-import { closeWithoutAsking, dropFiles, launch, type Launched, pickTool } from './app';
+import { closeWithoutAsking, dropFiles, launch, pickTool, tempDir, type Launched } from './app';
 
 const out = process.env['SCREENSHOT_DIR'];
 let running: Launched | undefined;
@@ -85,7 +84,7 @@ it.skipIf(!out)(
   'takes the screenshots',
   async () => {
     await mkdir(out!, { recursive: true });
-    const dir = await mkdtemp(join(tmpdir(), 'pixlad-shots-'));
+    const dir = await tempDir('pixlad-shots-');
     const files: string[] = [];
     for (let i = 0; i < 5; i++) {
       const path = join(dir, `DSC_${String(1200 + i * 3)}.JPG`);

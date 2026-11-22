@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs';
-import { copyFile, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { copyFile, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -11,6 +10,7 @@ import {
   dropFiles,
   launch,
   pickTool,
+  tempDir,
   type Launched,
 } from './app';
 
@@ -19,8 +19,6 @@ afterEach(async () => {
   await closeWithoutAsking(running);
   running = undefined;
 });
-
-const tmp = (): Promise<string> => mkdtemp(join(tmpdir(), 'pixlad-e2e-'));
 
 async function photoBox(page: Page): Promise<{ x: number; y: number; w: number; h: number }> {
   const box = await page.locator('[data-testid="photo"]').boundingBox();
@@ -59,7 +57,7 @@ const areas = (page: Page): Promise<number> => page.locator('[data-testid="area"
 
 describe('drawing with the real mouse', () => {
   it('starts a drag in the margin around the picture', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const file = join(dir, 'p.jpg');
     await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
     running = await launch();
@@ -76,7 +74,7 @@ describe('drawing with the real mouse', () => {
   });
 
   it('puts a rectangle under the pointer, clips from the margin, toggles, undoes', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const file = join(dir, 'p.jpg');
     await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
     running = await launch();
@@ -137,7 +135,7 @@ describe('drawing with the real mouse', () => {
   });
 
   it('flips the outline with Alt and add or subtract with Ctrl while a drag starts', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const file = join(dir, 'p.jpg');
     await writeFile(file, await encodeJpeg(syntheticPhoto(1600, 1200)));
     running = await launch();
@@ -173,7 +171,7 @@ describe('drawing with the real mouse', () => {
   });
 
   it('finds faces, subtract removes them, and a click toggles one', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const source = resolve(import.meta.dirname, '../../fixtures/apollo11_crew.jpg');
     if (!existsSync(source)) return; // fetched by `pnpm fetch-fixtures`
     const file = join(dir, 'crew.jpg');
@@ -211,7 +209,7 @@ describe('drawing with the real mouse', () => {
   });
 
   it('exports next to the source as _edit and never touches the source', async () => {
-    const dir = await tmp();
+    const dir = await tempDir();
     const file = join(dir, '_DSC1234.JPG');
     const bytes = await encodeJpeg(syntheticPhoto(1600, 1200), { quality: 92 });
     await writeFile(file, bytes);

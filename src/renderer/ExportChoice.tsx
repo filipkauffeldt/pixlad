@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef, useState } from 'react';
 import type { ExportNames, ExportTarget } from '../shared/ipc';
+import { useModalKeys } from './modal';
 import { actions, hasMosaic, useApp } from './store';
 
 /**
@@ -29,33 +30,23 @@ export function ExportChoice({ anchor }: { anchor: 'export' | 'all' }) {
     window.api.exportNames(exampleId).then(setNames, () => setNames(undefined));
   }, [exampleId]);
 
-  // Capture phase: the app's shortcuts (Delete, Z, arrows, Ctrl+E) never see a key while this
-  // is open. Arrow keys still move between the options, because that is their default action.
-  const chosen = useRef(target);
-  useEffect(() => {
-    chosen.current = target;
-  }, [target]);
+  useModalKeys({
+    Escape: (event) => {
+      event.preventDefault();
+      actions.cancelExportChoice();
+    },
+    Enter: (event) => {
+      event.preventDefault();
+      void actions.chooseExportTarget(target);
+    },
+  });
   useEffect(() => {
     exportButton.current?.focus();
-    const onKeyDown = (event: KeyboardEvent): void => {
-      event.stopPropagation();
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        actions.cancelExportChoice();
-      } else if (event.key === 'Enter') {
-        event.preventDefault();
-        void actions.chooseExportTarget(chosen.current);
-      }
-    };
     const onPointerDown = (event: PointerEvent): void => {
       if (!root.current?.contains(event.target as Node)) actions.cancelExportChoice();
     };
-    window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown, true);
-      window.removeEventListener('pointerdown', onPointerDown);
-    };
+    return () => window.removeEventListener('pointerdown', onPointerDown);
   }, []);
 
   const many = count > 1;

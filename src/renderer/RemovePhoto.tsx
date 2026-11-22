@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-import { useModalKeys } from './modal';
+import { Scrim, useModalKeys } from './modal';
 import { actions } from './store';
 
 /** Ask before a photo with unexported areas leaves the session for good. */
@@ -8,7 +8,7 @@ export function RemovePhoto({ question }: { question: { id: string; name: string
   useModalKeys({ Escape: () => actions.answerRemovePhoto(false) });
 
   return (
-    <div className="modalScrim">
+    <Scrim>
       <div
         className="modal confirm"
         role="alertdialog"
@@ -43,6 +43,6 @@ export function RemovePhoto({ question }: { question: { id: string; name: string
           </button>
         </footer>
       </div>
-    </div>
+    </Scrim>
   );
 }

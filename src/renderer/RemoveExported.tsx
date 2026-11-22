@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useRef } from 'react';
-import { useModalKeys } from './modal';
+import { Scrim, useModalKeys } from './modal';
 import { actions } from './store';
 
 /** After an export: take the exported photos out of the session, or keep them? */
@@ -21,7 +21,7 @@ export function RemoveExported({
       ? `Remove ${question.name} from the session?`
       : `Remove ${question.count} exported photos from the session?`;
   return (
-    <div className="modalScrim">
+    <Scrim>
       <div
         className="modal confirm"
         role="alertdialog"
@@ -62,6 +62,6 @@ export function RemoveExported({
           </div>
         </footer>
       </div>
-    </div>
+    </Scrim>
   );
 }

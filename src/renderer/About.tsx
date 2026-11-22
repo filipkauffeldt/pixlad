@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import icon from '../../build/icon.svg';
 import { SOURCE_URL, type AboutInfo, type Notice } from '../shared/ipc';
 import { Icon } from './Icon';
-import { useModalKeys } from './modal';
+import { Scrim, useModalKeys } from './modal';
 import { UpdateStatus } from './UpdateStatus';
 import { actions, useApp, type AboutCheck } from './store';
 
@@ -139,12 +139,7 @@ export function About() {
   };
 
   return (
-    <div
-      className="modalScrim"
-      onPointerDown={(event) => {
-        if (event.target === event.currentTarget) actions.setAboutOpen(false);
-      }}
-    >
+    <Scrim onDismiss={() => actions.setAboutOpen(false)}>
       <div
         className={view === 'about' ? 'modal about' : 'modal about licencesView'}
         role="dialog"
@@ -248,6 +243,6 @@ export function About() {
           </div>
         )}
       </div>
-    </div>
+    </Scrim>
   );
 }

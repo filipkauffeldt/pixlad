@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { Icon } from './Icon';
-import { useModalKeys } from './modal';
+import { Scrim, useModalKeys } from './modal';
 import { actions, useApp } from './store';
 
 /** What changed in the update that was found. */
@@ -20,12 +20,7 @@ export function ReleaseNotes() {
         : undefined;
 
   return (
-    <div
-      className="modalScrim"
-      onPointerDown={(event) => {
-        if (event.target === event.currentTarget) actions.setNotesOpen(false);
-      }}
-    >
+    <Scrim onDismiss={() => actions.setNotesOpen(false)}>
       <div
         className="modal"
         role="dialog"
@@ -81,6 +76,6 @@ export function ReleaseNotes() {
           )}
         </footer>
       </div>
-    </div>
+    </Scrim>
   );
 }

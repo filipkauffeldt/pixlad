@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef, useState } from 'react';
-import { useModalKeys } from './modal';
+import { Scrim, useModalKeys } from './modal';
 import { actions, currentPhoto, hasMosaic, useApp } from './store';
 
 /** How many file names the dialog lists before it says "and N more". */
@@ -34,12 +34,7 @@ export function OverwriteConfirm({ anchor }: { anchor: 'export' | 'all' }) {
   });
 
   return (
-    <div
-      className="modalScrim"
-      onPointerDown={(event) => {
-        if (event.target === event.currentTarget) actions.cancelOverwrite();
-      }}
-    >
+    <Scrim onDismiss={() => actions.cancelOverwrite()}>
       <div
         className="modal confirm overwrite"
         role="alertdialog"
@@ -88,6 +83,6 @@ export function OverwriteConfirm({ anchor }: { anchor: 'export' | 'all' }) {
           </button>
         </div>
       </div>
-    </div>
+    </Scrim>
   );
 }

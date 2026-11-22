@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { Icon } from './Icon';
 import { SHORTCUTS } from './shortcut-list';
-import { useModalKeys } from './modal';
+import { Scrim, useModalKeys } from './modal';
 import { actions } from './store';
 
 /** Every keyboard shortcut, one list. Opened with ? or from Settings. */
@@ -21,12 +21,7 @@ export function Shortcuts() {
   useModalKeys({ Escape: () => actions.setShortcutsOpen(false) });
 
   return (
-    <div
-      className="modalScrim"
-      onPointerDown={(event) => {
-        if (event.target === event.currentTarget) actions.setShortcutsOpen(false);
-      }}
-    >
+    <Scrim onDismiss={() => actions.setShortcutsOpen(false)}>
       <div
         className="modal shortcuts"
         role="dialog"
@@ -74,6 +69,6 @@ export function Shortcuts() {
           ))}
         </div>
       </div>
-    </div>
+    </Scrim>
   );
 }

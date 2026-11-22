@@ -163,7 +163,7 @@ export function Strip() {
                   type="button"
                   className="remove"
                   aria-label={`Remove ${photo.info.name} from the session`}
-                  title="Remove from the session. The file stays on disk."
+                  title="Remove from session"
                   data-testid="remove"
                   data-name={photo.info.name}
                   onClick={() => actions.remove(photo.info.id)}

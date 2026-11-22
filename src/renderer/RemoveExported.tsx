@@ -4,7 +4,6 @@ import { useRef } from 'react';
 import { Scrim, useModalKeys } from './modal';
 import { actions } from './store';
 
-/** After an export: take the exported photos out of the session, or keep them? */
 export function RemoveExported({
   question,
 }: {
@@ -13,8 +12,8 @@ export function RemoveExported({
   const dontAsk = useRef<HTMLInputElement>(null);
   const answer = (remove: boolean): void => actions.answerRemove(remove, dontAsk.current?.checked);
 
-  // Escape keeps the photos for this export only; the checkbox is for the buttons.
-  useModalKeys({ Escape: () => actions.answerRemove(false) });
+  const keepForThisExport = (): void => actions.answerRemove(false);
+  useModalKeys({ Escape: keepForThisExport });
 
   const title =
     question.count === 1 && question.name

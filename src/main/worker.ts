@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-// One worker script, three instances (current photo, thumbnails, exporter), so decoding and
-// encoding never block the window.
 import { readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
@@ -39,12 +37,10 @@ export type WorkerReply =
 
 const modelPath = (workerData as { modelPath: string }).modelPath;
 
-/**
- * The region grown by 8% of the long edge on every side, inside the photo, so a face the
- * selection cuts through is detected whole.
- */
+const DETECTION_MARGIN = 0.08;
+
 function withMargin(region: Rect, width: number, height: number): Rect {
-  const margin = 0.08 * Math.max(width, height);
+  const margin = DETECTION_MARGIN * Math.max(width, height);
   const x0 = Math.max(0, region.x - margin / width);
   const y0 = Math.max(0, region.y - margin / height);
   const x1 = Math.min(1, region.x + region.w + margin / width);
@@ -52,7 +48,6 @@ function withMargin(region: Rect, width: number, height: number): Rect {
   return { type: 'rect', x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
-/** The faces whose centre lies in `region`: a face mostly outside the selection stays out. */
 function centredIn(faces: FaceDetection[], region: Rect): FaceDetection[] {
   return faces.filter((f) => {
     const cx = f.box.x + f.box.w / 2;
@@ -63,7 +58,6 @@ function centredIn(faces: FaceDetection[], region: Rect): FaceDetection[] {
   });
 }
 
-/** People found in pixels as normalized detections, kept inside the photo. */
 function toDetections(people: Person[], photo: { width: number; height: number }): FaceDetection[] {
   const { width: W, height: H } = photo;
   const norm = (r: { x: number; y: number; w: number; h: number }): Rect => ({
@@ -94,10 +88,7 @@ function toDetections(people: Person[], photo: { width: number; height: number }
   });
 }
 
-/**
- * Outlines for faces already found, normalized. Per face: the outline, null to drop the face (a
- * balaclava with nothing showing, a tattoo), or undefined to keep its oval.
- */
+// Per face: the outline, null to drop the face (a balaclava, a tattoo), undefined to keep its oval.
 async function traceFaces(
   photo: { rgba: Uint8Array; width: number; height: number },
   faces: TraceFace[],
@@ -115,7 +106,6 @@ async function traceFaces(
   return outlines.map((o) => (o ? o.map((p) => ({ x: p.x / W, y: p.y / H })) : o));
 }
 
-/** The only decoded photo: upright RGBA plus the profile its preview patches carry. */
 let current:
   { width: number; height: number; rgba: Uint8Array; icc: Buffer | undefined } | undefined;
 
@@ -138,8 +128,7 @@ async function handle(request: WorkerRequest): Promise<unknown> {
       if (!current) throw new Error('no photo is open');
       const patch = renderMosaic(current.rgba, current.width, current.height, request.op);
       if (!patch) return null;
-      const rgba = patch.rgba; // alpha is 255 on covered pixels and 0 elsewhere
-      const png = encodePng(rgba, patch.width, patch.height, current.icc);
+      const png = encodePng(patch.rgba, patch.width, patch.height, current.icc);
       return { x: patch.x, y: patch.y, width: patch.width, height: patch.height, png };
     }
     case 'detect': {

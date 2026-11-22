@@ -12,22 +12,16 @@ export interface Launched {
   userData: string;
 }
 
-/**
- * Start the built app, or the packaged one when `executablePath` is given. Chromium's own files
- * (cache, GPU) go to a throw-away user-data folder.
- */
 export async function launch(
   options: {
     userData?: string;
     env?: Record<string, string>;
     executablePath?: string;
-    /** Start like a new install, so the first export asks how to save. */
     firstRun?: boolean;
   } = {},
 ): Promise<Launched> {
   const userData = options.userData ?? (await mkdtemp(join(tmpdir(), 'pixlad-userdata-')));
-  // Most tests act as a user who already chose how to save. A settings file that is already
-  // there, from an earlier launch of the same test, is left as it is.
+  // Most tests act as a user who already chose how to save.
   const settings = join(userData, 'settings.json');
   const exists = await access(settings).then(
     () => true,
@@ -39,15 +33,13 @@ export async function launch(
   const app = await electron.launch({
     executablePath: options.executablePath,
     args: [
-      // The project folder, as `electron .` and `pnpm start` run it, so app.getVersion() finds
-      // package.json. The folder's "main" is out/main/index.js.
+      // The project folder, so app.getVersion() finds package.json.
       ...(options.executablePath ? [] : [root]),
       `--user-data-dir=${userData}`,
       ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
     ],
     env: { ...process.env, ...options.env } as Record<string, string>,
-    // Playwright pretends the system is light unless told not to, which would hide the theme
-    // setting: the app sets light or dark through nativeTheme, and the page follows that.
+    // Playwright would force a light system theme and hide the theme setting.
     colorScheme: null,
   });
   const page = await app.firstWindow();
@@ -57,20 +49,17 @@ export async function launch(
   return { app, page, userData };
 }
 
-/** Open About from Settings. */
 export async function openAbout(page: Page): Promise<void> {
   await page.click('[data-testid="settings"]');
   await page.click('[data-testid="open-about"]');
   await page.locator('[data-testid="about"]').waitFor();
 }
 
-/** Choose what a drag does: faces, or a drawn area as a rectangle or a lasso. */
 export async function pickTool(page: Page, tool: 'faces' | 'rect' | 'lasso'): Promise<void> {
   await page.click(`[data-target="${tool === 'faces' ? 'faces' : 'area'}"]`);
   await page.click(`[data-outline="${tool === 'lasso' ? 'lasso' : 'rect'}"]`);
 }
 
-/** The on-screen box of the open photo. */
 export async function photoBox(
   page: Page,
 ): Promise<{ x: number; y: number; w: number; h: number }> {
@@ -79,15 +68,12 @@ export async function photoBox(
   return { x: box.x, y: box.y, w: box.width, h: box.height };
 }
 
-/** How many areas the open photo has. */
 export const areaCount = (page: Page): Promise<number> =>
   page.locator('[data-testid="area"]').count();
 
-/** The name of the photo the strip marks as current. */
 export const currentPhoto = (page: Page): Promise<string | null> =>
   page.locator('[data-testid="thumb"][aria-current="true"]').getAttribute('data-name');
 
-/** A real-mouse drag across the photo, between points given as fractions of it. */
 export async function dragOnPhoto(
   page: Page,
   points: Array<[number, number]>,
@@ -104,7 +90,6 @@ export async function dragOnPhoto(
   await page.mouse.up();
 }
 
-/** Pick the rectangle tool and draw a mosaic over the middle of the photo. */
 export async function drawMosaic(page: Page): Promise<void> {
   await pickTool(page, 'rect');
   await dragOnPhoto(page, [
@@ -114,26 +99,23 @@ export async function drawMosaic(page: Page): Promise<void> {
   await page.waitForSelector('[data-testid="mosaic-patch"]');
 }
 
-/** Rest the pointer on the photo's bottom-right corner, away from the areas the tests draw. */
 export const movePointerOffAreas = async (page: Page): Promise<void> => {
   const box = (await page.locator('[data-testid="photo"]').boundingBox())!;
   await page.mouse.move(box.x + 0.9 * box.width, box.y + 0.9 * box.height);
 };
 
-/** Wait until the open photo has decoded at its natural size. */
 export const waitForPhoto = (page: Page): Promise<unknown> =>
   page.waitForFunction(() => {
     const img = document.querySelector<HTMLImageElement>('[data-testid="photo"]');
     return !!img && img.complete && img.naturalWidth > 0;
   });
 
-/** Drop photos onto the window and wait for the open one to decode. */
 export async function openPhotos(page: Page, paths: string[]): Promise<void> {
   await dropFiles(page, paths);
   await waitForPhoto(page);
 }
 
-/** A real file drop onto the window, through Chromium's drag-and-drop (CDP), not a synthetic event. */
+/** A real file drop through Chromium's drag-and-drop (CDP), not a synthetic event. */
 export async function dropFiles(
   page: Page,
   paths: string[],
@@ -148,12 +130,10 @@ export async function dropFiles(
 }
 
 interface DialogStubs {
-  /** Undefined until a test chooses, so a close with no answer shows the real dialog. */
   close?: 0 | 1;
   closeAsked: string[];
 }
 
-/** Answer the close and restart questions without a real dialog, once a test chooses. */
 async function stubDialogs(app: ElectronApplication): Promise<void> {
   await app.evaluate(({ dialog }) => {
     const stubs: DialogStubs = { closeAsked: [] };
@@ -168,23 +148,19 @@ async function stubDialogs(app: ElectronApplication): Promise<void> {
   });
 }
 
-/** Close the app, answering the unexported-mosaics question with "Close anyway". */
 export async function closeWithoutAsking(running: Launched | undefined): Promise<void> {
   if (running) await stubCloseDialog(running.app, 0).catch(() => undefined);
   await running?.app.close().catch(() => undefined);
 }
 
-/** Answer the close confirmation without a real dialog. */
 export async function stubCloseDialog(app: ElectronApplication, response: 0 | 1): Promise<void> {
   await app.evaluate((_electron, answer) => {
     (globalThis as { __dialogs?: DialogStubs }).__dialogs!.close = answer;
   }, response);
 }
 
-/** A fresh temporary folder. */
 export const tempDir = (prefix = 'pixlad-e2e-'): Promise<string> => mkdtemp(join(tmpdir(), prefix));
 
-/** Write a generated JPEG into `dir` and return its path. */
 export async function writePhoto(
   dir: string,
   name: string,
@@ -199,18 +175,14 @@ export async function writePhoto(
 export const dialogMessages = (app: ElectronApplication): Promise<string[]> =>
   app.evaluate(() => (globalThis as { __dialogs?: DialogStubs }).__dialogs!.closeAsked);
 
-/** Wait for the export badge, which appears once the app has written the file. */
 export const waitForExport = (page: Page): Promise<unknown> =>
   page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30_000 });
 
-/** Wait for the question that offers to remove exported photos from the session. */
 export const waitForRemoveQuestion = (page: Page): Promise<unknown> =>
   page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30_000 });
 
-/** The question after an export, as the app shows it. */
 export const removeQuestion = (page: Page): Promise<string> =>
   page.locator('[data-testid="remove-exported"] h2').innerText();
 
-/** Answer the question after an export. */
 export const answerRemove = (page: Page, answer: 'remove' | 'keep'): Promise<void> =>
   page.click(`[data-testid="remove-exported-${answer}"]`);

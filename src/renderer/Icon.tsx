@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import type { ReactNode } from 'react';
 
-/** Line icons on a 24px grid, drawn in the colour of the text around them. */
 const ICONS = {
   cog: (
     <>

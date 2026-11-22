@@ -13,7 +13,6 @@ document.documentElement.dataset['platform'] = isMac ? 'mac' : 'other';
 document.documentElement.style.setProperty('--topbar-h', `${TOP_BAR_HEIGHT}px`);
 document.documentElement.style.setProperty('--edit-bar-h', `${EDIT_BAR_HEIGHT}px`);
 
-// The main process needs this count to confirm closing with unexported mosaics.
 let last = -1;
 subscribe(() => {
   const count = unexportedCount(getState());

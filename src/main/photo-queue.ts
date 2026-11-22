@@ -16,17 +16,13 @@ export class PhotoQueue {
     private readonly openInWorker: (path: string) => Promise<unknown>,
   ) {}
 
-  /** Marks the photo the user is looking at; jobs for any other photo that are still waiting lose. */
-  want(id: string): void {
-    this.wantedId = id;
-  }
-
   /** The worker's copy of this photo is out of date or gone: the next job reopens it. */
   invalidate(id: string): void {
     if (this.openId === id) this.openId = undefined;
   }
 
   run<T>(id: string, job: () => Promise<T>): Promise<T> {
+    this.wantedId = id;
     const next = this.chain.then(async () => {
       const photo = this.lookup(id);
       if (!photo) throw new Error('that photo is no longer in the session');

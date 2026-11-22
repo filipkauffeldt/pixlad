@@ -24,7 +24,6 @@ describe('PhotoQueue', () => {
     const { queue } = setup();
     const log: string[] = [];
     const gate = deferred();
-    queue.want('a');
     const first = queue.run('a', async () => {
       log.push('first starts');
       await gate.done;
@@ -43,40 +42,35 @@ describe('PhotoQueue', () => {
 
   it('returns what the job returns', async () => {
     const { queue } = setup();
-    queue.want('a');
     await expect(queue.run('a', async () => 42)).resolves.toBe(42);
   });
 
-  it('rejects a job for a photo that a later want superseded, without opening it', async () => {
+  it('rejects a job for a photo that a later job superseded, without opening it', async () => {
     const { queue, opened } = setup();
+    await queue.run('a', async () => undefined);
     const gate = deferred();
-    queue.want('a');
-    const a = queue.run('a', () => gate.done);
-    queue.want('b');
-    const b = queue.run('b', async () => 'b');
-    queue.want('a');
+    const running = queue.run('a', () => gate.done);
+    const superseded = queue.run('b', async () => 'b');
+    const latest = queue.run('a', async () => 'a');
     gate.release();
-    await a;
-    await expect(b).rejects.toThrow('another photo was opened meanwhile');
+    await running;
+    await expect(superseded).rejects.toThrow('another photo was opened meanwhile');
+    await expect(latest).resolves.toBe('a');
     expect(opened).toEqual(['/photos/a.jpg']);
   });
 
   it('opens the photo in the worker only when the open photo changes', async () => {
     const { queue, opened } = setup();
-    queue.want('a');
     await queue.run('a', async () => undefined);
     await queue.run('a', async () => undefined);
-    queue.want('b');
     await queue.run('b', async () => undefined);
     await queue.run('b', async () => undefined);
-    queue.want('a');
     await queue.run('a', async () => undefined);
     expect(opened).toEqual(['/photos/a.jpg', '/photos/b.jpg', '/photos/a.jpg']);
   });
 
   it('opens the photo again after it was invalidated', async () => {
     const { queue, opened } = setup();
-    queue.want('a');
     await queue.run('a', async () => undefined);
     queue.invalidate('b');
     await queue.run('a', async () => undefined);
@@ -88,7 +82,6 @@ describe('PhotoQueue', () => {
 
   it('does not let a rejected job block the next one', async () => {
     const { queue } = setup();
-    queue.want('a');
     const failing = queue.run('a', async () => {
       throw new Error('boom');
     });
@@ -106,7 +99,6 @@ describe('PhotoQueue', () => {
         if (++attempts === 1) throw new Error('cannot decode');
       },
     );
-    queue.want('a');
     await expect(queue.run('a', async () => 'x')).rejects.toThrow('cannot decode');
     await expect(queue.run('a', async () => 'y')).resolves.toBe('y');
     expect(attempts).toBe(2);
@@ -114,7 +106,6 @@ describe('PhotoQueue', () => {
 
   it('rejects a photo that is no longer in the session', async () => {
     const { queue, photos, opened } = setup();
-    queue.want('a');
     photos.delete('a');
     await expect(queue.run('a', async () => 'x')).rejects.toThrow(
       'that photo is no longer in the session',

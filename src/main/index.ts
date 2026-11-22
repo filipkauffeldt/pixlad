@@ -250,23 +250,19 @@ function registerIpc(): void {
     photos.invalidate(id);
   });
   ipcMain.handle('photo:open', async (_e, id: string) => {
-    photos.want(id);
     await photos.run(id, async () => undefined);
   });
   ipcMain.handle(
     'photo:preview',
     async (_e, id: string, op: MosaicOp): Promise<PreviewPatch | null> => {
-      photos.want(id);
       return photos.run(id, () => photoWorker.run<PreviewPatch | null>({ type: 'preview', op }));
     },
   );
   ipcMain.handle('photo:detect', async (_e, id: string, region: Rect, options?: DetectOptions) => {
-    photos.want(id);
     return photos.run(id, () => photoWorker.run({ type: 'detect', region, options }));
   });
   ipcMain.handle('faces:warm', () => photoWorker.run({ type: 'warm' }));
   ipcMain.handle('photo:trace', async (_e, id: string, faces: TraceFace[]) => {
-    photos.want(id);
     return photos.run(id, () => photoWorker.run({ type: 'trace', faces }));
   });
   ipcMain.handle('photo:export', async (_e, id: string, op: MosaicOp): Promise<ExportOutcome> => {

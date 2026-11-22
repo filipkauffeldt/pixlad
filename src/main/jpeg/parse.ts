@@ -44,7 +44,7 @@ export interface ParsedHeader {
 }
 
 export const MARKER_PREFIX = 0xff;
-const TEM = 0x01;
+export const TEM = 0x01;
 export const SOF0_BASELINE = 0xc0;
 export const SOF1_EXTENDED = 0xc1;
 export const SOF2_PROGRESSIVE = 0xc2;
@@ -97,6 +97,7 @@ export const TIFF_MAGIC = 42;
 export const TIFF_LITTLE_ENDIAN = 0x49;
 export const TIFF_BIG_ENDIAN = 0x4d;
 export const IRB_SIGNATURE = '8BIM';
+export const IRB_MIN_BLOCK_SIZE = 12;
 export const IRB_THUMBNAIL_RESOURCE_IDS: readonly number[] = [0x0409, 0x040c];
 export const IRB_XMP_RESOURCE_ID = 0x0424;
 export const IFD_ENTRY_SIZE = 12;
@@ -151,6 +152,10 @@ export const TIFF_TAG = {
 
 const startsWithId = (payload: Uint8Array, id: string): boolean =>
   Buffer.from(payload.subarray(0, id.length)).toString('latin1') === id;
+
+export const isAppMarker = (marker: number): boolean => marker >= APP0 && marker <= APP0 + 0xf;
+
+export const appNumber = (marker: number): number => marker - APP0;
 
 export const looksLikeJpeg = (data: Uint8Array): boolean =>
   data.length >= 4 && data[0] === MARKER_PREFIX && data[1] === SOI && data[2] === MARKER_PREFIX;

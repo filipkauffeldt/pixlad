@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { Icon } from './Icon';
 import { SHORTCUTS } from './shortcut-list';
+import { useModalKeys } from './modal';
 import { actions } from './store';
 
 /** Every keyboard shortcut, one list. Opened with ? or from Settings. */
@@ -16,15 +17,8 @@ export function Shortcuts() {
 
   useEffect(() => {
     close.current?.focus();
-    // Capture phase on the window, as in About: the app's shortcuts never see a key while the
-    // sheet is open. Buttons still activate, because that is the default action.
-    const onKeyDown = (event: KeyboardEvent): void => {
-      event.stopPropagation();
-      if (event.key === 'Escape') actions.setShortcutsOpen(false);
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, []);
+  useModalKeys({ Escape: () => actions.setShortcutsOpen(false) });
 
   return (
     <div

@@ -37,6 +37,7 @@ import {
 } from '../shared/types';
 import { parseVersion } from '../shared/version';
 import { chooseEditPath, type WrittenEdit } from './edit-path';
+import { PhotoQueue } from './photo-queue';
 import { Limiter, WorkerClient } from './pool';
 import { parseNotices } from './notices';
 import { Session } from './session';
@@ -116,27 +117,10 @@ function changeSettings(change: Partial<Settings>): Promise<void> {
   return write;
 }
 
-// Everything that touches the current photo goes through one chain, so an "open" that was
-// superseded by a later one is skipped instead of decoding a photo nobody is looking at.
-let photoChain: Promise<unknown> = Promise.resolve();
-let wantedId: string | undefined;
-let openId: string | undefined;
-
-function onPhoto<T>(id: string, job: () => Promise<T>): Promise<T> {
-  const next = photoChain.then(async () => {
-    const photo = session.get(id);
-    if (!photo) throw new Error('that photo is no longer in the session');
-    if (openId !== id) {
-      if (wantedId !== id) throw new Error('another photo was opened meanwhile');
-      openId = undefined;
-      await photoWorker.run({ type: 'open', path: photo.path });
-      openId = id;
-    }
-    return job();
-  });
-  photoChain = next.catch(() => undefined);
-  return next;
-}
+const photos = new PhotoQueue(
+  (id) => session.get(id),
+  (path) => photoWorker.run({ type: 'open', path }),
+);
 
 /** The window's own colour, matching --bg, so it never flashes the other theme while loading. */
 const windowBackground = (): string => (nativeTheme.shouldUseDarkColors ? '#0e0e0f' : '#ececea');
@@ -263,27 +247,27 @@ function registerIpc(): void {
     session.remove(id);
     exportedFiles.delete(id);
     thumbCache.delete(id);
-    if (openId === id) openId = undefined;
+    photos.invalidate(id);
   });
   ipcMain.handle('photo:open', async (_e, id: string) => {
-    wantedId = id;
-    await onPhoto(id, async () => undefined);
+    photos.want(id);
+    await photos.run(id, async () => undefined);
   });
   ipcMain.handle(
     'photo:preview',
     async (_e, id: string, op: MosaicOp): Promise<PreviewPatch | null> => {
-      wantedId = id;
-      return onPhoto(id, () => photoWorker.run<PreviewPatch | null>({ type: 'preview', op }));
+      photos.want(id);
+      return photos.run(id, () => photoWorker.run<PreviewPatch | null>({ type: 'preview', op }));
     },
   );
   ipcMain.handle('photo:detect', async (_e, id: string, region: Rect, options?: DetectOptions) => {
-    wantedId = id;
-    return onPhoto(id, () => photoWorker.run({ type: 'detect', region, options }));
+    photos.want(id);
+    return photos.run(id, () => photoWorker.run({ type: 'detect', region, options }));
   });
   ipcMain.handle('faces:warm', () => photoWorker.run({ type: 'warm' }));
   ipcMain.handle('photo:trace', async (_e, id: string, faces: TraceFace[]) => {
-    wantedId = id;
-    return onPhoto(id, () => photoWorker.run({ type: 'trace', faces }));
+    photos.want(id);
+    return photos.run(id, () => photoWorker.run({ type: 'trace', faces }));
   });
   ipcMain.handle('photo:export', async (_e, id: string, op: MosaicOp): Promise<ExportOutcome> => {
     const photo = session.get(id);
@@ -311,7 +295,7 @@ function registerIpc(): void {
       if (overwrote) {
         // The decoded pixels and the thumbnail are of the file that was just replaced.
         thumbCache.delete(id);
-        if (openId === id) openId = undefined;
+        photos.invalidate(id);
       } else {
         written.set(photo.path, result.written);
       }

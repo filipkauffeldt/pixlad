@@ -37,4 +37,24 @@ describe('the window', () => {
       .poll(written, { timeout: 10_000 })
       .toMatchObject({ width: 1000, height: 650, maximized: false });
   });
+
+  it.skipIf(process.platform === 'darwin')(
+    'keeps the top bar clear of the window buttons drawn over it',
+    async () => {
+      running = await launch();
+      const { page } = running;
+      const { settingsRight, buttonsLeft } = await page.evaluate(() => {
+        // The strip of the top bar that the window buttons do not cover.
+        const probe = document.createElement('div');
+        probe.style.cssText = 'position:fixed;top:0;left:0;width:env(titlebar-area-width, 100vw)';
+        document.body.append(probe);
+        const free = probe.getBoundingClientRect().width;
+        probe.remove();
+        const settings = document.querySelector('[data-testid="settings"]')!;
+        return { settingsRight: settings.getBoundingClientRect().right, buttonsLeft: free };
+      });
+      expect(buttonsLeft).toBeLessThan(1440);
+      expect(settingsRight).toBeLessThanOrEqual(buttonsLeft);
+    },
+  );
 });

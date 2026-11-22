@@ -183,7 +183,7 @@ export function Strip() {
         className="addPhotos"
         onClick={() => void actions.openDialog()}
         aria-label="Add photos"
-        title={`Add photos to this session (${isMac ? '⌘' : 'Ctrl'}+O)`}
+        title={`Add photos (${isMac ? '⌘' : 'Ctrl'}+O)`}
         data-testid="add-photos"
       >
         <Icon name="plus" />

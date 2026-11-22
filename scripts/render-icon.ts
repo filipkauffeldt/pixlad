@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-//
-// Renders build/icon.svg to build/icon.png (1024 px), which electron-builder turns into the macOS
-// and Windows icons, and to build/icons/<size>x<size>.png, which the Linux package installs into
-// the hicolor icon theme. A lone 1024 px PNG would land in a hicolor/1024x1024 folder that desktop
-// environments do not search, so the launcher would show a generic icon. Run `pnpm render-icon`
-// after changing the SVG and commit the results.
+// Linux launchers look icons up by size in hicolor; a lone 1024 px PNG would not be found.
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

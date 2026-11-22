@@ -1,9 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-// Downloads the face models into resources/models/ after checking their SHA-256: YuNet (MIT) for
-// finding faces, and the DEIMv2 head detectors and the MediaPipe segmenter (Apache-2.0) for
-// outlines, from filipkauffeldt/pixlad-models. The models are not committed. Runs after
-// `pnpm install`; run `pnpm fetch-model` to retry.
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -39,11 +35,8 @@ const sha = (data: Uint8Array): string => createHash('sha256').update(data).dige
 
 for (const model of MODELS) {
   const target = join(root, 'resources', 'models', model.name);
-  try {
-    if (sha(await readFile(target)) === model.sha256) continue;
-  } catch {
-    // not there yet
-  }
+  const existing = await readFile(target).catch(() => undefined);
+  if (existing && sha(existing) === model.sha256) continue;
   try {
     const response = await fetch(model.url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);

@@ -1,9 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-//
-// Prints the version of the next release, for example `0.3.0`. The release workflow runs
-// `node scripts/next-version.ts <patch|minor|major>`. The latest release is the highest `vX.Y.Z`
-// tag. The first release is 0.1.0 whatever the bump.
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import {
@@ -19,10 +15,6 @@ export type Bump = (typeof BUMPS)[number];
 export const isBump = (value: string): value is Bump =>
   (BUMPS as readonly string[]).includes(value);
 
-/**
- * The next version from the existing tags. Tags that are not plain `vX.Y.Z`, such as `nightly` or
- * `v1.0.0-rc.1`, are ignored.
- */
 export function nextVersion(tags: readonly string[], bump: string): string {
   if (!isBump(bump)) throw new Error(`The bump must be patch, minor or major, not "${bump}".`);
   const releases = tags

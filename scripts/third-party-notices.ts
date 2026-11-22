@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-//
-// Writes THIRD_PARTY_NOTICES.txt: the licence text of every production dependency (the code that
-// ships with the app) and of the other third-party parts listed below. `--check` fails instead of
-// writing when the file is out of date, when a dependency has a licence that is not known to be
-// GPL-compatible, or when no licence text can be found for one.
 import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,8 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const output = join(root, 'THIRD_PARTY_NOTICES.txt');
 
-/** Licences that may be combined with GPL-3.0-or-later. Anything else needs a human decision. */
-const ALLOWED = new Set([
+const GPL_COMPATIBLE_LICENSES = new Set([
   'MIT',
   'ISC',
   'BSD-2-Clause',
@@ -22,22 +16,19 @@ const ALLOWED = new Set([
   '0BSD',
   'OFL-1.1',
   '(MIT OR CC0-1.0)',
-  // argparse (a dependency of electron-updater) ships the PSF licence for Python 2.2 and later,
-  // which its own history table marks as GPL-compatible.
+  // argparse's history table marks the Python 2.2+ licence as GPL-compatible.
   'Python-2.0',
-  // sax (a dependency of electron-updater): a permissive licence like ISC, with no copyleft terms.
+  // sax: permissive like ISC, no copyleft terms.
   'BlueOak-1.0.0',
 ]);
 
-/** Packages whose npm tarball has no licence file: the text is kept in third_party/. */
 const LICENSE_OVERRIDES: Record<string, string> = {
   'onnxruntime-node': 'third_party/onnxruntime/LICENSE',
   'onnxruntime-common': 'third_party/onnxruntime/LICENSE',
   'lazy-val': 'third_party/lazy-val/LICENSE',
 };
 
-/** Parts that are not npm production dependencies. */
-const EXTRA: Array<{ title: string; note: string; files: string[] }> = [
+const NON_NPM_PARTS: Array<{ title: string; note: string; files: string[] }> = [
   {
     title: 'ONNX Runtime native library (third-party components)',
     note: 'Notices for the components built into the ONNX Runtime library that onnxruntime-node loads.',
@@ -97,8 +88,7 @@ interface Manifest {
 const readManifest = (dir: string): Manifest =>
   JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as Manifest;
 
-/** Node's lookup: `node_modules/<name>` in the package's real folder or any folder above it. */
-function findPackage(name: string, from: string): string | undefined {
+function findPackageLikeNode(name: string, from: string): string | undefined {
   for (let dir = from; ; dir = dirname(dir)) {
     const candidate = join(dir, 'node_modules', name);
     if (existsSync(join(candidate, 'package.json'))) return realpathSync(candidate);
@@ -112,7 +102,7 @@ function productionPackages(): Package[] {
     const manifest = readManifest(dir);
     const deps = { ...manifest.dependencies, ...manifest.optionalDependencies };
     for (const name of Object.keys(deps)) {
-      const depDir = findPackage(name, dir);
+      const depDir = findPackageLikeNode(name, dir);
       if (!depDir) {
         // An optional dependency for another platform is simply not installed.
         if (optional.has(name)) continue;
@@ -157,7 +147,6 @@ function licenseText(pkg: Package): string {
 }
 
 function render(): string {
-  const rule = RULE;
   const parts = [
     'Third-party notices for Pixlad',
     '',
@@ -169,13 +158,14 @@ function render(): string {
   ];
   const problems: string[] = [];
   for (const pkg of productionPackages()) {
-    if (!ALLOWED.has(pkg.license)) problems.push(`${pkg.name}@${pkg.version}: ${pkg.license}`);
+    if (!GPL_COMPATIBLE_LICENSES.has(pkg.license))
+      problems.push(`${pkg.name}@${pkg.version}: ${pkg.license}`);
     parts.push(
       '',
-      rule,
+      RULE,
       `${pkg.name} ${pkg.version} (${pkg.license})`,
       ...(pkg.homepage ? [pkg.homepage] : []),
-      rule,
+      RULE,
       '',
       licenseText(pkg),
     );
@@ -183,8 +173,8 @@ function render(): string {
   if (problems.length > 0) {
     throw new Error(`Licences that are not on the GPL-compatible list:\n${problems.join('\n')}`);
   }
-  for (const extra of EXTRA) {
-    parts.push('', rule, extra.title, rule, '', extra.note);
+  for (const extra of NON_NPM_PARTS) {
+    parts.push('', RULE, extra.title, RULE, '', extra.note);
     for (const file of extra.files) parts.push('', readText(join(root, file)));
   }
   return `${parts.join('\n')}\n`;

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-// electron-builder's beforePack hook. electron-builder skips an extraResources file that does not
-// exist, so a missing face model (`pnpm fetch-model` could not download it) would produce a package
-// where Faces fails. Stop the build instead.
+// electron-builder silently skips a missing extraResources file, packaging an app where Faces fails.
 import { existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

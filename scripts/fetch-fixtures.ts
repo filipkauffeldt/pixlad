@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-// Downloads a public-domain group photo (NASA, via Wikimedia Commons) into fixtures/ for the face
-// detection tests. Gitignored, never committed. Tests that need it skip when it is missing.
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -16,11 +14,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const target = join(root, 'fixtures', FILE);
 const sha = (data: Uint8Array): string => createHash('sha256').update(data).digest('hex');
 
-try {
-  if (sha(await readFile(target)) === SHA256) process.exit(0);
-} catch {
-  // not there yet
-}
+const existing = await readFile(target).catch(() => undefined);
+if (existing && sha(existing) === SHA256) process.exit(0);
 const response = await fetch(URL_, { headers: { 'User-Agent': 'pixlad-fixtures/0.1' } });
 if (!response.ok) throw new Error(`${URL_}: HTTP ${response.status}`);
 const data = new Uint8Array(await response.arrayBuffer());

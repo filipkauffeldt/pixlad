@@ -4,7 +4,15 @@
 // retouch-geometry.ts (GPL-3.0-or-later), without lens correction.
 import { clamp, pointInPolygon, rectToPolygon, shapeBounds } from '../shared/geometry';
 import { blockSizePxToRel } from '../shared/block-size';
-import type { MosaicArea, MosaicOp, Point, Polygon, Rect, Shape } from '../shared/types';
+import type {
+  MosaicArea,
+  MosaicOp,
+  NormalizedFaceTraits,
+  Point,
+  Polygon,
+  Rect,
+  Shape,
+} from '../shared/types';
 
 export type RetouchMode = 'add' | 'subtract';
 
@@ -19,21 +27,9 @@ export interface RetouchArea {
 }
 
 /** A detection as kept in an area. */
-export interface FaceData {
-  box: Rect;
-  score?: number;
-  /** Head roll in radians, in pixel space. */
-  angle?: number;
-  /** Photo width / height. */
-  aspect?: number;
+export interface FaceData extends NormalizedFaceTraits {
   /** How the face is covered. Missing in older sessions: a rectangle. */
   shape?: FaceShape;
-  /** A head box holds hair and ears; a face box does not. Missing: a face. */
-  kind?: 'face' | 'head';
-  /** A detector saw a face here. */
-  confirmed?: boolean;
-  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
-  eyes?: Rect[];
   /** The traced outline of face and hair, normalized. */
   outline?: Point[];
 }

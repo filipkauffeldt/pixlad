@@ -4,13 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Scrim, useModalKeys } from './modal';
 import { actions, currentPhoto, hasMosaic, useApp } from './store';
 
-/** How many file names the dialog lists before it says "and N more". */
-const LISTED = 3;
+const MAX_LISTED_NAMES = 3;
 
-/**
- * Asks before Replace original writes over files. Cancel has the focus, so Enter does not destroy
- * anything. "Don't ask again" lasts until the app closes.
- */
 export function OverwriteConfirm({ anchor }: { anchor: 'export' | 'all' }) {
   const app = useApp();
   const [dontAsk, setDontAsk] = useState(false);
@@ -47,10 +42,12 @@ export function OverwriteConfirm({ anchor }: { anchor: 'export' | 'all' }) {
         </h2>
         <div className="confirmBody">
           <div className="confirmFiles mono">
-            {names.slice(0, LISTED).map((name, i) => (
+            {names.slice(0, MAX_LISTED_NAMES).map((name, i) => (
               <div key={i}>{name}</div>
             ))}
-            {count > LISTED && <div className="muted">{`and ${count - LISTED} more`}</div>}
+            {count > MAX_LISTED_NAMES && (
+              <div className="muted">{`and ${count - MAX_LISTED_NAMES} more`}</div>
+            )}
           </div>
           <p className="errorText">This cannot be undone.</p>
         </div>

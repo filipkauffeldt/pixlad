@@ -93,6 +93,12 @@ const ADOBE_TRANSFORM_NONE = 0;
 const RGB_COMPONENT_IDS = [0x52, 0x47, 0x42];
 
 export const TIFF_HEADER_LENGTH = 8;
+export const TIFF_MAGIC = 42;
+export const TIFF_LITTLE_ENDIAN = 0x49;
+export const TIFF_BIG_ENDIAN = 0x4d;
+export const IRB_SIGNATURE = '8BIM';
+export const IRB_THUMBNAIL_RESOURCE_IDS: readonly number[] = [0x0409, 0x040c];
+export const IRB_XMP_RESOURCE_ID = 0x0424;
 export const IFD_ENTRY_SIZE = 12;
 export const MAX_IFD_ENTRIES = 512;
 const DEFAULT_ORIENTATION = 1;
@@ -154,8 +160,8 @@ export function exifOrientation(segments: readonly Segment[]): number {
     if (marker !== APP1 || payload.length < EXIF_ID.length + TIFF_HEADER_LENGTH) continue;
     if (!startsWithId(payload, EXIF_ID)) continue;
     const tiff = payload.subarray(EXIF_ID.length);
-    const little = tiff[0] === 0x49 && tiff[1] === 0x49;
-    if (!little && !(tiff[0] === 0x4d && tiff[1] === 0x4d)) continue;
+    const little = tiff[0] === TIFF_LITTLE_ENDIAN && tiff[1] === TIFF_LITTLE_ENDIAN;
+    if (!little && !(tiff[0] === TIFF_BIG_ENDIAN && tiff[1] === TIFF_BIG_ENDIAN)) continue;
     const view = new DataView(tiff.buffer, tiff.byteOffset, tiff.byteLength);
     const u16 = (at: number): number => (at + 2 <= tiff.length ? view.getUint16(at, little) : 0);
     const u32 = (at: number): number => (at + 4 <= tiff.length ? view.getUint32(at, little) : 0);

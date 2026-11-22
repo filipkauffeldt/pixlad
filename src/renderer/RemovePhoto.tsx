@@ -3,7 +3,6 @@
 import { Scrim, useModalKeys } from './modal';
 import { actions } from './store';
 
-/** Ask before a photo with unexported areas leaves the session for good. */
 export function RemovePhoto({ question }: { question: { id: string; name: string } }) {
   useModalKeys({ Escape: () => actions.answerRemovePhoto(false) });
 

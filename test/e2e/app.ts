@@ -97,6 +97,12 @@ async function stubDialogs(app: ElectronApplication): Promise<void> {
   });
 }
 
+/** Close the app, answering the unexported-mosaics question with "Close anyway". */
+export async function closeWithoutAsking(running: Launched | undefined): Promise<void> {
+  if (running) await stubCloseDialog(running.app, 0).catch(() => undefined);
+  await running?.app.close().catch(() => undefined);
+}
+
 /** Answer the close confirmation without a real dialog. */
 export async function stubCloseDialog(app: ElectronApplication, response: 0 | 1): Promise<void> {
   await app.evaluate((_electron, answer) => {

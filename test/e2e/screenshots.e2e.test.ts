@@ -6,13 +6,12 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, expect, it } from 'vitest';
 import { encodeJpeg, type Rgb } from '../helpers/fixtures';
-import { dropFiles, launch, stubCloseDialog, type Launched, pickTool } from './app';
+import { closeWithoutAsking, dropFiles, launch, type Launched, pickTool } from './app';
 
 const out = process.env['SCREENSHOT_DIR'];
 let running: Launched | undefined;
 afterEach(async () => {
-  if (running) await stubCloseDialog(running.app, 0).catch(() => undefined);
-  await running?.app.close().catch(() => undefined);
+  await closeWithoutAsking(running);
   running = undefined;
 });
 

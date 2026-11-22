@@ -2,11 +2,11 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { launch, type Launched } from './app';
+import { closeWithoutAsking, launch, type Launched } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
-  await running?.app.close().catch(() => undefined);
+  await closeWithoutAsking(running);
   running = undefined;
 });
 

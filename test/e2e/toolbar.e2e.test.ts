@@ -5,12 +5,11 @@ import { join, resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { dropFiles, launch, pickTool, stubCloseDialog, type Launched } from './app';
+import { closeWithoutAsking, dropFiles, launch, pickTool, type Launched } from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
-  if (running) await stubCloseDialog(running.app, 0).catch(() => undefined);
-  await running?.app.close().catch(() => undefined);
+  await closeWithoutAsking(running);
   running = undefined;
 });
 

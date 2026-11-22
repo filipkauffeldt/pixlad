@@ -13,13 +13,14 @@ import {
 } from '../helpers/fixtures';
 import {
   answerRemove,
+  closeWithoutAsking,
   dialogMessages,
   dropFiles,
   launch,
+  pickTool,
   removeQuestion,
   stubCloseDialog,
   type Launched,
-  pickTool,
 } from './app';
 
 /** Wait until the session holds `count` photos and `name` is the one open. */
@@ -34,8 +35,7 @@ const inSession = (page: Page, count: number, name: string, timeout?: number): P
 
 let running: Launched | undefined;
 afterEach(async () => {
-  if (running) await stubCloseDialog(running.app, 0).catch(() => undefined);
-  await running?.app.close().catch(() => undefined);
+  await closeWithoutAsking(running);
   running = undefined;
 });
 
@@ -426,8 +426,7 @@ describe('closing and exporting a batch', () => {
     ]);
     // Nothing left to lose: closing does not ask again.
     const asked = (await dialogMessages(app)).length;
-    await stubCloseDialog(app, 0);
-    await app.close();
+    await closeWithoutAsking(running);
     running = undefined;
     expect(asked).toBe(1);
   });
@@ -776,8 +775,7 @@ describe('overwriting the original', () => {
     expect(await page.getAttribute('[data-testid="photo"]', 'src')).toContain('?v=1');
     await photoReady(page);
 
-    await stubCloseDialog(app, 0);
-    await app.close();
+    await closeWithoutAsking(running);
     running = undefined;
 
     running = await launch({ userData });
@@ -812,8 +810,7 @@ describe('nothing survives the session', () => {
     await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
     await page.keyboard.press('Control+e');
     await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
-    await stubCloseDialog(app, 0);
-    await app.close();
+    await closeWithoutAsking(running);
     running = undefined;
 
     // Only the source and its export are in the photo's folder; the source is untouched.

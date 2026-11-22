@@ -4,12 +4,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
-import { answerRemove, dropFiles, launch, pickTool, stubCloseDialog, type Launched } from './app';
+import {
+  answerRemove,
+  closeWithoutAsking,
+  dropFiles,
+  launch,
+  pickTool,
+  type Launched,
+} from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
-  if (running) await stubCloseDialog(running.app, 0).catch(() => undefined);
-  await running?.app.close().catch(() => undefined);
+  await closeWithoutAsking(running);
   running = undefined;
 });
 
@@ -125,8 +131,7 @@ describe('confirming Replace original', () => {
     );
     expect(await page.locator(dialog).count()).toBe(0);
 
-    await stubCloseDialog(running.app, 0);
-    await running.app.close();
+    await closeWithoutAsking(running);
     running = await launch({ userData });
     ({ page } = running);
     await dropFiles(page, [one]);

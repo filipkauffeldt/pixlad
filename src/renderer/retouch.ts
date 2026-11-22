@@ -4,6 +4,7 @@
 // retouch-geometry.ts (GPL-3.0-or-later), without lens correction.
 import { clamp, pointInPolygon, rectToPolygon, shapeBounds } from '../shared/geometry';
 import { blockSizePxToRel } from '../shared/block-size';
+import { EDIT_BAR_HEIGHT } from '../shared/layout';
 import type { MosaicArea, MosaicOp, Point, Polygon, Rect, Shape } from '../shared/types';
 
 export type RetouchMode = 'add' | 'subtract';
@@ -311,7 +312,6 @@ export const FIT_TOP = 24;
  * The room kept under the fitted picture: the edit bar sits there, 10 px from the picture and
  * 10 px from the thumbnails (6 px to the stage's edge, and the thumbnails' 4 px inset).
  */
-export const EDIT_BAR_HEIGHT = 22;
 export const FIT_BOTTOM = 10 + EDIT_BAR_HEIGHT + 6;
 
 /** The strip around the picture where a drag may start, in CSS pixels. */

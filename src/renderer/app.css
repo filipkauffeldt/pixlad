@@ -186,7 +186,7 @@
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  height: 22px; /* EDIT_BAR_HEIGHT */
+  height: var(--edit-bar-h);
   /* A drag can still start beside the controls; a zoomed photo passes under them. */
   pointer-events: none;
 }

@@ -4,11 +4,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 
 type KeyHandlers = Partial<Record<string, (event: KeyboardEvent) => void>>;
 
-/**
- * Runs the handler for the pressed key while a dialog is open, and hides every key from the app's
- * shortcuts. Capture phase, so Delete, Ctrl+E, Z and arrows never reach them. Only propagation
- * stops, so buttons and radios still do their default action.
- */
+/** Capture phase, so app shortcuts never fire under a dialog; default actions still run. */
 export function useModalKeys(handlers: KeyHandlers): void {
   const latest = useRef(handlers);
   useEffect(() => {
@@ -25,7 +21,6 @@ export function useModalKeys(handlers: KeyHandlers): void {
   }, []);
 }
 
-/** The dimmed backdrop behind a dialog. With `onDismiss`, a press on the backdrop itself closes it. */
 export function Scrim({ onDismiss, children }: { onDismiss?: () => void; children: ReactNode }) {
   return (
     <div

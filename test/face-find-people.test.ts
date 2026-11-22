@@ -14,7 +14,8 @@ const FACE = 16;
 const EYE = 17;
 const HAND = 26;
 
-type Seen = [cls: number, box: Box, score: number];
+type Seen = readonly [cls: number, box: Box, score: number];
+type Found = readonly [box: Box, score: number];
 
 const box = (x: number, y: number, w: number, h: number): Box => ({ x, y, w, h });
 
@@ -38,8 +39,8 @@ interface Scene {
   size?: number;
   heads?: readonly Seen[];
   smallHeads?: readonly Seen[];
-  faces?: readonly [Box, number][] | ((copyWidth: number) => readonly [Box, number][]);
-  hazy?: readonly [Box, number][];
+  faces?: readonly Found[] | ((copyWidth: number) => readonly Found[]);
+  hazy?: readonly Found[];
   paint?: (rgba: Uint8Array, width: number) => void;
   width?: number;
   height?: number;
@@ -55,7 +56,7 @@ async function look(scene: Scene): Promise<Person[]> {
     smallHeads: fakeDeim(scene.smallHeads ?? [], 640),
   };
   models.mockImplementation(async (_dir, which) => (sessions as never)[which]);
-  const asFaces = (list: readonly [Box, number][]) =>
+  const asFaces = (list: readonly Found[]) =>
     list.map(([b, score]) => ({
       box: {
         type: 'rect' as const,

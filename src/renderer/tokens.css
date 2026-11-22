@@ -1,45 +1,31 @@
-/*
- * Design tokens. The one place colours, type and sizes are defined. Everything is monochrome:
- * colour exists only in the photo and the status dots. Dark is the default; the light values
- * below take over when the theme setting (through Electron's nativeTheme) or the system asks
- * for light.
- */
 :root {
   color-scheme: dark;
 
-  /* Surfaces */
   --bg: #0e0e0f;
   --panel: #141415;
   --raised: #1c1c1e;
   --line: #232325;
   --line-strong: #2e2e31;
-  /* A pressed segment or a hovered menu item */
   --hover: #242427;
 
-  /* Text. White is also the only accent: selection, active tab, primary button. */
   --text: #e8e8e8;
   --muted: #8e8e90;
   --dim: #58585b;
   --on-text: #0e0e0f;
 
-  /* Status dots */
   --ok: #7dbb7d;
   --error: #d26a6a;
 
-  /* Overlay on thumbnails */
   --scrim: #000a;
 
-  /* Behind modals and the drop target, and inside drawn areas */
   --backdrop-strong: rgba(14, 14, 15, 0.82);
   --area-fill: rgba(255, 255, 255, 0.05);
   --draft-fill: rgba(255, 255, 255, 0.08);
   --hover-fill: rgba(255, 255, 255, 0.14);
 
-  /* Under menus and popovers, and under dialogs */
   --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.8);
   --shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.9);
 
-  /* Type */
   --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono:
     'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Cascadia Code',
@@ -49,8 +35,6 @@
   --fs-label: 10px;
   --tracking-label: 0.1em;
 
-  /* Layout */
-  /* The window buttons drawn over the right end of the top bar; fixed width if not reported */
   --controls-w: 0px;
   --select-outline: 2px solid var(--text);
   --select-offset: 2px;
@@ -87,7 +71,6 @@
   }
 }
 
-/* The window buttons are on the right except on a Mac, where they are on the left. */
 :root[data-platform='other'] {
   --controls-w: max(
     0px,

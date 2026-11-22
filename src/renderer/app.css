@@ -4,17 +4,15 @@
   height: 100%;
 }
 
-/* The top bar: the photo's name on the left, the tools centred, export and settings on the
-   right. A narrow window moves the tools to a second row; controls never resize. */
 .toolbar {
   display: grid;
-  /* The right side never gives way: when it needs the room, the tools slide off centre. */
+  /* The right side never gives way; when it needs the room, the tools slide off centre. */
   grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
   align-items: center;
   gap: 8px 16px;
   min-height: var(--topbar-h);
   padding: 8px 14px;
-  /* The top bar is the window's title bar: it drags the window, its controls do not. */
+  /* The top bar doubles as the window's title bar. */
   -webkit-app-region: drag;
 }
 .toolGroup,
@@ -57,7 +55,6 @@
 .appName {
   font-weight: 500;
 }
-/* The last export's result beside the name */
 .photoStatus {
   display: flex;
   flex: 0 1000 auto;
@@ -94,7 +91,6 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  /* Room for the window buttons */
   padding-right: max(0px, calc(var(--controls-w) - 6px));
 }
 :root[data-platform='mac'] .toolbar {
@@ -104,7 +100,6 @@
 .topRight > * {
   flex: none;
 }
-/* Every tool in one framed group, with hairlines between the kinds of choice. */
 .toolGroup {
   display: flex;
   align-items: center;
@@ -113,7 +108,6 @@
   background: var(--panel);
   border: 1px solid var(--line);
 }
-/* No photo open: the tools wait, dimmed, but can still be set up for the first one */
 .toolGroup.idle {
   opacity: 0.5;
 }
@@ -154,7 +148,7 @@
   background: var(--text);
   color: var(--on-text);
 }
-/* Held Alt or Ctrl swaps the choice for one drag: the swapped-in choice gets a dashed frame. */
+/* Held Alt or Ctrl swaps the choice for one drag: the swapped-in one is dashed. */
 .seg button[data-flipped] {
   background: transparent;
   color: var(--text);
@@ -164,7 +158,7 @@
 .findAll:disabled {
   color: var(--dim);
 }
-/* Looking for faces: a spinner in the icon's place, so the button keeps its width */
+/* A spinner in the icon's place, at the same size, so the button keeps its width. */
 .findSpin {
   display: grid;
   place-items: center;
@@ -175,8 +169,6 @@
   width: 11px;
   height: 11px;
 }
-/* Under the photo: the counts, Block and Padding. Block stays centred and the counts grow to the
-   left, so a count that gets wider never moves the controls. */
 .editBar {
   position: absolute;
   left: 0;
@@ -184,6 +176,7 @@
   bottom: 6px;
   z-index: 4;
   display: grid;
+  /* Block stays centred while the counts grow left, so a wider count moves no control. */
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   height: var(--edit-bar-h);
@@ -279,7 +272,6 @@
   color: var(--dim);
   border-color: var(--raised);
 }
-/* A bare icon: undo, redo, settings. */
 .iconBtn {
   display: grid;
   place-items: center;
@@ -319,8 +311,7 @@
 .dropdown[aria-disabled='true'] .icon {
   color: var(--dim);
 }
-/* Every label sits in one grid cell and only the current one shows, so the button keeps the
-   width of the longest and the toolbar does not shift when the target changes. */
+/* Every label shares one grid cell, so the button keeps the width of the longest. */
 .dropdownLabel {
   display: grid;
 }
@@ -359,7 +350,6 @@
 .menuItem[aria-checked='true'] {
   background: var(--hover);
 }
-/* The face shape picker: an icon of each shape, and a hint on speed in the menu. */
 .shapeIcon {
   display: block;
   flex: none;
@@ -370,7 +360,6 @@
   stroke: currentColor;
   stroke-width: 1.2;
 }
-/* A shape per row: its icon, its name over how fast it is, and a check on the current one */
 .shapeItem {
   display: grid;
   grid-template-columns: 22px 1fr 16px;
@@ -423,7 +412,7 @@ input[type='range']::-webkit-slider-runnable-track {
   height: 1px;
   background: var(--line-strong);
 }
-/* The thumb is a 14px grab area that draws a 2px line, so it stays easy to hit and looks the same. */
+/* A 14px grab area that draws a 2px line, so it stays easy to hit and looks the same. */
 input[type='range']::-webkit-slider-thumb {
   appearance: none;
   width: 14px;
@@ -432,7 +421,6 @@ input[type='range']::-webkit-slider-thumb {
   background: linear-gradient(var(--text), var(--text)) center / 2px 100% no-repeat;
 }
 
-/* Settings: one row per setting, the choice on the right */
 .settings {
   position: relative;
 }
@@ -470,7 +458,6 @@ input[type='range']::-webkit-slider-thumb {
   color: var(--muted);
   font-size: 11.5px;
 }
-/* Segmented choice: real radio buttons, invisible, over each segment */
 .segmented,
 .themePicker {
   display: flex;
@@ -531,7 +518,6 @@ fieldset:disabled .segItem {
 .themePicker svg {
   display: block;
 }
-/* An on/off switch, drawn over a real checkbox */
 .toggle {
   appearance: none;
   position: relative;
@@ -593,7 +579,6 @@ fieldset:disabled .segItem {
   font-size: 10.5px;
 }
 
-/* First-export choice, under the Export or Export all button */
 .anchor {
   position: relative;
   display: inline-flex;
@@ -657,7 +642,6 @@ fieldset:disabled .segItem {
   color: var(--dim);
 }
 
-/* About */
 .modalScrim {
   position: fixed;
   inset: 0;
@@ -666,7 +650,6 @@ fieldset:disabled .segItem {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  /* The same dim as behind a drop, and no blur: the photo stays recognisable behind it. */
   background: var(--backdrop-strong);
 }
 .modal {
@@ -712,7 +695,6 @@ fieldset:disabled .segItem {
   margin: 10px 0 0;
   font-weight: 400;
 }
-/* About: who made it and under which licence; the licences themselves are one click further. */
 .modal.about {
   width: min(440px, 100%);
 }
@@ -741,7 +723,6 @@ fieldset:disabled .segItem {
 .iconBtn.back .icon {
   transform: rotate(90deg);
 }
-/* Licences: the parts on the left, filterable and grouped; the chosen licence on the right. */
 .modal.about.licencesView {
   width: min(760px, 100%);
   height: min(600px, 100%);
@@ -873,7 +854,6 @@ fieldset:disabled .segItem {
   gap: 12px;
   padding: 6px 0;
 }
-/* Questions: a title, a line of detail, and the answers in one row at the bottom */
 .modal.confirm {
   width: min(440px, 100%);
 }
@@ -920,7 +900,6 @@ fieldset:disabled .segItem {
   border-top: 1px solid var(--line);
 }
 
-/* Keyboard shortcuts: two columns, what a key does on the left and the keys on the right. */
 .modal.shortcuts {
   width: min(720px, 100%);
 }
@@ -962,7 +941,6 @@ fieldset:disabled .segItem {
   white-space: nowrap;
 }
 
-/* Replace original confirmation */
 .modal.confirm.overwrite {
   width: min(480px, 100%);
 }
@@ -997,17 +975,16 @@ fieldset:disabled .segItem {
 .confirmFoot .grow {
   flex: 1;
 }
-/* Focus is a border, so a focused button never looks taller than the other. */
 .confirmFoot .btn {
   white-space: nowrap;
 }
+/* Focus is a border, so a focused button never looks taller than the others. */
 .confirmFoot .btn:focus {
   outline: 0;
   border-color: var(--text);
 }
 
-/* Notices float over the top of the stage, so one appearing or clearing never resizes the stage
-   and moves the photo. The stack lets pointers through; only a notice itself takes them. */
+/* Notices float over the stage, so showing or clearing one never moves the photo. */
 .noticeStack {
   position: absolute;
   top: 8px;
@@ -1055,7 +1032,6 @@ fieldset:disabled .segItem {
   background: var(--ok);
 }
 
-/* Stage */
 .stageWrap {
   position: relative;
   flex: 1;
@@ -1094,7 +1070,6 @@ fieldset:disabled .segItem {
   height: 100%;
   pointer-events: none;
 }
-/* Holding B shows the photo as it was: no mosaic patch, no outlines. */
 .stage[data-peek] .patch,
 .stage[data-peek] .overlay {
   visibility: hidden;
@@ -1122,8 +1097,7 @@ fieldset:disabled .segItem {
   stroke-width: 1;
   stroke-dasharray: 4 3;
 }
-/* A dark under-stroke behind every outline, so it reads on bright and busy photos alike. It
-   keeps the dash pattern of the outline it sits behind. */
+/* A dark under-stroke behind each outline so it reads on bright photos; it keeps the dashes. */
 .overlay .halo {
   fill: none;
   stroke: var(--bg);
@@ -1139,8 +1113,6 @@ fieldset:disabled .segItem {
 .overlay .haloDraft {
   stroke-dasharray: 4 3;
 }
-/* Found faces are many and small: a faint outline each, so the crowd stays readable. The one
-   under the pointer is drawn in full. */
 .overlay .face .areaOn {
   stroke-opacity: 0.4;
 }
@@ -1155,7 +1127,6 @@ fieldset:disabled .segItem {
   stroke-opacity: 0.95;
   stroke-width: 6;
 }
-/* The area under the pointer: what a click would switch. Dashes stay, so on and off still read. */
 .overlay .areaHover {
   stroke: var(--text);
 }
@@ -1166,7 +1137,6 @@ fieldset:disabled .segItem {
   stroke-opacity: 0.95;
   stroke-width: 6;
 }
-/* Under the face the pointer is on: how sure the detector was */
 .faceTag {
   position: absolute;
   transform: translateX(-50%);
@@ -1182,7 +1152,6 @@ fieldset:disabled .segItem {
 .stage[data-peek] .faceTag {
   visibility: hidden;
 }
-/* Next to the region the detector is looking at; a chip so it reads over any photo. */
 .regionLabel {
   position: absolute;
   padding: 3px 8px;
@@ -1193,7 +1162,6 @@ fieldset:disabled .segItem {
   pointer-events: none;
 }
 
-/* Away from Fit, the zoom over the photo's corner; a click goes back to Fit, as Z does. */
 .zoomChip {
   position: absolute;
   top: 10px;
@@ -1216,7 +1184,6 @@ fieldset:disabled .segItem {
   color: var(--muted);
 }
 
-/* Empty state and drop overlay */
 .empty {
   position: absolute;
   inset: 24px 40px 40px;
@@ -1256,7 +1223,6 @@ fieldset:disabled .segItem {
   pointer-events: none;
 }
 
-/* Strip: the thumbnails, then Add. Past the window's width the thumbnails scroll and Add stays. */
 .stripBar {
   display: flex;
   justify-content: center;
@@ -1272,7 +1238,6 @@ fieldset:disabled .segItem {
   overflow-x: auto;
   overflow-y: hidden;
 }
-/* While photos are being added: where the next ones will appear */
 .thumbPlaceholder {
   flex: none;
   display: grid;
@@ -1335,7 +1300,6 @@ fieldset:disabled .segItem {
   outline: 1px solid var(--text);
   outline-offset: 3px;
 }
-/* One badge in the top right corner of a thumbnail */
 .thumb .badge {
   position: absolute;
   top: 0;
@@ -1357,7 +1321,6 @@ fieldset:disabled .segItem {
   background: var(--error);
   color: var(--on-text);
 }
-/* An export under way: a line that runs along the bottom */
 .thumbProgress {
   position: absolute;
   left: 0;
@@ -1383,7 +1346,6 @@ fieldset:disabled .segItem {
     left: 100%;
   }
 }
-/* Remove, on hover: the top left corner, clear of the status badge */
 .thumbSlot .remove {
   position: absolute;
   top: 0;
@@ -1409,7 +1371,6 @@ fieldset:disabled .segItem {
   outline-offset: 1px;
 }
 
-/* A thin progress bar */
 .progress {
   display: block;
   width: 96px;
@@ -1428,7 +1389,6 @@ fieldset:disabled .segItem {
   letter-spacing: var(--tracking-label);
 }
 
-/* Updates */
 .notice.update .lines {
   display: flex;
   flex-wrap: wrap;
@@ -1449,7 +1409,6 @@ fieldset:disabled .segItem {
   accent-color: var(--text);
 }
 
-/* A small turning ring for work without a known length. */
 .spinner {
   display: block;
   width: 9px;

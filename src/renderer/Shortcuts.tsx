@@ -2,11 +2,10 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { useEffect, useRef } from 'react';
 import { Icon } from './Icon';
-import { SHORTCUTS } from './shortcut-list';
 import { Scrim, useModalKeys } from './modal';
+import { SHORTCUTS } from './shortcut-list';
 import { actions } from './store';
 
-/** Every keyboard shortcut, one list. Opened with ? or from Settings. */
 const GROUPS = [
   { group: 'edit', title: 'Edit' },
   { group: 'view', title: 'Photos and view' },

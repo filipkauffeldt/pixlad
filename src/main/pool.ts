@@ -6,7 +6,6 @@ import type { WorkerReply, WorkerRequest } from './worker';
 type Distribute<T> = T extends { id: number } ? Omit<T, 'id'> : never;
 export type Task = Distribute<WorkerRequest>;
 
-/** A worker thread that answers one request at a time, in order. */
 export class WorkerClient {
   private readonly worker: Worker;
   private nextId = 1;
@@ -45,7 +44,6 @@ export class WorkerClient {
   }
 }
 
-/** Runs async jobs with a fixed concurrency; used for thumbnails. */
 export class Limiter {
   private active = 0;
   private readonly queue: Array<() => void> = [];

@@ -32,7 +32,6 @@ const OUTLINES: Array<{ outline: Outline; label: string; title: string }> = [
 ];
 const FLIP_KEY = isMac ? '⌘' : 'Ctrl';
 
-/** A menu's open state; a click outside it or Escape closes it. */
 function useMenu() {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -54,7 +53,6 @@ function useMenu() {
   return { open, setOpen, root };
 }
 
-/** Picks what a drag acts on: faces, or a drawn area. */
 function TargetToggle() {
   const app = useApp();
   return (
@@ -106,12 +104,11 @@ function ShapeIcon({ children }: { children: ReactNode }) {
   );
 }
 
-/** Picks how found faces are covered. */
 function ShapeMenu() {
   const app = useApp();
   const { open, setOpen, root } = useMenu();
   const current = SHAPES.find((s) => s.shape === app.faceShape)!;
-  // A drawn area has no face shape. The button stays where it is, greyed, so nothing moves.
+  // Greyed rather than hidden, so the toolbar does not shift.
   const off = app.target === 'area';
   return (
     <div className="targetMenu" ref={root}>
@@ -167,7 +164,6 @@ function ShapeMenu() {
   );
 }
 
-/** A typed value next to a slider: keeps a draft until Enter or blur, then clamps. */
 function NumberField({
   label,
   value,
@@ -252,7 +248,6 @@ const THEMES: Array<{ theme: Theme; label: string; icon: ReactNode }> = [
   },
 ];
 
-/** Light, dark or the system's choice, as three icon buttons that act as one radio group. */
 function ThemePicker() {
   const app = useApp();
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
@@ -273,7 +268,7 @@ function ThemePicker() {
         onKeyDown={(e) => {
           const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
           if (step === undefined) return;
-          // Kept from the window, where Left and Right step through the photos.
+          // The window's own Left and Right handlers step through photos.
           e.preventDefault();
           e.stopPropagation();
           pick((current + step + THEMES.length) % THEMES.length);
@@ -440,17 +435,15 @@ function Settings({ exporting }: { exporting: boolean }) {
   );
 }
 
-/** What the last Export all did, once it is over. */
 function batchSummary(batch: Batch): string {
+  const showFailed = batch.failed.length > 0 || batch.cancelled === 0;
   return [
     `${batch.ok} exported`,
-    // "0 failed" stays when nothing was cancelled; after a cancel only real failures show.
-    ...(batch.failed.length > 0 || batch.cancelled === 0 ? [`${batch.failed.length} failed`] : []),
+    ...(showFailed ? [`${batch.failed.length} failed`] : []),
     ...(batch.cancelled > 0 ? [`${batch.cancelled} cancelled`] : []),
   ].join(', ');
 }
 
-/** Export all under way: which photo of how many, and Cancel. */
 function BatchProgress({ batch }: { batch: Batch }) {
   return (
     <span className="readout batch">
@@ -483,7 +476,6 @@ function BatchProgress({ batch }: { batch: Batch }) {
   );
 }
 
-/** How the last export of the photo went, next to its name: saved where, or why it failed. */
 function PhotoStatus({ photo }: { photo: PhotoState }) {
   if (!photo.message) return null;
   const tone = photo.status === 'failed' ? 'error' : photo.status === 'exported' ? 'ok' : '';
@@ -508,7 +500,6 @@ function PhotoStatus({ photo }: { photo: PhotoState }) {
   );
 }
 
-/** Block and Padding, under the photo. */
 export function EditBar({ photo }: { photo: PhotoState | undefined }) {
   const longEdge = photo ? longEdgeOf(photo) : 1;
   const px = photo

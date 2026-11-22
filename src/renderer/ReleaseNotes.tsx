@@ -4,7 +4,6 @@ import { Icon } from './Icon';
 import { Scrim, useModalKeys } from './modal';
 import { actions, useApp } from './store';
 
-/** What changed in the update that was found. */
 export function ReleaseNotes() {
   const app = useApp();
   const update = app.update;

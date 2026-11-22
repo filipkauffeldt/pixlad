@@ -2,22 +2,16 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import { app, net, shell } from 'electron';
 import electronUpdater, { type AppUpdater } from 'electron-updater';
-import { RELEASES_OWNER, RELEASES_REPO } from '../shared/update';
 import { isPrerelease, parseVersion } from '../shared/version';
 import { chooseUpdater, type UpdaterKind } from './update-assets';
+import { resolveUpdateEnvironment, type UpdateEnvironment } from './update-environment';
 import {
   fetchReleaseNotes,
   GithubDmgSource,
-  parseTestUpdates,
   UpdateService,
-  type TestUpdates,
   type UpdateSource,
 } from './update-sources';
 
-/**
- * Windows and Linux: electron-updater checks GitHub, downloads the installer and installs it. It
- * never downloads by itself and never installs when the app quits, so the user decides.
- */
 class ElectronUpdaterSource implements UpdateSource {
   constructor(
     private readonly updater: AppUpdater,
@@ -30,7 +24,6 @@ class ElectronUpdaterSource implements UpdateSource {
     const version = result.updateInfo.version;
     const next = parseVersion(version);
     const now = parseVersion(this.currentVersion);
-    // Stable releases only, however the feed is set up.
     if (!result.isUpdateAvailable || !next || !now || isPrerelease(next)) return undefined;
     return version;
   }
@@ -47,8 +40,9 @@ class ElectronUpdaterSource implements UpdateSource {
   }
 
   install(): void {
-    // Not silent, so the installer shows what it does, and the app starts again afterwards.
-    this.updater.quitAndInstall(false, true);
+    const silent = false;
+    const runAfterInstall = true;
+    this.updater.quitAndInstall(silent, runAfterInstall);
   }
 }
 
@@ -63,51 +57,46 @@ function newUpdater(kind: UpdaterKind): AppUpdater {
   }
 }
 
-function createUpdater(platform: NodeJS.Platform, test: TestUpdates | undefined): AppUpdater {
-  // The classes are named here, not picked by electron-updater, because only these three kinds of
-  // package are built.
-  const updater = newUpdater(chooseUpdater(platform, process.env, process.execPath));
+function overrideCurrentVersion(updater: AppUpdater, version: string): void {
+  // electron-updater has no option for this, and an app adapter passed to its constructor leaves it
+  // without an HTTP executor.
+  const SemVer = updater.currentVersion.constructor as new (
+    version: string,
+  ) => typeof updater.currentVersion;
+  (updater as { currentVersion: unknown }).currentVersion = new SemVer(version);
+}
+
+function createUpdater(environment: UpdateEnvironment): AppUpdater {
+  const updater = newUpdater(chooseUpdater(environment.platform, process.env, process.execPath));
   updater.autoDownload = false;
   updater.autoInstallOnAppQuit = false;
   updater.allowPrerelease = false;
   updater.allowDowngrade = false;
-  if (test) {
-    updater.forceDevUpdateConfig = true;
-    updater.setFeedURL({ provider: 'generic', url: test.url });
-    // The version is a read-only SemVer made by the library. Make another one of the same class.
-    const SemVer = updater.currentVersion.constructor as new (
-      version: string,
-    ) => typeof updater.currentVersion;
-    (updater as { currentVersion: unknown }).currentVersion = new SemVer(test.version);
-  } else {
-    updater.setFeedURL({ provider: 'github', owner: RELEASES_OWNER, repo: RELEASES_REPO });
-  }
+  updater.forceDevUpdateConfig = environment.forceDevUpdateConfig;
+  updater.setFeedURL(environment.feed);
+  overrideCurrentVersion(updater, environment.currentVersion);
   return updater;
 }
 
-/**
- * The update service for this run. Only a packaged release build looks for updates: a source
- * run and the prerelease builds from pull requests and `main` (`0.0.0-dev.<n>`) never do. A test
- * can switch it on for a source run with PIXLAD_TEST_UPDATES, which a packaged app ignores.
- */
 export function createUpdateService(): UpdateService {
-  const test = app.isPackaged ? undefined : parseTestUpdates(process.env['PIXLAD_TEST_UPDATES']);
-  const currentVersion = test?.version ?? app.getVersion();
-  const version = parseVersion(currentVersion);
-  if (!test && !(app.isPackaged && version && !isPrerelease(version))) {
-    return new UpdateService(undefined);
-  }
-  const platform = test?.platform ?? process.platform;
-  const apiUrl = test?.url ?? `https://api.github.com/repos/${RELEASES_OWNER}/${RELEASES_REPO}`;
+  const environment = resolveUpdateEnvironment(
+    {
+      isPackaged: app.isPackaged,
+      version: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+    },
+    process.env['PIXLAD_TEST_UPDATES'],
+  );
+  if (!environment.enabled) return new UpdateService(undefined);
   const notes = (version: string) =>
-    fetchReleaseNotes(apiUrl, version, net.fetch.bind(net) as typeof fetch);
-  if (platform === 'darwin') {
+    fetchReleaseNotes(environment.apiUrl, version, net.fetch.bind(net) as typeof fetch);
+  if (environment.platform === 'darwin') {
     return new UpdateService(
       new GithubDmgSource({
-        apiUrl,
-        currentVersion,
-        // A test on another system gets the one build that exists for a Mac.
-        arch: test ? 'arm64' : process.arch,
+        apiUrl: environment.apiUrl,
+        currentVersion: environment.currentVersion,
+        arch: environment.arch,
         fetch: net.fetch.bind(net) as typeof fetch,
         downloadsDir: app.getPath('downloads'),
         openPath: (path) => shell.openPath(path),
@@ -115,9 +104,9 @@ export function createUpdateService(): UpdateService {
       notes,
     );
   }
-  if (platform === 'win32' || platform === 'linux') {
+  if (environment.platform === 'win32' || environment.platform === 'linux') {
     return new UpdateService(
-      new ElectronUpdaterSource(createUpdater(platform, test), currentVersion),
+      new ElectronUpdaterSource(createUpdater(environment), environment.currentVersion),
       notes,
     );
   }

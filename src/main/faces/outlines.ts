@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-// Outlines of face and hair for the Outlines face shape, from the MediaPipe selfie multiclass
-// segmenter. Boxes and points are in photo pixels.
 import * as ort from 'onnxruntime-node';
+import type { PixelRect } from '../../shared/geometry';
 import type { FaceKind, FaceTraits, Point } from '../../shared/types';
 import { outlineModel } from './models';
-import type { Box, Img } from './people';
+import type { Img } from './people';
 
 /** The segmenter's input edge. */
 const SEG = 256;
@@ -20,9 +19,8 @@ const OTHER = 5;
 /** Faces under this size keep the oval: a traced outline there is mostly guesswork. */
 const MIN_TRACE_PX = 100;
 
-/** A face or head to outline. */
 export interface TraceItem extends Pick<
-  FaceTraits<Box>,
+  FaceTraits<PixelRect>,
   'box' | 'kind' | 'angle' | 'confirmed' | 'eyes'
 > {
   kind: FaceKind;
@@ -30,7 +28,6 @@ export interface TraceItem extends Pick<
   confirmed: boolean;
 }
 
-/** A square crop of the photo, `side` px wide and rotated by `angle`, seen at SEG x SEG. */
 interface Crop {
   cx: number;
   cy: number;
@@ -38,7 +35,6 @@ interface Crop {
   angle: number;
 }
 
-/** Where a point of the SEG x SEG crop lies in the photo. */
 function toPhoto(crop: Crop, u: number, v: number): Point {
   const step = crop.side / SEG;
   const dx = (u - SEG / 2) * step;
@@ -76,7 +72,6 @@ function sample(img: Img, crop: Crop): Float32Array {
   return data;
 }
 
-/** The label of each pixel of the crop: the segmenter's most likely class. */
 async function segment(img: Img, crop: Crop, session: ort.InferenceSession): Promise<Uint8Array> {
   const input = new ort.Tensor('float32', sample(img, crop), [1, SEG, SEG, 3]);
   const out = await session.run({ [session.inputNames[0]!]: input });
@@ -94,7 +89,7 @@ async function segment(img: Img, crop: Crop, session: ort.InferenceSession): Pro
  * The crop a face's outline is worked out in, turned with the head: a face box 1.5x and a head box
  * (which already holds hair) 1.2x, both widened by 1.35 to leave room for hair above a face.
  */
-function framing(box: Box, kind: 'face' | 'head', angle: number): Crop {
+function framing(box: PixelRect, kind: 'face' | 'head', angle: number): Crop {
   return {
     cx: box.x + box.w / 2,
     cy: box.y + box.h / 2,
@@ -236,8 +231,7 @@ function outlineFromLabels(
   return ring.length >= 3 ? ring.map((p) => toPhoto(crop, p.x, p.y)) : undefined;
 }
 
-/** An oval over a balaclava's eyeholes: the eyes found, grown to cover the opening around them. */
-function eyeholes(eyes: readonly Box[]): Point[] {
+function eyeholes(eyes: readonly PixelRect[]): Point[] {
   const x0 = Math.min(...eyes.map((e) => e.x));
   const y0 = Math.min(...eyes.map((e) => e.y));
   const x1 = Math.max(...eyes.map((e) => e.x + e.w));
@@ -283,7 +277,6 @@ function morph(mask: Uint8Array<ArrayBuffer>, r: number, value: 0 | 1): Uint8Arr
   return pass(pass(mask, true), false);
 }
 
-/** The connected part of the mask closest to the crop centre. */
 function componentNearCentre(mask: Uint8Array): Uint8Array<ArrayBuffer> | undefined {
   let start = -1;
   let best = Infinity;
@@ -464,7 +457,6 @@ function sharedCrops(crops: readonly Crop[]): { crop: Crop; members: number[] }[
   return jobs;
 }
 
-/** `crop`'s labels, sampled (nearest) from the labels of the larger `shared` crop holding it. */
 function resample(labels: Uint8Array, shared: Crop, crop: Crop): Uint8Array {
   const out = new Uint8Array(SEG * SEG);
   for (let v = 0; v < SEG; v++) {

@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
-// Finds the people in a crowd for the Outlines face shape: faces with YuNet, and heads (also turned
-// away), faces, eyes and hands with DEIMv2 Wholebody34. Boxes are in photo pixels.
 import { join } from 'node:path';
 import * as ort from 'onnxruntime-node';
-import { clamp } from '../../shared/geometry';
+import { clamp, type PixelRect } from '../../shared/geometry';
 import type { FaceKind, FaceTraits, Point, Rect } from '../../shared/types';
 import { detectFaces } from './detect';
 import { outlineModel } from './models';
@@ -16,18 +14,10 @@ export interface Img {
   height: number;
 }
 
-export interface Box {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-export interface Person extends Omit<FaceTraits<Box>, 'angle'> {
+export interface Person extends Omit<FaceTraits<PixelRect>, 'angle'> {
   score: number;
   landmarks: Point[];
   kind: FaceKind;
-  /** Which pass found it. */
   from: 'yunet' | 'dehazed' | 'deimv2';
 }
 
@@ -53,7 +43,7 @@ const HAZE_CONTRAST = 30;
 /** The lowest YuNet score that counts, for a face inside a head. */
 const WEAK_FACE = 0.4;
 
-const area = (b: Box): number => b.w * b.h;
+const area = (b: PixelRect): number => b.w * b.h;
 
 /**
  * Whether `face` sits where a face would in `head`: the middle half across, the 20-70% band down.
@@ -72,22 +62,22 @@ function holdsFace(head: Person, face: Person): boolean {
   );
 }
 
-export function overlap(a: Box, b: Box): number {
+export function overlap(a: PixelRect, b: PixelRect): number {
   const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
   const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
   return w > 0 && h > 0 ? w * h : 0;
 }
 
-const centreIn = (a: Box, b: Box): boolean => {
+const centreIn = (a: PixelRect, b: PixelRect): boolean => {
   const cx = a.x + a.w / 2;
   const cy = a.y + a.h / 2;
   return cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h;
 };
 
 /** Mostly (60%+) inside the other box. */
-const inside = (a: Box, b: Box): boolean => overlap(a, b) >= 0.6 * area(a);
+const inside = (a: PixelRect, b: PixelRect): boolean => overlap(a, b) >= 0.6 * area(a);
 
-const iou = (a: Box, b: Box): number => {
+const iou = (a: PixelRect, b: PixelRect): number => {
   const shared = overlap(a, b);
   return shared === 0 ? 0 : shared / (area(a) + area(b) - shared);
 };
@@ -96,7 +86,7 @@ const iou = (a: Box, b: Box): number => {
  * A source window sampled (nearest) into a 640x640 NCHW tensor with ImageNet normalisation, at
  * its top left (the rest zero) unless stretched.
  */
-function tensor(img: Img, win: Box, scale: number, stretch: boolean) {
+function tensor(img: Img, win: PixelRect, scale: number, stretch: boolean) {
   const plane = N * N;
   const data = new Float32Array(plane * 3);
   const mean = [0.485, 0.456, 0.406];
@@ -121,12 +111,12 @@ function tensor(img: Img, win: Box, scale: number, stretch: boolean) {
  * whole region at 640 px too.
  */
 function windows(
-  region: Box,
+  region: PixelRect,
   maxEdge: number,
   tiles: boolean,
   whole: boolean,
-): { win: Box; scale: number; whole: boolean }[] {
-  const out: { win: Box; scale: number; whole: boolean }[] = [];
+): { win: PixelRect; scale: number; whole: boolean }[] {
+  const out: { win: PixelRect; scale: number; whole: boolean }[] = [];
   const longest = Math.max(region.w, region.h);
   const scale = Math.min(1, maxEdge / longest);
   const tile = Math.floor(N / scale);
@@ -148,15 +138,14 @@ function windows(
 
 interface Parts {
   heads: Person[];
-  faces: Box[];
-  eyes: Box[];
-  hands: Box[];
+  faces: PixelRect[];
+  eyes: PixelRect[];
+  hands: PixelRect[];
 }
 
-/** DEIMv2 over `region`: the heads, and the faces, eyes and hands it also finds. */
 async function deimv2(
   img: Img,
-  region: Box,
+  region: PixelRect,
   session: ort.InferenceSession,
   maxEdge: number,
   tiles: boolean,
@@ -200,7 +189,7 @@ async function deimv2(
 }
 
 /** Drop boxes that lie mostly (60%+) inside a larger box. */
-function withoutFragments<T extends { box: Box }>(dets: T[]): T[] {
+function withoutFragments<T extends { box: PixelRect }>(dets: T[]): T[] {
   const kept: T[] = [];
   for (const d of [...dets].sort((a, b) => area(b.box) - area(a.box))) {
     if (!kept.some((k) => inside(d.box, k.box))) kept.push(d);
@@ -208,7 +197,6 @@ function withoutFragments<T extends { box: Box }>(dets: T[]): T[] {
   return kept;
 }
 
-/** Box-filter copy whose long edge is at most `maxEdge` (the image itself when it already is). */
 function shrink(img: Img, maxEdge: number): Img {
   const scale = maxEdge / Math.max(img.width, img.height);
   if (scale >= 1) return img;
@@ -255,7 +243,6 @@ function shrink(img: Img, maxEdge: number): Img {
   return { rgba: out, width: outW, height: outH };
 }
 
-/** YuNet as Find all faces runs it, on a copy at most `maxEdge` long. Boxes in `img` pixels. */
 async function yunet(
   img: Img,
   region: Rect,
@@ -354,8 +341,7 @@ function dehaze(img: Img, tile = 96, spread = 2.2): Img {
   return { rgba: out, width: W, height: H };
 }
 
-/** A copy of `box` plus a margin, with the offset to map its coordinates back. */
-function cropImg(img: Img, box: Box, margin: number): { img: Img; x: number; y: number } {
+function cropImg(img: Img, box: PixelRect, margin: number): { img: Img; x: number; y: number } {
   const x0 = Math.max(0, Math.floor(box.x - margin));
   const y0 = Math.max(0, Math.floor(box.y - margin));
   const x1 = Math.min(img.width, Math.ceil(box.x + box.w + margin));
@@ -371,8 +357,7 @@ function cropImg(img: Img, box: Box, margin: number): { img: Img; x: number; y: 
   return { img: { rgba: out, width: w, height: h }, x: x0, y: y0 };
 }
 
-/** Spread (standard deviation) of brightness inside a box. */
-function contrast(img: Img, b: Box): number {
+function contrast(img: Img, b: PixelRect): number {
   const x0 = Math.max(0, Math.floor(b.x));
   const y0 = Math.max(0, Math.floor(b.y));
   const x1 = Math.min(img.width, Math.ceil(b.x + b.w));
@@ -399,7 +384,7 @@ function contrast(img: Img, b: Box): number {
  * Only finds where the original is washed out count: in clear light the plain pass sees everything,
  * and what the dehazed copy adds there is a hand, a tattoo or a printed face.
  */
-async function hazyFaces(img: Img, box: Box, modelsDir: string): Promise<Person[]> {
+async function hazyFaces(img: Img, box: PixelRect, modelsDir: string): Promise<Person[]> {
   const part = cropImg(img, box, 128);
   const found = await yunet(dehaze(part.img), { type: 'rect', x: 0, y: 0, w: 1, h: 1 }, modelsDir);
   return found
@@ -475,7 +460,11 @@ function notOversized(people: Person[], witnesses: readonly Person[]): Person[] 
  * DEIMv2 also calls a face (it sometimes calls a face behind a fist a hand too), and a face YuNet is
  * sure of (0.8 and up).
  */
-function notHands(people: Person[], hands: readonly Box[], faces: readonly Box[]): Person[] {
+function notHands(
+  people: Person[],
+  hands: readonly PixelRect[],
+  faces: readonly PixelRect[],
+): Person[] {
   return people.filter((p) => {
     if (faces.some((f) => overlap(f, p.box) >= 0.5 * Math.min(area(p.box), area(f)))) return true;
     if (p.from === 'yunet' && p.score >= 0.8) return true;
@@ -534,10 +523,7 @@ function onePerPerson(people: Person[]): Person[] {
   return kept;
 }
 
-/**
- * The people in `region` (normalized): every face, and the heads with no face of their own (the
- * back of a head, a balaclava).
- */
+/** `region` is normalized; includes heads with no face of their own. */
 export async function findPeople(img: Img, region: Rect, modelsDir: string): Promise<Person[]> {
   const x0 = clamp(Math.floor(region.x * img.width), 0, img.width);
   const y0 = clamp(Math.floor(region.y * img.height), 0, img.height);

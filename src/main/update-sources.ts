@@ -11,19 +11,14 @@ import {
 import { isNewerRelease, isPrerelease, parseVersion } from '../shared/version';
 import { chooseInstaller, type ReleaseAsset } from './update-assets';
 
-/** Where a newer version comes from and how it gets onto the machine. */
 export interface UpdateSource {
-  /** The newer version, or undefined when this one is the latest. */
   check(): Promise<string | undefined>;
-  /** Downloads what the last `check` found. */
   download(
     onProgress: (percent: number | undefined) => void,
   ): Promise<UpdateDownload & { ok: true }>;
-  /** Restarts into the downloaded version. Only after a download that ended in `restart`. */
   install(): void;
 }
 
-/** A failure as one line for the user: the reason, not a stack or a block of headers. */
 export function describeError(cause: unknown): string {
   const error = cause instanceof Error ? cause : new Error(String(cause));
   const inner = error.cause instanceof Error ? error.cause.message : '';
@@ -31,10 +26,6 @@ export function describeError(cause: unknown): string {
   return text.length > 200 ? `${text.slice(0, 197)}...` : text;
 }
 
-/**
- * Runs checks and downloads for one source. A check never throws, and two at once share one
- * request. A download needs a check that found something.
- */
 export class UpdateService {
   private pending: Promise<UpdateCheck> | undefined;
   private found = false;
@@ -44,7 +35,6 @@ export class UpdateService {
     private readonly notes?: (version: string) => Promise<ReleaseNote[] | undefined>,
   ) {}
 
-  /** Whether this build can look for updates at all. */
   get enabled(): boolean {
     return this.source !== undefined;
   }
@@ -87,7 +77,6 @@ export class UpdateService {
   }
 }
 
-/** The part of the GitHub releases API this app reads. */
 interface LatestRelease {
   tag_name: string;
   draft?: boolean;
@@ -108,7 +97,6 @@ function isLatestRelease(value: unknown): value is LatestRelease {
   );
 }
 
-/** The change list of a release, or undefined when GitHub has none to show. */
 export async function fetchReleaseNotes(
   apiUrl: string,
   version: string,
@@ -126,21 +114,16 @@ export async function fetchReleaseNotes(
 }
 
 export interface GithubDmgOptions {
-  /** `https://api.github.com/repos/<owner>/<repo>`. */
   apiUrl: string;
   currentVersion: string;
   arch: string;
   fetch: typeof fetch;
   downloadsDir: string;
-  /** Opens a file with the system's default app. Resolves to an error text, empty on success. */
+  /** Resolves to an error message, empty on success, like Electron's `shell.openPath`. */
   openPath: (path: string) => Promise<string>;
 }
 
-/**
- * macOS: the app is not signed with a certificate, so Squirrel.Mac cannot install an update. This
- * asks GitHub for the latest release, downloads its .dmg into Downloads and opens it, and the user
- * drags the app to Applications.
- */
+// The macOS build is unsigned, so Squirrel.Mac cannot install it; the user opens the .dmg instead.
 export class GithubDmgSource implements UpdateSource {
   private latest: { version: string; asset: ReleaseAsset } | undefined;
 
@@ -218,7 +201,6 @@ export class GithubDmgSource implements UpdateSource {
   }
 }
 
-/** A file name in `dir` that is not taken: `name.dmg`, then `name (1).dmg`, `name (2).dmg`. */
 async function freePath(dir: string, name: string): Promise<string> {
   const safe = basename(name);
   const extension = extname(safe);
@@ -233,13 +215,7 @@ async function freePath(dir: string, name: string): Promise<string> {
   }
 }
 
-/**
- * The test-only hook: a JSON object in PIXLAD_TEST_UPDATES that points update checks at a local
- * server and fixes the version and the system the app pretends to have. The main process reads it
- * only when the app is not packaged.
- */
 export interface TestUpdates {
-  /** Base URL of the fake server, without a trailing slash. */
   url: string;
   version: string;
   platform: 'darwin' | 'win32' | 'linux';

@@ -5,10 +5,6 @@ import type { ExportNames, ExportTarget } from '../shared/ipc';
 import { useModalKeys } from './modal';
 import { actions, hasMosaic, useApp } from './store';
 
-/**
- * The first-export choice, under the button that opened it: New copy or Replace original, with
- * the file name the export will write or replace. The choice is saved, so it shows once.
- */
 export function ExportChoice({ anchor }: { anchor: 'export' | 'all' }) {
   const app = useApp();
   const [target, setTarget] = useState<ExportTarget>(app.exportTarget);

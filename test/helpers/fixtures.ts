@@ -1,13 +1,12 @@
-// Generated JPEG fixtures. No photo is committed: everything is built here.
 import sharp from 'sharp';
 
 export interface Rgb {
   width: number;
   height: number;
-  data: Buffer; // RGB, 3 bytes per pixel
+  data: Buffer;
 }
 
-/** A synthetic "photo": smooth gradients, a few colour fields, and a fine pattern "face". */
+/** Gradients, colour fields and a fine-striped "face" that a mosaic flattens. */
 export function syntheticPhoto(width: number, height: number): Rgb {
   const data = Buffer.alloc(width * height * 3);
   const faceX = Math.round(width * 0.5);
@@ -27,7 +26,6 @@ export function syntheticPhoto(width: number, height: number): Rgb {
       const dx = x - faceX;
       const dy = y - faceY;
       if (dx * dx + dy * dy < faceR * faceR) {
-        // Fine stripes and a ring: detail far smaller than the mosaic block.
         const stripe = (Math.floor(x / 3) + Math.floor(y / 3)) % 2 === 0 ? 235 : 25;
         r = stripe;
         g = stripe * 0.8;
@@ -47,7 +45,6 @@ export interface JpegOptions {
   progressive?: boolean;
 }
 
-/** Plain JPEG from sharp/libjpeg, with whatever metadata sharp adds stripped back out. */
 export async function encodeJpeg(photo: Rgb, options: JpegOptions = {}): Promise<Buffer> {
   const buffer = await sharp(photo.data, {
     raw: { width: photo.width, height: photo.height, channels: 3 },
@@ -59,7 +56,7 @@ export async function encodeJpeg(photo: Rgb, options: JpegOptions = {}): Promise
       mozjpeg: false,
     })
     .toBuffer();
-  return withSegments(buffer, []);
+  return stripMetadata(buffer);
 }
 
 export interface RawSegment {
@@ -67,7 +64,7 @@ export interface RawSegment {
   payload: Buffer;
 }
 
-/** The JPEG with all APPn/COM segments removed and `segments` inserted after SOI. */
+/** Drops every APPn/COM segment and inserts `segments` after SOI. */
 export function withSegments(jpeg: Buffer, segments: RawSegment[], trailing?: Buffer): Buffer {
   const parts: Buffer[] = [Buffer.from([0xff, 0xd8])];
   for (const s of segments) parts.push(segment(s.marker, s.payload));
@@ -88,6 +85,8 @@ export function withSegments(jpeg: Buffer, segments: RawSegment[], trailing?: Bu
   return Buffer.concat(parts);
 }
 
+const stripMetadata = (jpeg: Buffer): Buffer => withSegments(jpeg, []);
+
 export function segment(marker: number, payload: Buffer): Buffer {
   const head = Buffer.alloc(4);
   head[0] = 0xff;
@@ -96,14 +95,11 @@ export function segment(marker: number, payload: Buffer): Buffer {
   return Buffer.concat([head, payload]);
 }
 
-/** Decode to raw RGB with no colour handling: the values the file stores. */
-export async function decodeRaw(jpeg: Buffer): Promise<Rgb> {
+export async function decodeStoredRgb(jpeg: Buffer): Promise<Rgb> {
   const { data, info } = await sharp(jpeg).raw().toBuffer({ resolveWithObject: true });
   if (info.channels !== 3) throw new Error(`expected 3 channels, got ${info.channels}`);
   return { width: info.width, height: info.height, data };
 }
-
-// ------------------------------------------------------------------------------------ ICC
 
 const s15 = (v: number): Buffer => {
   const b = Buffer.alloc(4);
@@ -111,7 +107,7 @@ const s15 = (v: number): Buffer => {
   return b;
 };
 
-/** A minimal Adobe RGB (1998) matrix/TRC profile, built here so no profile file is committed. */
+/** A minimal Adobe RGB (1998) profile, built here so no profile binary is committed. */
 export function adobeRgbProfile(): Buffer {
   const tag = (type: string, body: Buffer): Buffer => {
     const b = Buffer.concat([Buffer.from(type, 'latin1'), Buffer.alloc(4), body]);
@@ -187,14 +183,10 @@ export function iccSegments(profile: Buffer): RawSegment[] {
   }));
 }
 
-// ----------------------------------------------------------------------------------- EXIF
-
 export interface ExifOptions {
   orientation?: number;
-  /** A JPEG to embed as the IFD1 thumbnail. */
-  thumbnail?: Buffer;
+  ifd1Thumbnail?: Buffer;
   dateTimeOriginal?: string;
-  /** Embed a preview JPEG in a maker-note-like blob. */
   makerNotePreview?: Buffer;
 }
 
@@ -244,7 +236,7 @@ export function exifSegment(options: ExifOptions = {}): RawSegment {
     entry(0x0112, 3, 1, w16(options.orientation ?? 1)),
     entry(0x0131, 2, 1, Buffer.from('x\0', 'latin1')),
     entry(0x8769, 4, 1, w32(exifAt)),
-    w32(options.thumbnail ? ifd1At : 0),
+    w32(options.ifd1Thumbnail ? ifd1At : 0),
   ]);
   const exif = Buffer.concat([
     w16(exifCount),
@@ -254,21 +246,19 @@ export function exifSegment(options: ExifOptions = {}): RawSegment {
   ]);
   const parts = [Buffer.from('II*\0', 'latin1'), w32(8), ifd0, make, exif, date];
   if (maker) parts.push(maker);
-  if (options.thumbnail) {
+  if (options.ifd1Thumbnail) {
     parts.push(
       Buffer.concat([
         w16(2),
         entry(0x0201, 4, 1, w32(thumbAt)),
-        entry(0x0202, 4, 1, w32(options.thumbnail.length)),
+        entry(0x0202, 4, 1, w32(options.ifd1Thumbnail.length)),
         w32(0),
       ]),
-      options.thumbnail,
+      options.ifd1Thumbnail,
     );
   }
   return { marker: 0xe1, payload: Buffer.concat([Buffer.from('Exif\0\0', 'latin1'), ...parts]) };
 }
-
-// --------------------------------------------------------------------- IPTC, XMP, MPF, JFIF
 
 export function iptcSegment(options: { photoshopThumbnail?: Buffer } = {}): RawSegment {
   const record = (dataset: number, text: string): Buffer => {

@@ -6,7 +6,7 @@ import { exportEdit } from '../src/main/export-photo';
 import { decodeCoefficients } from '../src/main/jpeg/decode';
 import { planesToRgba, decodePlanes } from '../src/main/jpeg/pixels';
 import type { MosaicOp } from '../src/shared/types';
-import { decodeRaw, encodeJpeg, syntheticPhoto } from './helpers/fixtures';
+import { decodeStoredRgb, encodeJpeg, syntheticPhoto } from './helpers/fixtures';
 
 let dir: string;
 beforeAll(async () => {
@@ -25,7 +25,7 @@ describe('own decoder', () => {
       { subsampling: '4:2:0' as const, progressive: true },
     ]) {
       const jpeg = await encodeJpeg(photo, options);
-      const reference = await decodeRaw(jpeg);
+      const reference = await decodeStoredRgb(jpeg);
       const decoded = decodeCoefficients(jpeg);
       const rgba = planesToRgba(decoded, decodePlanes(decoded));
       let sum = 0;
@@ -52,14 +52,15 @@ describe('export', () => {
     const result = await exportEdit({ sourcePath: source, op });
     expect(result.path).toBe(join(dir, 'a_edit.jpg'));
     expect(Buffer.compare(await readFile(source), jpeg)).toBe(0);
-    const out = await decodeRaw(await readFile(result.path));
-    const src = await decodeRaw(jpeg);
-    // far from the mosaic: identical
-    let diff = 0;
+    const out = await decodeStoredRgb(await readFile(result.path));
+    const src = await decodeStoredRgb(jpeg);
+    let diffFarFromMosaic = 0;
     for (let x = 0; x < 40; x++)
       for (let y = 0; y < 240; y++)
-        diff += Math.abs(out.data[(y * 320 + x) * 3]! - src.data[(y * 320 + x) * 3]!);
-    expect(diff).toBe(0);
+        diffFarFromMosaic += Math.abs(
+          out.data[(y * 320 + x) * 3]! - src.data[(y * 320 + x) * 3]!,
+        );
+    expect(diffFarFromMosaic).toBe(0);
     expect(Math.abs((await stat(result.path)).mtimeMs - (await stat(source)).mtimeMs)).toBeLessThan(
       1,
     );

@@ -10,7 +10,7 @@ import { rasterizeRectPixels } from '../src/shared/mask';
 import type { MosaicOp } from '../src/shared/types';
 import {
   adobeRgbProfile,
-  decodeRaw,
+  decodeStoredRgb,
   encodeJpeg,
   exifSegment,
   iccSegments,
@@ -27,8 +27,10 @@ import {
 const W = 480;
 const H = 320;
 const BLOCK = 32;
+const REWRITTEN_BOUNDARY_TOLERANCE = 40;
 const RECT = { type: 'rect' as const, x: 0.35, y: 0.2, w: 0.3, h: 0.5 };
 const op: MosaicOp = { blockSizeRel: BLOCK / W, areas: [{ shape: RECT }] };
+const permissionsApply = process.platform !== 'win32' && process.getuid?.() !== 0;
 
 let dir: string;
 let exiftool: ExifTool;
@@ -48,12 +50,11 @@ async function write(jpeg: Buffer, name = `photo-${++counter}.jpg`): Promise<str
   return path;
 }
 
-/** Pixels (in the decoded, stored frame) inside the mosaic mask, and a ring around it. */
-function masks(
+function mosaicMaskAndRing(
   width: number,
   height: number,
-): { inside: Uint8Array; near: (x: number, y: number) => boolean } {
-  const inside = rasterizeRectPixels(
+): { mask: Uint8Array; nearMask: (x: number, y: number) => boolean } {
+  const mask = rasterizeRectPixels(
     { x: RECT.x * width, y: RECT.y * height, w: RECT.w * width, h: RECT.h * height },
     width,
     height,
@@ -62,7 +63,7 @@ function masks(
   const x1 = Math.ceil((RECT.x + RECT.w) * width) + 17;
   const y0 = Math.floor(RECT.y * height) - 17;
   const y1 = Math.ceil((RECT.y + RECT.h) * height) + 17;
-  return { inside, near: (x, y) => x >= x0 && x < x1 && y >= y0 && y < y1 };
+  return { mask, nearMask: (x, y) => x >= x0 && x < x1 && y >= y0 && y < y1 };
 }
 
 function compare(
@@ -87,8 +88,7 @@ function compare(
   return { max, n };
 }
 
-const spread = (image: Rgb, x0: number, y0: number, size: number): number => {
-  // largest channel range inside one block: 0 for a flat mosaic block
+const channelRange = (image: Rgb, x0: number, y0: number, size: number): number => {
   let lo = 255;
   let hi = 0;
   for (let y = y0; y < y0 + size; y++) {
@@ -114,23 +114,19 @@ for (const [label, profile] of [
         const result = await exportEdit({ sourcePath: path, op });
         const written = await readFile(result.path);
 
-        const before = await decodeRaw(jpeg);
-        const after = await decodeRaw(written);
-        const { inside, near } = masks(W, H);
-        // Tolerance outside the mosaic is 0: those blocks keep their coefficients.
-        expect(compare(before, after, (x, y) => !near(x, y)).max).toBe(0);
-        // Pixels beside the mosaic in rewritten blocks stay close (re-quantized with the same tables).
+        const before = await decodeStoredRgb(jpeg);
+        const after = await decodeStoredRgb(written);
+        const { mask, nearMask } = mosaicMaskAndRing(W, H);
+        // Exact equality is intentional: untouched blocks keep their coefficients.
+        expect(compare(before, after, (x, y) => !nearMask(x, y)).max).toBe(0);
         expect(
-          compare(before, after, (x, y) => near(x, y) && !inside[y * W + x]).max,
-        ).toBeLessThanOrEqual(40);
+          compare(before, after, (x, y) => nearMask(x, y) && !mask[y * W + x]).max,
+        ).toBeLessThanOrEqual(REWRITTEN_BOUNDARY_TOLERANCE);
 
-        // The mosaic: each 32 px block that lies fully inside the rectangle is flat, and the fine
-        // stripes of the "face" are not recoverable from it.
         const bx = Math.ceil((RECT.x * W) / BLOCK) * BLOCK;
         const by = Math.ceil((RECT.y * H) / BLOCK) * BLOCK;
-        expect(spread(before, bx, by, BLOCK)).toBeGreaterThan(60);
-        expect(spread(after, bx, by, BLOCK)).toBeLessThanOrEqual(6);
-        // The mosaic block equals the mean of the source block (decoded values as stored).
+        expect(channelRange(before, bx, by, BLOCK)).toBeGreaterThan(60);
+        expect(channelRange(after, bx, by, BLOCK)).toBeLessThanOrEqual(6);
         let sum = 0;
         for (let y = by; y < by + BLOCK; y++)
           for (let x = bx; x < bx + BLOCK; x++) sum += before.data[(y * W + x) * 3 + 1]!;
@@ -157,7 +153,7 @@ describe('the ICC profile and metadata', () => {
       exifSegment({
         ...(options.orientation === undefined ? {} : { orientation: options.orientation }),
         dateTimeOriginal: '2023:05:17 09:08:07',
-        ...(options.withPreviews ? { thumbnail: thumb, makerNotePreview: thumb } : {}),
+        ...(options.withPreviews ? { ifd1Thumbnail: thumb, makerNotePreview: thumb } : {}),
       }),
       xmpSegment(options.withPreviews ? { thumbnail: thumb } : {}),
       ...iccSegments(profile),
@@ -165,7 +161,7 @@ describe('the ICC profile and metadata', () => {
       ...(options.withPreviews ? [mpfSegment()] : []),
     ];
     const base = await encodeJpeg(syntheticPhoto(W, H), { quality: 90 });
-    // MPF files carry a second full image after the first one's EOI.
+    // An MPF file carries a second full image after the first one's EOI.
     return withSegments(base, segments, options.withPreviews ? await thumbnail() : undefined);
   }
 
@@ -203,7 +199,6 @@ describe('the ICC profile and metadata', () => {
   it('removes every thumbnail and preview, also from a source that has them', async () => {
     const jpeg = await richSource({ withPreviews: true });
     const source = await write(jpeg);
-    // The fixture really contains them: the checker finds them, and ExifTool lists a thumbnail.
     expect(inspectJpegPreviews(jpeg).length).toBeGreaterThan(0);
     const sourceTags = await exiftool.read(source);
     expect(
@@ -226,36 +221,33 @@ describe('the ICC profile and metadata', () => {
     ]) {
       expect(tags[key], key).toBeUndefined();
     }
-    // No second JPEG start marker anywhere, and nothing after the final EOI.
-    expect(written.indexOf(Buffer.from([0xff, 0xd8, 0xff]), 2)).toBe(-1);
-    expect(written.subarray(-2)).toEqual(Buffer.from([0xff, 0xd9]));
+    const secondJpegStart = written.indexOf(Buffer.from([0xff, 0xd8, 0xff]), 2);
+    expect(secondJpegStart).toBe(-1);
+    const finalMarker = written.subarray(-2);
+    expect(finalMarker).toEqual(Buffer.from([0xff, 0xd9]));
     expect(result.removed.length).toBeGreaterThan(0);
-    // The metadata that is not a preview survived.
     expect(String(tags.ObjectName)).toBe('Fixture object name');
   });
 
   for (const orientation of [6, 8]) {
     it(`keeps orientation ${orientation} and puts the mosaic on the upright picture`, async () => {
-      const photo = syntheticPhoto(W, H); // stored landscape; shown rotated
-      const base = await encodeJpeg(photo, { quality: 92 });
+      const storedLandscape = syntheticPhoto(W, H);
+      const base = await encodeJpeg(storedLandscape, { quality: 92 });
       const jpeg = withSegments(base, [exifSegment({ orientation }), ...iccSegments(profile)]);
       const source = await write(jpeg);
-      // Upright size is H x W. Cover the upright top-left quarter.
-      const upright = { type: 'rect' as const, x: 0, y: 0, w: 0.5, h: 0.5 };
+      const uprightTopLeftQuarter = { type: 'rect' as const, x: 0, y: 0, w: 0.5, h: 0.5 };
       const result = await exportEdit({
         sourcePath: source,
-        op: { blockSizeRel: BLOCK / W, areas: [{ shape: upright }] },
+        op: { blockSizeRel: BLOCK / W, areas: [{ shape: uprightTopLeftQuarter }] },
       });
       const tags = await exiftool.read(result.path);
       expect(tags.Orientation).toBe(orientation);
 
-      const before = await decodeRaw(jpeg);
-      const after = await decodeRaw(await readFile(result.path));
-      // Where the upright top-left quarter lies in the stored frame:
-      //  6 (rotate 90 CW): the bottom-left quarter;  8 (rotate 270 CW): the top-right quarter.
+      const before = await decodeStoredRgb(jpeg);
+      const after = await decodeStoredRgb(await readFile(result.path));
+      // EXIF 6 is stored rotated 90° CW (quarter at bottom-left), 8 by 270° (top-right).
       const inQuarter = (x: number, y: number): boolean =>
         orientation === 6 ? x < W / 2 && y >= H / 2 : x >= W / 2 && y < H / 2;
-      // Further than a block from that quarter pixels are identical, inside it they changed.
       const far = (x: number, y: number): boolean => {
         const dx = orientation === 6 ? Math.max(0, x - W / 2) : Math.max(0, W / 2 - x);
         const dy = orientation === 6 ? Math.max(0, H / 2 - y) : Math.max(0, y - H / 2);
@@ -268,7 +260,7 @@ describe('the ICC profile and metadata', () => {
 });
 
 describe('the source file and the target', () => {
-  it('never changes the source bytes or modification time, and never overwrites an old edit', async () => {
+  it('never changes the source bytes or modification time, never overwrites an old edit, and replaces its own file on a repeat export', async () => {
     const jpeg = await encodeJpeg(syntheticPhoto(W, H));
     const path = await write(jpeg, 'keep.JPG');
     const old = new Date('2020-01-02T03:04:05Z');
@@ -282,10 +274,8 @@ describe('the source file and the target', () => {
     );
     expect(Buffer.compare(await readFile(path), jpeg)).toBe(0);
     expect((await stat(path)).mtime.toISOString()).toBe(old.toISOString());
-    // The edit carries the source's modification time.
     expect(Math.abs((await stat(result.path)).mtimeMs - old.getTime())).toBeLessThan(2);
 
-    // A second export in the same session replaces its own file.
     const again = await exportEdit({ sourcePath: path, op, written: result.written });
     expect(again.path).toBe(result.path);
     expect(again.replaced).toBe(true);
@@ -313,16 +303,17 @@ describe('the source file and the target', () => {
     expect(Buffer.compare(written, jpeg)).not.toBe(0);
     expect(inspectJpegPreviews(written)).toEqual([]);
     expect(Math.abs((await stat(path)).mtimeMs - old.getTime())).toBeLessThan(2);
-    // A block well inside the rectangle was detailed and is now flat.
-    const before = await decodeRaw(jpeg);
-    const after = await decodeRaw(written);
+    const before = await decodeStoredRgb(jpeg);
+    const after = await decodeStoredRgb(written);
     const x = Math.floor(((RECT.x + RECT.w / 2) * W) / BLOCK) * BLOCK;
     const y = Math.floor(((RECT.y + RECT.h / 2) * H) / BLOCK) * BLOCK;
-    expect(spread(before, x + 8, y + 8, 16)).toBeGreaterThan(spread(after, x + 8, y + 8, 16));
+    expect(channelRange(before, x + 8, y + 8, 16)).toBeGreaterThan(
+      channelRange(after, x + 8, y + 8, 16),
+    );
   });
 
   it('refuses to overwrite a read-only source and leaves it alone', async () => {
-    if (process.platform === 'win32' || process.getuid?.() === 0) return; // permissions do not apply
+    if (!permissionsApply) return;
     const { chmod, mkdir } = await import('node:fs/promises');
     const folder = join(dir, 'readonly-file');
     await mkdir(folder);
@@ -338,7 +329,7 @@ describe('the source file and the target', () => {
   });
 
   it('leaves the source as it was when overwriting fails in the folder', async () => {
-    if (process.platform === 'win32' || process.getuid?.() === 0) return; // permissions do not apply
+    if (!permissionsApply) return;
     const { chmod, mkdir } = await import('node:fs/promises');
     const folder = join(dir, 'readonly-folder');
     await mkdir(folder);
@@ -358,7 +349,7 @@ describe('the source file and the target', () => {
   });
 
   it('fails per photo, naming the folder, when the folder cannot be written', async () => {
-    if (process.platform === 'win32' || process.getuid?.() === 0) return; // permissions do not apply
+    if (!permissionsApply) return;
     const { chmod, mkdir } = await import('node:fs/promises');
     const folder = join(dir, 'readonly');
     await mkdir(folder);

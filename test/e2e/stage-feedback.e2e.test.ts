@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
 import {
   closeWithoutAsking,
+  currentPhoto,
   dragOnPhoto,
   dropFiles,
   launch,
@@ -254,8 +255,6 @@ describe('the shortcuts sheet', () => {
     return page;
   }
   const sheet = (page: Page) => page.locator('[data-testid="shortcuts"]');
-  const current = (page: Page): Promise<string | null> =>
-    page.locator('[data-testid="thumb"][aria-current="true"]').getAttribute('data-name');
 
   it('opens with ?, lists the shortcuts, and closes on Escape', async () => {
     const page = await twoPhotos();
@@ -292,7 +291,7 @@ describe('the shortcuts sheet', () => {
 
   it('keeps the app shortcuts quiet while it is open', async () => {
     const page = await twoPhotos();
-    expect(await current(page)).toBe('a.jpg');
+    expect(await currentPhoto(page)).toBe('a.jpg');
     await page.keyboard.press('?');
     await sheet(page).waitFor();
     await page.keyboard.press('ArrowRight');
@@ -302,9 +301,9 @@ describe('the shortcuts sheet', () => {
     expect(await page.locator('[data-testid="thumb"]').count()).toBe(2);
     await page.keyboard.press('Escape');
     await sheet(page).waitFor({ state: 'detached' });
-    expect(await current(page)).toBe('a.jpg');
+    expect(await currentPhoto(page)).toBe('a.jpg');
     await page.keyboard.press('ArrowRight');
-    expect(await current(page)).toBe('b.jpg');
+    expect(await currentPhoto(page)).toBe('b.jpg');
   });
 });
 

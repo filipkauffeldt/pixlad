@@ -70,6 +70,23 @@ export async function pickTool(page: Page, tool: 'faces' | 'rect' | 'lasso'): Pr
   await page.click(`[data-outline="${tool === 'lasso' ? 'lasso' : 'rect'}"]`);
 }
 
+/** The on-screen box of the open photo. */
+export async function photoBox(
+  page: Page,
+): Promise<{ x: number; y: number; w: number; h: number }> {
+  const box = await page.locator('[data-testid="photo"]').boundingBox();
+  if (!box) throw new Error('no photo on screen');
+  return { x: box.x, y: box.y, w: box.width, h: box.height };
+}
+
+/** How many areas the open photo has. */
+export const areaCount = (page: Page): Promise<number> =>
+  page.locator('[data-testid="area"]').count();
+
+/** The name of the photo the strip marks as current. */
+export const currentPhoto = (page: Page): Promise<string | null> =>
+  page.locator('[data-testid="thumb"][aria-current="true"]').getAttribute('data-name');
+
 /** A real-mouse drag across the photo, between points given as fractions of it. */
 export async function dragOnPhoto(
   page: Page,

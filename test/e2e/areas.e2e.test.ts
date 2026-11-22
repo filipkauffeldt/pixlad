@@ -1,10 +1,12 @@
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  areaCount,
   closeWithoutAsking,
   dragOnPhoto,
   launch,
   openPhotos,
+  photoBox,
   pickTool,
   tempDir,
   type Launched,
@@ -16,12 +18,6 @@ afterEach(async () => {
   await closeWithoutAsking(running);
   running = undefined;
 });
-
-async function photoBox(page: Page): Promise<{ x: number; y: number; w: number; h: number }> {
-  const box = await page.locator('[data-testid="photo"]').boundingBox();
-  if (!box) throw new Error('no photo on screen');
-  return { x: box.x, y: box.y, w: box.width, h: box.height };
-}
 
 /** A point given as fractions of the photo, in page pixels. */
 async function at(page: Page, x: number, y: number): Promise<[number, number]> {
@@ -101,7 +97,6 @@ describe('hovering an area', () => {
   });
 });
 
-const areaCount = (page: Page): Promise<number> => page.locator('[data-testid="area"]').count();
 // The photos in the filmstrip, by name.
 const photosInSession = (page: Page): Promise<string> =>
   page

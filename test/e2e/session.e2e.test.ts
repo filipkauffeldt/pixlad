@@ -13,12 +13,14 @@ import {
 import {
   answerRemove,
   closeWithoutAsking,
+  currentPhoto,
   dialogMessages,
   dropFiles,
   dragOnPhoto,
   launch,
   movePointerOffAreas,
   openPhotos,
+  photoBox,
   pickTool,
   removeQuestion,
   stubCloseDialog,
@@ -45,11 +47,6 @@ afterEach(async () => {
   await closeWithoutAsking(running);
   running = undefined;
 });
-
-const box = async (page: Page): Promise<{ x: number; y: number; w: number; h: number }> => {
-  const b = (await page.locator('[data-testid="photo"]').boundingBox())!;
-  return { x: b.x, y: b.y, w: b.width, h: b.height };
-};
 
 describe('opening', () => {
   it('refuses non-JPEG and CMYK files with messages that name them, and opens the rest', async () => {
@@ -92,16 +89,14 @@ describe('opening', () => {
     const { page } = running;
     expect(await page.locator('[data-testid="empty"]').count()).toBe(1);
     await openPhotos(page, files);
-    const current = (): Promise<string | null> =>
-      page.locator('[data-testid="thumb"][aria-current="true"]').getAttribute('data-name');
-    expect(await current()).toBe('a.jpg');
+    expect(await currentPhoto(page)).toBe('a.jpg');
     await page.keyboard.press('ArrowRight');
-    expect(await current()).toBe('b.jpg');
+    expect(await currentPhoto(page)).toBe('b.jpg');
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
-    expect(await current()).toBe('c.jpg');
+    expect(await currentPhoto(page)).toBe('c.jpg');
     await page.keyboard.press('ArrowLeft');
-    expect(await current()).toBe('b.jpg');
+    expect(await currentPhoto(page)).toBe('b.jpg');
   });
 
   it('takes hundreds of photos from a folder drop and keeps the window responsive', async () => {
@@ -283,7 +278,7 @@ describe('zoom and pan', () => {
     await page.mouse.move(700, 400);
     await page.keyboard.press('z');
     expect(await stage.getAttribute('data-fit')).toBe('false');
-    const b = await box(page);
+    const b = await photoBox(page);
     expect(b.w).toBe(2400); // 100%: one image pixel per device pixel
     const dpr = await page.evaluate(() => window.devicePixelRatio);
     const left = await page
@@ -296,30 +291,30 @@ describe('zoom and pan', () => {
     );
 
     // pan with the wheel and with Space + drag
-    const x0 = (await box(page)).x;
+    const x0 = (await photoBox(page)).x;
     await page.mouse.wheel(120, 0);
     await page.waitForTimeout(100);
-    expect((await box(page)).x).not.toBe(x0);
-    const x1 = (await box(page)).x;
+    expect((await photoBox(page)).x).not.toBe(x0);
+    const x1 = (await photoBox(page)).x;
     await page.keyboard.down('Space');
     await page.mouse.move(600, 400);
     await page.mouse.down();
     await page.mouse.move(540, 400, { steps: 4 });
     await page.mouse.up();
     await page.keyboard.up('Space');
-    expect(Math.round((await box(page)).x - x1)).toBe(-60);
+    expect(Math.round((await photoBox(page)).x - x1)).toBe(-60);
     expect(await page.locator('[data-testid="area"]').count()).toBe(0); // Space-drag draws nothing
 
     // Ctrl + plus zooms in, Ctrl + 0 returns to Fit; Z brings back 100%, Ctrl + minus zooms out
     await page.keyboard.press('Control+=');
-    expect((await box(page)).w).toBeGreaterThan(2400);
+    expect((await photoBox(page)).w).toBeGreaterThan(2400);
     await page.keyboard.press('Control+0');
     expect(await stage.getAttribute('data-fit')).toBe('true');
-    expect((await box(page)).w).toBeLessThan(2400);
+    expect((await photoBox(page)).w).toBeLessThan(2400);
     await page.keyboard.press('z');
-    expect((await box(page)).w).toBe(2400);
+    expect((await photoBox(page)).w).toBe(2400);
     await page.keyboard.press('Control+-');
-    expect((await box(page)).w).toBeLessThan(2400);
+    expect((await photoBox(page)).w).toBeLessThan(2400);
     expect(await stage.getAttribute('data-fit')).toBe('false');
     await page.keyboard.press('z');
     expect(await stage.getAttribute('data-fit')).toBe('true');
@@ -877,7 +872,7 @@ describe('colour on screen', () => {
     await page.mouse.move(5, 5);
     // The outline's 5% tint is chrome, not photo: look at the pixels without it.
     await page.addStyleTag({ content: '.overlay { display: none }' });
-    const b = await box(page);
+    const b = await photoBox(page);
     const shot = await page.screenshot();
     const raw = await sharp(shot).removeAlpha().raw().toBuffer({ resolveWithObject: true });
     const at = (x: number, y: number): number[] => {

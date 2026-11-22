@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  areaCount,
   closeWithoutAsking,
   dragOnPhoto,
   launch,
@@ -47,7 +48,6 @@ async function centreOfFirstArea(page: Page): Promise<[number, number]> {
   return [box.x + box.width / 2, box.y + box.height / 2];
 }
 
-const areas = (page: Page): Promise<number> => page.locator('[data-testid="area"]').count();
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 
 describe('undo and redo buttons', () => {
@@ -84,22 +84,22 @@ describe('redo', () => {
     expect(await button(page, 'Redo').isDisabled()).toBe(true);
 
     await button(page, 'Undo').click();
-    expect(await areas(page)).toBe(1);
+    expect(await areaCount(page)).toBe(1);
     expect(await button(page, 'Redo').isEnabled()).toBe(true);
     await button(page, 'Redo').click();
-    expect(await areas(page)).toBe(2);
+    expect(await areaCount(page)).toBe(2);
     expect(await button(page, 'Redo').isDisabled()).toBe(true);
 
     await page.keyboard.press('ControlOrMeta+z');
-    expect(await areas(page)).toBe(1);
+    expect(await areaCount(page)).toBe(1);
     await page.keyboard.press('ControlOrMeta+Shift+z');
-    expect(await areas(page)).toBe(2);
+    expect(await areaCount(page)).toBe(2);
 
     if (process.platform !== 'darwin') {
       await page.keyboard.press('Control+z');
-      expect(await areas(page)).toBe(1);
+      expect(await areaCount(page)).toBe(1);
       await page.keyboard.press('Control+y');
-      expect(await areas(page)).toBe(2);
+      expect(await areaCount(page)).toBe(2);
     }
 
     await page.keyboard.press('ControlOrMeta+z');
@@ -113,7 +113,7 @@ describe('redo', () => {
     );
     expect(await button(page, 'Redo').isDisabled()).toBe(true);
     await page.keyboard.press('ControlOrMeta+Shift+z');
-    expect(await areas(page)).toBe(2);
+    expect(await areaCount(page)).toBe(2);
   });
 });
 
@@ -471,7 +471,7 @@ describe('the new shortcuts under a dialog', () => {
         8,
       );
       await page.keyboard.press('ControlOrMeta+z'); // one area on screen, one to redo
-      expect(await areas(page)).toBe(1);
+      expect(await areaCount(page)).toBe(1);
 
       await open(page);
       await page.locator(selector).waitFor();
@@ -480,7 +480,7 @@ describe('the new shortcuts under a dialog', () => {
       await page.keyboard.press('ControlOrMeta+Shift+z');
       if (process.platform !== 'darwin') await page.keyboard.press('Control+y');
 
-      expect(await areas(page)).toBe(1);
+      expect(await areaCount(page)).toBe(1);
       expect(await page.locator('[data-testid="detect-label"]').count()).toBe(0);
       expect(await app.evaluate(() => (globalThis as { __opened?: number }).__opened)).toBe(0);
 
@@ -488,7 +488,7 @@ describe('the new shortcuts under a dialog', () => {
       await page.keyboard.press('Escape');
       await page.locator(selector).waitFor({ state: 'detached' });
       await page.keyboard.press('ControlOrMeta+Shift+z');
-      expect(await areas(page)).toBe(2);
+      expect(await areaCount(page)).toBe(2);
     });
   }
 

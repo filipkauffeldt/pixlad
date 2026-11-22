@@ -6,9 +6,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
 import {
   answerRemove,
+  areaCount,
   closeWithoutAsking,
   launch,
   openPhotos,
+  photoBox,
   pickTool,
   tempDir,
   type Launched,
@@ -21,12 +23,6 @@ afterEach(async () => {
   await closeWithoutAsking(running);
   running = undefined;
 });
-
-async function photoBox(page: Page): Promise<{ x: number; y: number; w: number; h: number }> {
-  const box = await page.locator('[data-testid="photo"]').boundingBox();
-  if (!box) throw new Error('no photo on screen');
-  return { x: box.x, y: box.y, w: box.width, h: box.height };
-}
 
 /** A real-mouse drag between two points given as fractions of the photo (may be outside 0..1). */
 async function drag(
@@ -46,8 +42,6 @@ async function drag(
   for (const key of hold) await page.keyboard.up(key);
 }
 
-const areas = (page: Page): Promise<number> => page.locator('[data-testid="area"]').count();
-
 describe('drawing with the real mouse', () => {
   it('starts a drag in the margin around the picture', async () => {
     const dir = await tempDir();
@@ -62,7 +56,7 @@ describe('drawing with the real mouse', () => {
     await page.mouse.down();
     await page.mouse.move(b.x + 0.3 * b.w, b.y + 0.5 * b.h, { steps: 5 });
     await page.mouse.up();
-    expect(await areas(page)).toBe(1);
+    expect(await areaCount(page)).toBe(1);
   });
 
   it('puts a rectangle under the pointer, clips from the margin, toggles, undoes', async () => {
@@ -74,7 +68,7 @@ describe('drawing with the real mouse', () => {
     await pickTool(page, 'rect');
 
     await drag(page, [0.2, 0.2], [0.4, 0.5]);
-    expect(await areas(page)).toBe(1);
+    expect(await areaCount(page)).toBe(1);
     const path = page.locator('[data-testid="area"]').first();
     const area = (await path.boundingBox())!;
     const b = await photoBox(page);
@@ -93,7 +87,7 @@ describe('drawing with the real mouse', () => {
 
     // A drag that starts just outside the photo is clipped to it.
     await drag(page, [-0.01, 0.8], [0.3, 0.95]);
-    expect(await areas(page)).toBe(2);
+    expect(await areaCount(page)).toBe(2);
     const clipped = (await page.locator('[data-testid="area"]').nth(1).boundingBox())!;
     // Clipped to the photo's left edge (the stroke adds up to 2 px outside).
     expect(clipped.x).toBeGreaterThanOrEqual(b.x - 3);
@@ -113,16 +107,16 @@ describe('drawing with the real mouse', () => {
     // Subtract adds an area that takes mosaic away; Undo removes it again.
     await page.click('[data-mode="subtract"]');
     await drag(page, [0.25, 0.25], [0.3, 0.3]);
-    expect(await areas(page)).toBe(3);
+    expect(await areaCount(page)).toBe(3);
     await page.keyboard.press('Control+z');
-    expect(await areas(page)).toBe(2);
+    expect(await areaCount(page)).toBe(2);
 
     // Reset clears every area, and Undo brings them back.
     await page.click('[data-testid="reset"]');
-    expect(await areas(page)).toBe(0);
+    expect(await areaCount(page)).toBe(0);
     await expect(page.locator('[data-testid="reset"]').isDisabled()).resolves.toBe(true);
     await page.keyboard.press('Control+z');
-    expect(await areas(page)).toBe(2);
+    expect(await areaCount(page)).toBe(2);
   });
 
   it('flips the outline with Alt and add or subtract with Ctrl while a drag starts', async () => {

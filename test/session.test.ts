@@ -22,17 +22,17 @@ const png = (): Promise<Buffer> =>
 describe('adding files to a session', () => {
   it('refuses non-JPEG files by their bytes and names them', async () => {
     await writeFile(join(dir, 'picture.png'), await png());
-    await writeFile(join(dir, 'disguised.jpg'), await png()); // a PNG with a .jpg name
+    await writeFile(join(dir, 'pngNamedAsJpeg.jpg'), await png());
     await writeFile(join(dir, 'ok.jpg'), await encodeJpeg(syntheticPhoto(64, 48)));
     const result = await new Session().add([
       join(dir, 'picture.png'),
-      join(dir, 'disguised.jpg'),
+      join(dir, 'pngNamedAsJpeg.jpg'),
       join(dir, 'ok.jpg'),
     ]);
     expect(result.photos.map((p) => p.name)).toEqual(['ok.jpg']);
     expect(result.refused).toEqual([
       { name: 'picture.png', reason: 'is not a JPEG file' },
-      { name: 'disguised.jpg', reason: 'is not a JPEG file' },
+      { name: 'pngNamedAsJpeg.jpg', reason: 'is not a JPEG file' },
     ]);
   });
 

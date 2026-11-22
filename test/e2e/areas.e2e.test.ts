@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   closeWithoutAsking,
+  dragOnPhoto,
   launch,
   openPhotos,
   pickTool,
@@ -28,13 +29,6 @@ async function at(page: Page, x: number, y: number): Promise<[number, number]> {
   return [b.x + x * b.w, b.y + y * b.h];
 }
 
-async function drawRect(page: Page, from: [number, number], to: [number, number]): Promise<void> {
-  await page.mouse.move(...(await at(page, ...from)));
-  await page.mouse.down();
-  await page.mouse.move(...(await at(page, ...to)), { steps: 6 });
-  await page.mouse.up();
-}
-
 /** One photo open with two rectangles: A at x 0.1–0.3 and B at x 0.5–0.7, B drawn last. */
 async function openWithTwoAreas(firstRun = false): Promise<Page> {
   const dir = await tempDir();
@@ -43,8 +37,14 @@ async function openWithTwoAreas(firstRun = false): Promise<Page> {
   const { page } = running;
   await openPhotos(page, [file]);
   await pickTool(page, 'rect');
-  await drawRect(page, [0.1, 0.3], [0.3, 0.6]);
-  await drawRect(page, [0.5, 0.3], [0.7, 0.6]);
+  await dragOnPhoto(page, [
+    [0.1, 0.3],
+    [0.3, 0.6],
+  ]);
+  await dragOnPhoto(page, [
+    [0.5, 0.3],
+    [0.7, 0.6],
+  ]);
   expect(await page.locator('[data-testid="area"]').count()).toBe(2);
   return page;
 }

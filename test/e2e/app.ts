@@ -63,6 +63,39 @@ export async function pickTool(page: Page, tool: 'faces' | 'rect' | 'lasso'): Pr
   await page.click(`[data-outline="${tool === 'lasso' ? 'lasso' : 'rect'}"]`);
 }
 
+/** A real-mouse drag across the photo, between points given as fractions of it. */
+export async function dragOnPhoto(
+  page: Page,
+  points: Array<[number, number]>,
+  steps = 6,
+): Promise<void> {
+  const box = (await page.locator('[data-testid="photo"]').boundingBox())!;
+  const at = ([x, y]: [number, number]): [number, number] => [
+    box.x + x * box.width,
+    box.y + y * box.height,
+  ];
+  await page.mouse.move(...at(points[0]!));
+  await page.mouse.down();
+  for (const point of points.slice(1)) await page.mouse.move(...at(point), { steps });
+  await page.mouse.up();
+}
+
+/** Pick the rectangle tool and draw a mosaic over the middle of the photo. */
+export async function drawMosaic(page: Page): Promise<void> {
+  await pickTool(page, 'rect');
+  await dragOnPhoto(page, [
+    [0.2, 0.2],
+    [0.5, 0.5],
+  ]);
+  await page.waitForSelector('[data-testid="mosaic-patch"]');
+}
+
+/** Rest the pointer on the photo's bottom-right corner, away from the areas the tests draw. */
+export const movePointerOffAreas = async (page: Page): Promise<void> => {
+  const box = (await page.locator('[data-testid="photo"]').boundingBox())!;
+  await page.mouse.move(box.x + 0.9 * box.width, box.y + 0.9 * box.height);
+};
+
 /** Wait until the open photo has decoded at its natural size. */
 export const waitForPhoto = (page: Page): Promise<unknown> =>
   page.waitForFunction(() => {

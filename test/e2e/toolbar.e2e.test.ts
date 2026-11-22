@@ -5,7 +5,9 @@ import type { Page } from '@playwright/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   closeWithoutAsking,
+  dragOnPhoto,
   launch,
+  movePointerOffAreas,
   openPhotos,
   pickTool,
   tempDir,
@@ -39,18 +41,6 @@ async function openPhoto(file?: string): Promise<Page> {
   return page;
 }
 
-async function drag(page: Page, from: [number, number], to: [number, number]): Promise<void> {
-  const b = (await page.locator('[data-testid="photo"]').boundingBox())!;
-  const at = (p: [number, number]): [number, number] => [
-    b.x + p[0] * b.width,
-    b.y + p[1] * b.height,
-  ];
-  await page.mouse.move(...at(from));
-  await page.mouse.down();
-  await page.mouse.move(...at(to), { steps: 8 });
-  await page.mouse.up();
-}
-
 async function centreOfFirstArea(page: Page): Promise<[number, number]> {
   const box = (await page.locator('[data-testid="area"]').first().boundingBox())!;
   return [box.x + box.width / 2, box.y + box.height / 2];
@@ -74,8 +64,22 @@ describe('undo and redo buttons', () => {
 describe('redo', () => {
   it('redoes from the button and both shortcuts, and a new edit drops it', async () => {
     const page = await openPhoto();
-    await drag(page, [0.1, 0.1], [0.3, 0.3]);
-    await drag(page, [0.5, 0.5], [0.7, 0.7]);
+    await dragOnPhoto(
+      page,
+      [
+        [0.1, 0.1],
+        [0.3, 0.3],
+      ],
+      8,
+    );
+    await dragOnPhoto(
+      page,
+      [
+        [0.5, 0.5],
+        [0.7, 0.7],
+      ],
+      8,
+    );
     expect(await button(page, 'Redo').isDisabled()).toBe(true);
 
     await button(page, 'Undo').click();
@@ -98,7 +102,14 @@ describe('redo', () => {
     }
 
     await page.keyboard.press('ControlOrMeta+z');
-    await drag(page, [0.1, 0.6], [0.2, 0.8]);
+    await dragOnPhoto(
+      page,
+      [
+        [0.1, 0.6],
+        [0.2, 0.8],
+      ],
+      8,
+    );
     expect(await button(page, 'Redo').isDisabled()).toBe(true);
     await page.keyboard.press('ControlOrMeta+Shift+z');
     expect(await areas(page)).toBe(2);
@@ -184,7 +195,14 @@ describe('finding all faces', () => {
     // Take them away with Subtract over the whole photo, then F brings them back.
     await pickTool(page, 'faces');
     await page.click('[data-mode="subtract"]');
-    await drag(page, [-0.01, -0.01], [1.01, 1.01]);
+    await dragOnPhoto(
+      page,
+      [
+        [-0.01, -0.01],
+        [1.01, 1.01],
+      ],
+      8,
+    );
     await page.waitForFunction(() => !document.querySelector('[data-testid="face-count"]'));
     await page.click('[data-mode="add"]');
     await page.locator('body').click({ position: { x: 5, y: 300 } });
@@ -236,7 +254,14 @@ describe('the Export tooltip', () => {
     expect(await exportButton.isDisabled()).toBe(true);
     expect(await exportButton.getAttribute('title')).toBe('Draw an area or find faces first');
 
-    await drag(page, [0.2, 0.2], [0.5, 0.5]);
+    await dragOnPhoto(
+      page,
+      [
+        [0.2, 0.2],
+        [0.5, 0.5],
+      ],
+      8,
+    );
     expect(await exportButton.isEnabled()).toBe(true);
     expect(await exportButton.getAttribute('title')).toContain('Save a new copy');
 
@@ -307,7 +332,14 @@ describe('tooltips', () => {
     const mac = process.platform === 'darwin';
     const mod = mac ? '⌘' : 'Ctrl';
     const other = mac ? 'Ctrl' : '⌘';
-    await drag(page, [0.2, 0.2], [0.5, 0.5]); // Export has its usual tooltip once there is a mosaic
+    await dragOnPhoto(
+      page,
+      [
+        [0.2, 0.2],
+        [0.5, 0.5],
+      ],
+      8,
+    ); // Export has its usual tooltip once there is a mosaic
 
     const titles = {
       add: await title('[data-testid="add-photos"]'),
@@ -357,8 +389,22 @@ describe('the area counts', () => {
     );
     expect(await page.locator('[data-testid="drawn-count"]').count()).toBe(0);
 
-    await drag(page, [0.2, 0.2], [0.5, 0.5]);
-    await drag(page, [0.6, 0.6], [0.8, 0.8]);
+    await dragOnPhoto(
+      page,
+      [
+        [0.2, 0.2],
+        [0.5, 0.5],
+      ],
+      8,
+    );
+    await dragOnPhoto(
+      page,
+      [
+        [0.6, 0.6],
+        [0.8, 0.8],
+      ],
+      8,
+    );
     const counts = page.locator('[data-testid="edit-bar"] [data-testid="drawn-count"]');
     expect(await counts.textContent()).toBe('2/2');
     expect(await toolbar.locator('[data-testid="area-counts"]').count()).toBe(0);
@@ -389,9 +435,7 @@ describe('the new shortcuts under a dialog', () => {
     {
       name: 'the remove question',
       open: async (page) => {
-        // Rest the pointer on bare photo: over an area, Delete would remove that area instead.
-        const box = (await page.locator('[data-testid="photo"]').boundingBox())!;
-        await page.mouse.move(box.x + box.width * 0.9, box.y + box.height * 0.9);
+        await movePointerOffAreas(page);
         await page.keyboard.press('Delete');
       },
       selector: '[role="alertdialog"]',
@@ -412,8 +456,22 @@ describe('the new shortcuts under a dialog', () => {
         ipcMain.removeHandler('photo:detect');
         ipcMain.handle('photo:detect', () => new Promise(() => undefined));
       });
-      await drag(page, [0.1, 0.1], [0.3, 0.3]);
-      await drag(page, [0.5, 0.5], [0.7, 0.7]);
+      await dragOnPhoto(
+        page,
+        [
+          [0.1, 0.1],
+          [0.3, 0.3],
+        ],
+        8,
+      );
+      await dragOnPhoto(
+        page,
+        [
+          [0.5, 0.5],
+          [0.7, 0.7],
+        ],
+        8,
+      );
       await page.keyboard.press('ControlOrMeta+z'); // one area on screen, one to redo
       expect(await areas(page)).toBe(1);
 

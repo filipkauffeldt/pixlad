@@ -15,7 +15,9 @@ import {
   closeWithoutAsking,
   dialogMessages,
   dropFiles,
+  dragOnPhoto,
   launch,
+  movePointerOffAreas,
   openPhotos,
   pickTool,
   removeQuestion,
@@ -46,13 +48,6 @@ const box = async (page: Page): Promise<{ x: number; y: number; w: number; h: nu
   const b = (await page.locator('[data-testid="photo"]').boundingBox())!;
   return { x: b.x, y: b.y, w: b.width, h: b.height };
 };
-async function drawRect(page: Page, from: [number, number], to: [number, number]): Promise<void> {
-  const b = await box(page);
-  await page.mouse.move(b.x + from[0] * b.w, b.y + from[1] * b.h);
-  await page.mouse.down();
-  await page.mouse.move(b.x + to[0] * b.w, b.y + to[1] * b.h, { steps: 6 });
-  await page.mouse.up();
-}
 
 describe('opening', () => {
   it('refuses non-JPEG and CMYK files with messages that name them, and opens the rest', async () => {
@@ -152,11 +147,12 @@ describe('opening', () => {
     const { page } = running;
     await openPhotos(page, [file]);
     await pickTool(page, 'rect');
-    await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+    await dragOnPhoto(page, [
+      [0.2, 0.2],
+      [0.5, 0.5],
+    ]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
-    // Delete with the pointer over an area removes that area, so rest it on bare photo.
-    const photo = (await page.locator('[data-testid="photo"]').boundingBox())!;
-    await page.mouse.move(photo.x + 0.9 * photo.width, photo.y + 0.9 * photo.height);
+    await movePointerOffAreas(page);
 
     await page.keyboard.press('Delete');
     await page.waitForSelector('[data-testid="remove-photo"]');
@@ -381,7 +377,10 @@ describe('closing and exporting a batch', () => {
     await openPhotos(page, files);
     await pickTool(page, 'rect');
     for (let i = 0; i < 3; i++) {
-      await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+      await dragOnPhoto(page, [
+        [0.2, 0.2],
+        [0.5, 0.5],
+      ]);
       if (i < 2) {
         await page.keyboard.press('ArrowRight');
         await waitForPhoto(page);
@@ -431,7 +430,10 @@ describe('closing and exporting a batch', () => {
       await openPhotos(page, [good, bad, good2]);
       await pickTool(page, 'rect');
       for (let i = 0; i < 3; i++) {
-        await drawRect(page, [0.3, 0.3], [0.6, 0.6]);
+        await dragOnPhoto(page, [
+          [0.3, 0.3],
+          [0.6, 0.6],
+        ]);
         if (i < 2) {
           await page.keyboard.press('ArrowRight');
           await waitForPhoto(page);
@@ -478,7 +480,10 @@ describe('closing and exporting a batch', () => {
     await openPhotos(page, files);
     await pickTool(page, 'rect');
     for (let i = 0; i < 3; i++) {
-      await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+      await dragOnPhoto(page, [
+        [0.2, 0.2],
+        [0.5, 0.5],
+      ]);
       if (i < 2) {
         await page.keyboard.press('ArrowRight');
         await waitForPhoto(page);
@@ -531,9 +536,15 @@ describe('closing and exporting a batch', () => {
     const { page } = running;
     await openPhotos(page, [file]);
     await pickTool(page, 'rect');
-    await drawRect(page, [0.2, 0.2], [0.4, 0.4]);
+    await dragOnPhoto(page, [
+      [0.2, 0.2],
+      [0.4, 0.4],
+    ]);
     await page.click('[data-testid="export-all"]');
-    await drawRect(page, [0.6, 0.6], [0.8, 0.8]); // drawn while the export runs
+    await dragOnPhoto(page, [
+      [0.6, 0.6],
+      [0.8, 0.8],
+    ]); // drawn while the export runs
     await page.waitForSelector('[data-testid="badge-exported"], [data-testid="batch-status"]', {
       timeout: 30000,
     });
@@ -546,7 +557,10 @@ describe('after an export', () => {
     const file = await writePhoto(dir, name);
     await openPhotos(page, [file]);
     await pickTool(page, 'rect');
-    await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+    await dragOnPhoto(page, [
+      [0.2, 0.2],
+      [0.5, 0.5],
+    ]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.keyboard.press('Control+e');
     return file;
@@ -692,7 +706,10 @@ describe('after an export', () => {
     const file = await writePhoto(dir, 'reveal.jpg');
     await openPhotos(page, [file]);
     await pickTool(page, 'rect');
-    await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+    await dragOnPhoto(page, [
+      [0.2, 0.2],
+      [0.5, 0.5],
+    ]);
     expect(await page.locator('[data-testid="show-in-folder"]').count()).toBe(0);
 
     await page.keyboard.press('Control+e');
@@ -711,7 +728,10 @@ describe('after an export', () => {
     running = await launch();
     const { page } = running;
     await exportOne(page, 'edited.jpg', dir);
-    await drawRect(page, [0.6, 0.6], [0.8, 0.8]); // drawn while the export runs
+    await dragOnPhoto(page, [
+      [0.6, 0.6],
+      [0.8, 0.8],
+    ]); // drawn while the export runs
     await page.waitForFunction(
       () => document.querySelector('[data-testid="photo-status"]')?.textContent?.includes('Saved'),
       undefined,
@@ -740,7 +760,10 @@ describe('overwriting the original', () => {
 
     await openPhotos(page, [file]);
     await pickTool(page, 'rect');
-    await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+    await dragOnPhoto(page, [
+      [0.2, 0.2],
+      [0.5, 0.5],
+    ]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.keyboard.press('Control+e');
     await page.click('[data-testid="overwrite-confirm-replace"]');
@@ -784,7 +807,10 @@ describe('nothing survives the session', () => {
     let { page } = running;
     await openPhotos(page, [file]);
     await pickTool(page, 'rect');
-    await drawRect(page, [0.2, 0.2], [0.5, 0.5]);
+    await dragOnPhoto(page, [
+      [0.2, 0.2],
+      [0.5, 0.5],
+    ]);
     await page.keyboard.press('Control+e');
     await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
     await closeWithoutAsking(running);
@@ -837,7 +863,10 @@ describe('colour on screen', () => {
     const { page } = running;
     await openPhotos(page, [file]);
     await pickTool(page, 'rect');
-    await drawRect(page, [0.3, 0.3], [0.7, 0.7]);
+    await dragOnPhoto(page, [
+      [0.3, 0.3],
+      [0.7, 0.7],
+    ]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.waitForFunction(() => {
       const img = document.querySelector<HTMLImageElement>('[data-testid="mosaic-patch"]');

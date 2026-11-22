@@ -5,7 +5,15 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { afterEach, expect, it } from 'vitest';
 import { encodeJpeg, type Rgb } from '../helpers/fixtures';
-import { closeWithoutAsking, launch, openPhotos, pickTool, tempDir, type Launched } from './app';
+import {
+  closeWithoutAsking,
+  dragOnPhoto,
+  launch,
+  openPhotos,
+  pickTool,
+  tempDir,
+  type Launched,
+} from './app';
 
 const out = process.env['SCREENSHOT_DIR'];
 let running: Launched | undefined;
@@ -68,18 +76,6 @@ async function useTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
   await page.waitForSelector('[data-testid="settings-panel"]', { state: 'detached' });
 }
 
-async function drag(page: Page, points: Array<[number, number]>): Promise<void> {
-  const img = (await page.locator('[data-testid="photo"]').boundingBox())!;
-  const at = (p: [number, number]): [number, number] => [
-    img.x + p[0] * img.width,
-    img.y + p[1] * img.height,
-  ];
-  await page.mouse.move(...at(points[0]!));
-  await page.mouse.down();
-  for (const p of points.slice(1)) await page.mouse.move(...at(p), { steps: 6 });
-  await page.mouse.up();
-}
-
 it.skipIf(!out)(
   'takes the screenshots',
   async () => {
@@ -99,12 +95,12 @@ it.skipIf(!out)(
 
     await openPhotos(page, files);
     await pickTool(page, 'rect');
-    await drag(page, [
+    await dragOnPhoto(page, [
       [0.12, 0.3],
       [0.32, 0.62],
     ]); // the first face
     await pickTool(page, 'lasso');
-    await drag(page, [
+    await dragOnPhoto(page, [
       [0.34, 0.3],
       [0.5, 0.32],
       [0.52, 0.55],
@@ -112,7 +108,7 @@ it.skipIf(!out)(
       [0.33, 0.55],
     ]); // the second, freehand
     await pickTool(page, 'rect');
-    await drag(page, [
+    await dragOnPhoto(page, [
       [0.55, 0.32],
       [0.7, 0.62],
     ]);

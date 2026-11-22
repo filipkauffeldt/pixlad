@@ -5,8 +5,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { encodeJpeg, syntheticPhoto } from '../helpers/fixtures';
 import {
   closeWithoutAsking,
+  dragOnPhoto,
   dropFiles,
   launch,
+  movePointerOffAreas,
   openPhotos,
   pickTool,
   tempDir,
@@ -81,29 +83,20 @@ async function stubDetect(app: Launched['app'], mode: 'hang' | 'none' | 'fail'):
   }, mode);
 }
 
-/** A real-mouse drag between two points given as fractions of the photo. */
-async function drag(page: Page, points: Array<[number, number]>): Promise<void> {
-  const box = await photoBox(page);
-  const at = (p: [number, number]): [number, number] => [
-    box.x + p[0] * box.width,
-    box.y + p[1] * box.height,
-  ];
-  await page.mouse.move(...at(points[0]!));
-  await page.mouse.down();
-  for (const p of points.slice(1)) await page.mouse.move(...at(p), { steps: 5 });
-  await page.mouse.up();
-}
-
 describe('detection feedback', () => {
   it('keeps the dragged rectangle with the label beside it while it looks', async () => {
     running = await launch();
     const { page, app } = running;
     await openPhoto(page, await tempDir());
     await stubDetect(app, 'hang');
-    await drag(page, [
-      [0.2, 0.3],
-      [0.5, 0.6],
-    ]);
+    await dragOnPhoto(
+      page,
+      [
+        [0.2, 0.3],
+        [0.5, 0.6],
+      ],
+      5,
+    );
     const label = page.locator('[data-testid="detect-label"]');
     await label.waitFor();
     expect(await label.innerText()).toBe('Looking for faces…');
@@ -124,12 +117,16 @@ describe('detection feedback', () => {
     await openPhoto(page, await tempDir());
     await stubDetect(app, 'hang');
     await page.keyboard.down('Alt');
-    await drag(page, [
-      [0.2, 0.3],
-      [0.5, 0.3],
-      [0.55, 0.6],
-      [0.25, 0.65],
-    ]);
+    await dragOnPhoto(
+      page,
+      [
+        [0.2, 0.3],
+        [0.5, 0.3],
+        [0.55, 0.6],
+        [0.25, 0.65],
+      ],
+      5,
+    );
     await page.keyboard.up('Alt');
     await page.locator('[data-testid="detect-label"]').waitFor();
     const d = await page.locator('[data-testid="detect-region"]').getAttribute('d');
@@ -141,10 +138,14 @@ describe('detection feedback', () => {
     const { page, app } = running;
     await openPhoto(page, await tempDir());
     await stubDetect(app, 'none');
-    await drag(page, [
-      [0.2, 0.3],
-      [0.5, 0.6],
-    ]);
+    await dragOnPhoto(
+      page,
+      [
+        [0.2, 0.3],
+        [0.5, 0.6],
+      ],
+      5,
+    );
     const label = page.locator('[data-testid="detect-label"]');
     await page.waitForFunction(
       () =>
@@ -162,10 +163,14 @@ describe('detection feedback', () => {
     const { page, app } = running;
     await openPhoto(page, await tempDir());
     await stubDetect(app, 'fail');
-    await drag(page, [
-      [0.2, 0.3],
-      [0.5, 0.6],
-    ]);
+    await dragOnPhoto(
+      page,
+      [
+        [0.2, 0.3],
+        [0.5, 0.6],
+      ],
+      5,
+    );
     const notice = page.locator('[data-testid="notice"]');
     await notice.waitFor();
     expect(await notice.innerText()).toContain('Face detection failed');
@@ -180,10 +185,14 @@ describe('holding B to peek at the original', () => {
     const { page } = running;
     await openPhoto(page, await tempDir());
     await pickTool(page, 'rect');
-    await drag(page, [
-      [0.2, 0.3],
-      [0.5, 0.6],
-    ]);
+    await dragOnPhoto(
+      page,
+      [
+        [0.2, 0.3],
+        [0.5, 0.6],
+      ],
+      5,
+    );
     await page.locator('[data-testid="mosaic-patch"]').waitFor();
     return page;
   }
@@ -306,19 +315,21 @@ describe('the remove question and the notices', () => {
     const dir = await tempDir();
     await openPhoto(page, dir);
     await pickTool(page, 'rect');
-    await drag(page, [
-      [0.2, 0.3],
-      [0.5, 0.6],
-    ]);
+    await dragOnPhoto(
+      page,
+      [
+        [0.2, 0.3],
+        [0.5, 0.6],
+      ],
+      5,
+    );
     const text = join(dir, 'a.txt');
     await writeFile(text, 'not a photo');
     await dropFiles(page, [text]);
     const notice = page.locator('[data-testid="notice"]');
     await notice.waitFor();
     const at = (await notice.boundingBox())!;
-    // Delete with the pointer over an area removes that area, so rest it on bare photo.
-    const shown = (await page.locator('[data-testid="photo"]').boundingBox())!;
-    await page.mouse.move(shown.x + 0.9 * shown.width, shown.y + 0.9 * shown.height);
+    await movePointerOffAreas(page);
     await page.keyboard.press('Delete');
     await page.locator('[data-testid="remove-photo"]').waitFor();
     const top = await page.evaluate(

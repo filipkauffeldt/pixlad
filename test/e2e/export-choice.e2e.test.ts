@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   answerRemove,
   closeWithoutAsking,
+  drawMosaic,
   launch,
   openPhotos,
-  pickTool,
   tempDir,
   type Launched,
   writePhoto,
@@ -18,16 +18,6 @@ afterEach(async () => {
   await closeWithoutAsking(running);
   running = undefined;
 });
-
-async function drawRect(page: Page): Promise<void> {
-  const box = (await page.locator('[data-testid="photo"]').boundingBox())!;
-  await pickTool(page, 'rect');
-  await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.2);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5, { steps: 6 });
-  await page.mouse.up();
-  await page.waitForSelector('[data-testid="mosaic-patch"]');
-}
 
 /** The line under the options, once the file name has loaded. */
 async function result(page: Page): Promise<string> {
@@ -44,7 +34,7 @@ describe('the first export', () => {
     running = await launch({ userData, firstRun: true });
     let { page } = running;
     await openPhotos(page, [file]);
-    await drawRect(page);
+    await drawMosaic(page);
 
     await page.keyboard.press('ControlOrMeta+e');
     await page.waitForSelector('[data-testid="export-choice"]');
@@ -77,7 +67,7 @@ describe('the first export', () => {
     expect(saved).toMatchObject({ exportTarget: 'suffix', exportChosen: true });
 
     // The next export does not ask, and neither does a new start.
-    await drawRect(page);
+    await drawMosaic(page);
     await page.keyboard.press('ControlOrMeta+e');
     await page.waitForFunction(() =>
       document.querySelector('[data-testid="photo-status"]')?.textContent?.includes('replaced'),
@@ -88,7 +78,7 @@ describe('the first export', () => {
     running = await launch({ userData });
     page = running.page;
     await openPhotos(page, [file]);
-    await drawRect(page);
+    await drawMosaic(page);
     await page.keyboard.press('ControlOrMeta+e');
     await page.waitForFunction(() =>
       document.querySelector('[data-testid="photo-status"]')?.textContent?.includes('Saved'),
@@ -104,10 +94,10 @@ describe('the first export', () => {
     running = await launch({ firstRun: true });
     const { page } = running;
     await openPhotos(page, [one, two]);
-    await drawRect(page);
+    await drawMosaic(page);
     await page.keyboard.press('ArrowRight');
     await page.waitForSelector('[data-testid="photo"]');
-    await drawRect(page);
+    await drawMosaic(page);
 
     await page.click('[data-testid="export-all"]');
     await page.waitForSelector('[data-testid="export-choice"]');

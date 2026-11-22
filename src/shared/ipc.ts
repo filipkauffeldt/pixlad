@@ -3,7 +3,7 @@
 import type { UpdateCheck, UpdateDownload } from './update';
 import type { DetectOptions, FaceDetection, MosaicOp, Point, Rect, TraceFace } from './types';
 
-/** What the renderer knows about a photo in the session. Never the pixels. */
+/** Metadata only; the pixels stay in the main process. */
 export interface PhotoInfo {
   id: string;
   path: string;
@@ -22,7 +22,6 @@ export interface Refusal {
 export interface AddResult {
   photos: PhotoInfo[];
   refused: Refusal[];
-  /** How many of the given files were already in the session and skipped. */
   duplicates: number;
 }
 
@@ -38,39 +37,34 @@ export type ExportOutcome =
   | { ok: true; path: string; name: string; replaced: boolean; overwrote: boolean }
   | { ok: false; message: string };
 
-/** Where an export goes: `<name>_edit.jpg` next to the source, or over the source itself. */
+/** `suffix` writes `<name>_edit.jpg` next to the source; `overwrite` replaces the source. */
 export type ExportTarget = 'suffix' | 'overwrite';
 
 export const isExportTarget = (value: unknown): value is ExportTarget =>
   value === 'suffix' || value === 'overwrite';
 
-/** How the app looks: light, dark, or whatever the operating system uses. */
 export type Theme = 'system' | 'light' | 'dark';
 
 export const isTheme = (value: unknown): value is Theme =>
   value === 'system' || value === 'light' || value === 'dark';
 
-/** What happens to the exported photos in the session: ask, keep them, or take them out. */
 export type AfterExport = 'ask' | 'keep' | 'remove';
 
 export const isAfterExport = (value: unknown): value is AfterExport =>
   value === 'ask' || value === 'keep' || value === 'remove';
 
-/** What the app keeps between runs. */
 export interface Settings {
   exportTarget: ExportTarget;
-  /** Whether the user has picked an export target, so the first export stops asking. */
+  /** Once true, the first-export choice stops showing. */
   exportChosen: boolean;
-  /** Whether the app looks for a newer release when it starts. */
   checkForUpdates: boolean;
   theme: Theme;
-  /** What to do with photos in the session once they are exported. Missing in old files: ask. */
+  /** Missing in old settings files, which count as `ask`. */
   afterExport: AfterExport;
-  /** How the window was left, to open it the same way. Missing before the first close. */
   window?: WindowState;
 }
 
-/** The window's size and place when not maximized, and whether it was maximized. */
+/** Bounds are those of the window when not maximized. */
 export interface WindowState {
   x: number;
   y: number;
@@ -87,18 +81,14 @@ export const DEFAULT_SETTINGS: Settings = {
   afterExport: 'ask',
 };
 
-/** The file names an export of one photo would touch, for the first-export choice. */
 export interface ExportNames {
-  /** The photo's own file name, which Replace original overwrites. */
   source: string;
-  /** The name a new copy gets, such as `_DSC1234_edit.JPG` or `_DSC1234_edit-2.JPG`. */
+  /** E.g. `_DSC1234_edit.JPG`, or `_DSC1234_edit-2.JPG` when that exists. */
   copy: string;
 }
 
-/** Where the source code is published, as the GPL asks for. */
 export const SOURCE_URL = 'https://github.com/filipkauffeldt/pixlad';
 
-/** One part of THIRD_PARTY_NOTICES.txt: e.g. `react 19.3.1 (MIT)` and its licence text. */
 export interface Notice {
   title: string;
   homepage?: string;
@@ -107,18 +97,14 @@ export interface Notice {
 
 export interface AboutInfo {
   version: string;
-  /** The GPL text from LICENSE. */
   license: string;
   notices: Notice[];
-  /** Whether Electron's file with Chromium's licences was found, so it can be opened. */
   hasChromiumLicenses: boolean;
-  /** Whether this build looks for updates. A source run and the prerelease builds do not. */
+  /** False for a source run and for prerelease builds. */
   canCheckForUpdates: boolean;
 }
 
-/** The surface the preload exposes as `window.api`. */
 export interface Api {
-  /** Real file-system paths of dropped files and folders. */
   pathsForFiles(files: File[]): string[];
   openDialog(): Promise<string[]>;
   addPaths(paths: string[]): Promise<AddResult>;
@@ -126,15 +112,14 @@ export interface Api {
   openPhoto(id: string): Promise<void>;
   preview(id: string, op: MosaicOp): Promise<PreviewPatch | null>;
   detect(id: string, region: Rect, options?: DetectOptions): Promise<FaceDetection[]>;
-  /** Outlines for faces already found: an outline, null to drop the face, undefined to keep it. */
+  /** Per face: an outline, null to drop the face, undefined to keep it. */
   trace(id: string, faces: TraceFace[]): Promise<(Point[] | null | undefined)[]>;
-  /** Load the Outlines models ahead of use. */
   warmFaces(): Promise<void>;
   exportPhoto(id: string, op: MosaicOp): Promise<ExportOutcome>;
   settings(): Promise<Settings>;
-  /** Also records that the user has chosen, so the first-export choice does not show again. */
+  /** Also sets `exportChosen`. */
   setExportTarget(target: ExportTarget): Promise<void>;
-  /** Reveal the file this photo was last exported to in the system file manager. */
+  /** Reveals the file the photo was last exported to. */
   showInFolder(id: string): Promise<void>;
   exportNames(id: string): Promise<ExportNames>;
   setCheckForUpdates(enabled: boolean): Promise<void>;
@@ -142,20 +127,17 @@ export interface Api {
   setAfterExport(choice: AfterExport): Promise<void>;
   about(): Promise<AboutInfo>;
   openChromiumLicenses(): Promise<void>;
-  /** The check at start: undefined when the setting is off or this build does not check. */
+  /** Undefined when the setting is off or this build does not check. */
   checkForUpdatesOnStart(): Promise<UpdateCheck | undefined>;
   checkForUpdates(): Promise<UpdateCheck>;
-  /** Downloads what the last check found. Progress arrives through `onUpdateProgress`. */
+  /** Progress arrives through `onUpdateProgress`. */
   downloadUpdate(): Promise<UpdateDownload>;
-  /** Quits and installs the downloaded update, after asking if mosaics are not exported. */
+  /** Asks first if some mosaics are not exported. */
   installUpdate(): Promise<void>;
-  /** Open the release page of a version in the browser. */
   openReleaseNotes(version: string): Promise<void>;
-  /** Percent of the download, or undefined when the size is not known. Returns an unsubscribe. */
+  /** Percent, or undefined when the size is not known. Returns an unsubscribe. */
   onUpdateProgress(listener: (percent: number | undefined) => void): () => void;
-  /** Open the source code repository in the browser. */
   openSource(): Promise<void>;
-  /** Tell the main process how many photos have mosaics that are not exported (for closing). */
   setUnexported(count: number): void;
 }
 

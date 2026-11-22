@@ -3,7 +3,6 @@
 import { countAreas } from './retouch';
 import { useApp, type PhotoState } from './store';
 
-/** One count as "on/total": the switched-on part bright, the total dim. */
 function Count({
   label,
   on,
@@ -26,7 +25,6 @@ function Count({
   );
 }
 
-/** How many of the photo's faces and drawn areas are switched on, under the photo. */
 export function AreaCounts({ photo }: { photo: PhotoState }) {
   const app = useApp();
   const counts = countAreas(photo.areas);

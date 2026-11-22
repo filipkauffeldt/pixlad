@@ -1,6 +1,3 @@
-// Measures what the lossless export changes compared with decoding and re-encoding the whole
-// image. Not a pass/fail test: it prints numbers for a photo you have (never committed).
-//   MEASURE_PHOTO=/path/to/photo.jpg pnpm vitest run test/measure.test.ts
 import { it } from 'vitest';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -27,8 +24,7 @@ async function measure(input: string): Promise<void> {
   });
   const output = await decode(await readFile(exported.path));
 
-  // Naive route: decode, mosaic nothing, encode again at q95 with the same subsampling.
-  const naive = await decode(
+  const reencodedEverything = await decode(
     await sharp(reference, { raw: { width, height, channels: 3 } })
       .jpeg({ quality: 95, chromaSubsampling: '4:2:0' })
       .toBuffer(),
@@ -87,13 +83,13 @@ async function measure(input: string): Promise<void> {
   console.log('lossless, beside the mosaic        :', format(stats(output, nearUnmasked)));
   console.log(
     're-encode everything at q95        :',
-    format(stats(naive, (x, y) => !mask[y * width + x])),
+    format(stats(reencodedEverything, (x, y) => !mask[y * width + x])),
   );
   await rm(dir, { recursive: true, force: true });
 }
 
 it.skipIf(!process.env['MEASURE_PHOTO'])(
-  'prints the measurements',
+  'prints the lossless export measurements for MEASURE_PHOTO',
   async () => {
     for (const photo of process.env['MEASURE_PHOTO']!.split(',')) await measure(photo);
   },

@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 
-/**
- * Runs every job on the current photo one at a time, and keeps the worker's open photo in step
- * with the one a job is for. A job whose photo was superseded by a later `want` is rejected before
- * it decodes anything.
- */
 export class PhotoQueue {
   private chain: Promise<unknown> = Promise.resolve();
   private wantedId: string | undefined;
@@ -16,7 +11,6 @@ export class PhotoQueue {
     private readonly openInWorker: (path: string) => Promise<unknown>,
   ) {}
 
-  /** The worker's copy of this photo is out of date or gone: the next job reopens it. */
   forgetOpen(id: string): void {
     if (this.openId === id) this.openId = undefined;
   }

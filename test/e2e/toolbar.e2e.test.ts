@@ -330,8 +330,7 @@ describe('tooltips', () => {
     }
 
     const padding = await page.locator('.control', { hasText: 'Padding' }).getAttribute('title');
-    expect(padding).toContain('mosaic grows');
-    expect(padding).toContain('detected face');
+    expect(padding).toBe('Extra mosaic around each face');
   });
 });
 

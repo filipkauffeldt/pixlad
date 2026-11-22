@@ -219,7 +219,7 @@ const EXPORT_TARGETS: Array<{ target: ExportTarget; label: string; note: string 
     label: 'New copy',
     note: 'Saves a copy with _edit in its name. The original stays as it is.',
   },
-  { target: 'overwrite', label: 'Replace', note: 'Writes over the original. Cannot be undone.' },
+  { target: 'overwrite', label: 'Replace', note: 'Writes over the original' },
 ];
 
 const THEMES: Array<{ theme: Theme; label: string; icon: ReactNode }> = [
@@ -312,13 +312,13 @@ function ThemePicker() {
   );
 }
 
-const AFTER_EXPORT: Array<{ choice: AfterExport; label: string; note: string }> = [
-  { choice: 'ask', label: 'Ask', note: 'Asks after each export.' },
-  { choice: 'keep', label: 'Keep', note: 'The exported photos stay in the session.' },
+const AFTER_EXPORT: Array<{ choice: AfterExport; label: string; note?: string }> = [
+  { choice: 'ask', label: 'Ask' },
+  { choice: 'keep', label: 'Keep', note: 'Stay in the session' },
   {
     choice: 'remove',
     label: 'Remove',
-    note: 'The exported photos leave the session. The files stay on disk.',
+    note: 'Leave the session',
   },
 ];
 
@@ -517,10 +517,7 @@ export function EditBar({ photo }: { photo: PhotoState | undefined }) {
   return (
     <div className="editBar" data-testid="edit-bar">
       {photo && <AreaCounts photo={photo} />}
-      <label
-        className="control"
-        title="Block edge in pixels of the full-resolution photo. Small selections get larger blocks, so a face stays unrecognisable."
-      >
+      <label className="control" title="Size of the mosaic blocks">
         <span className="label">Block</span>
         <NumberField
           key={`block-${px}`}
@@ -543,10 +540,7 @@ export function EditBar({ photo }: { photo: PhotoState | undefined }) {
           onPointerUp={(e) => e.currentTarget.blur()}
         />
       </label>
-      <label
-        className="control"
-        title="How far the mosaic grows beyond each detected face, as a share of the face's size"
-      >
+      <label className="control" title="Extra mosaic around each face">
         <span className="label">Padding</span>
         <NumberField
           key={`pad-${Math.round((photo?.facePadding ?? 0.15) * 100)}`}
@@ -651,7 +645,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
           onClick={() => void actions.findAllFaces()}
           disabled={!photo || app.detecting}
           aria-label="Find all faces"
-          title="Find every face in this photo and add it to the mosaic (F)"
+          title="Find all faces in this photo (F)"
           data-testid="find-faces"
         >
           {app.detecting ? (
@@ -680,7 +674,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
               onClick={actions.undo}
               disabled={!photo || photo.undo.length === 0}
               aria-label="Undo"
-              title={`Undo the last change to the areas (${FLIP_KEY}+Z)`}
+              title={`Undo (${FLIP_KEY}+Z)`}
             >
               <Icon name="undo" size={18} />
             </button>
@@ -690,7 +684,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
               onClick={actions.redo}
               disabled={!photo || photo.redo.length === 0}
               aria-label="Redo"
-              title={`Redo the change you just undid (${REDO_KEYS})`}
+              title={`Redo (${REDO_KEYS})`}
             >
               <Icon name="redo" size={18} />
             </button>
@@ -699,8 +693,8 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
               className="iconBtn"
               onClick={actions.reset}
               disabled={!photo || photo.areas.length === 0}
-              aria-label="Clear all areas"
-              title="Clear every area and face on this photo (Undo brings them back)"
+              aria-label="Clear all edits"
+              title="Clear all edits in this photo"
               data-testid="reset"
             >
               <Icon name="clear" size={18} />
@@ -711,7 +705,7 @@ export function Toolbar({ photo }: { photo: PhotoState | undefined }) {
                 className="btn"
                 onClick={() => void actions.exportAll()}
                 disabled={!anyMosaic || exporting}
-                title="Export every photo that has a mosaic"
+                title="Export all edited photos"
                 data-testid="export-all"
               >
                 Export all

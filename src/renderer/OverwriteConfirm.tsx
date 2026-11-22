@@ -55,11 +55,6 @@ export function OverwriteConfirm({ anchor }: { anchor: 'export' | 'all' }) {
           {many ? `Replace ${count} originals?` : 'Replace original?'}
         </h2>
         <div className="confirmBody">
-          <p className="muted">
-            {many
-              ? 'The mosaics will be written over these files.'
-              : 'The mosaic will be written over this file.'}
-          </p>
           <div className="confirmFiles mono">
             {names.slice(0, LISTED).map((name, i) => (
               <div key={i}>{name}</div>

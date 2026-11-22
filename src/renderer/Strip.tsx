@@ -18,11 +18,7 @@ const EDGE = 8;
 function Badges({ photo, waiting }: { photo: PhotoState; waiting: boolean }) {
   if (waiting) {
     return (
-      <span
-        className="badge"
-        title="Exports once its outlines are traced"
-        data-testid="badge-waiting"
-      >
+      <span className="badge" title="Tracing…" data-testid="badge-waiting">
         <svg width="10" height="10" viewBox="0 0 10 10" aria-label="Waiting for its outlines">
           <circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" />
           <path d="M5 2.6V5l1.6 1.1" fill="none" stroke="currentColor" />
@@ -163,7 +159,7 @@ export function Strip() {
                   type="button"
                   className="remove"
                   aria-label={`Remove ${photo.info.name} from the session`}
-                  title="Remove from the session. The file stays on disk."
+                  title="Remove from session"
                   data-testid="remove"
                   data-name={photo.info.name}
                   onClick={() => actions.remove(photo.info.id)}
@@ -187,7 +183,7 @@ export function Strip() {
         className="addPhotos"
         onClick={() => void actions.openDialog()}
         aria-label="Add photos"
-        title={`Add photos to this session (${isMac ? '⌘' : 'Ctrl'}+O)`}
+        title={`Add photos (${isMac ? '⌘' : 'Ctrl'}+O)`}
         data-testid="add-photos"
       >
         <Icon name="plus" />

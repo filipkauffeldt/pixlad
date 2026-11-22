@@ -15,6 +15,7 @@ export interface UpdateEnvironment {
   apiUrl: string;
   feed: UpdateFeed;
   forceDevUpdateConfig: boolean;
+  versionOverride: string | undefined;
 }
 
 export interface Machine {
@@ -34,6 +35,7 @@ export function releaseEnvironment(machine: Machine): UpdateEnvironment {
     apiUrl: `https://api.github.com/repos/${RELEASES_OWNER}/${RELEASES_REPO}`,
     feed: { provider: 'github', owner: RELEASES_OWNER, repo: RELEASES_REPO },
     forceDevUpdateConfig: false,
+    versionOverride: undefined,
   };
 }
 
@@ -48,6 +50,7 @@ export function testEnvironment(test: TestUpdates): UpdateEnvironment {
     apiUrl: test.url,
     feed: { provider: 'generic', url: test.url },
     forceDevUpdateConfig: true,
+    versionOverride: test.version,
   };
 }
 

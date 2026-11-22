@@ -183,6 +183,7 @@ describe('resolveUpdateEnvironment', () => {
       apiUrl: `https://api.github.com/repos/${RELEASES_OWNER}/${RELEASES_REPO}`,
       feed: { provider: 'github', owner: RELEASES_OWNER, repo: RELEASES_REPO },
       forceDevUpdateConfig: false,
+      versionOverride: undefined,
     });
   });
 
@@ -207,6 +208,7 @@ describe('resolveUpdateEnvironment', () => {
       apiUrl: 'http://127.0.0.1:1',
       feed: { provider: 'generic', url: 'http://127.0.0.1:1' },
       forceDevUpdateConfig: true,
+      versionOverride: '0.2.0',
     });
   });
 

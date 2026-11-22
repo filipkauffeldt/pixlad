@@ -74,7 +74,7 @@ function createUpdater(environment: UpdateEnvironment): AppUpdater {
   updater.allowDowngrade = false;
   updater.forceDevUpdateConfig = environment.forceDevUpdateConfig;
   updater.setFeedURL(environment.feed);
-  overrideCurrentVersion(updater, environment.currentVersion);
+  if (environment.versionOverride) overrideCurrentVersion(updater, environment.versionOverride);
   return updater;
 }
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import icon from '../../build/icon.svg';
 import { SOURCE_URL, type AboutInfo, type Notice } from '../shared/ipc';
 import { Icon } from './Icon';
+import { useModalKeys } from './modal';
 import { UpdateStatus } from './UpdateStatus';
 import { actions, useApp, type AboutCheck } from './store';
 
@@ -130,15 +131,8 @@ export function About() {
   useEffect(() => {
     window.api.about().then(setInfo, (cause: unknown) => setError(String(cause)));
     close.current?.focus();
-    // Capture phase on the window: the app's shortcuts (Delete, Ctrl+E, Z, arrows) never see a
-    // key while the dialog is open. Buttons still activate, because that is the default action.
-    const onKeyDown = (event: KeyboardEvent): void => {
-      event.stopPropagation();
-      if (event.key === 'Escape') actions.setAboutOpen(false);
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, []);
+  useModalKeys({ Escape: () => actions.setAboutOpen(false) });
 
   const openChromium = (): void => {
     window.api.openChromiumLicenses().catch((cause: unknown) => setError(String(cause)));

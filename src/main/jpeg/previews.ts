@@ -1,12 +1,48 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Filip Kauffeldt
 import { readFile } from 'node:fs/promises';
+import {
+  ADOBE_ID,
+  ADOBE_SEGMENT_LENGTH,
+  APP0,
+  APP1,
+  APP13_PHOTOSHOP,
+  APP14,
+  APP2,
+  EOI,
+  EXIF_ID,
+  ICC_HEADER_LENGTH,
+  ICC_ID,
+  IFD_ENTRY_SIZE,
+  IRB_MIN_BLOCK_SIZE,
+  IRB_SIGNATURE,
+  IRB_THUMBNAIL_RESOURCE_IDS,
+  IRB_XMP_RESOURCE_ID,
+  JFIF_HEADER_LENGTH,
+  JFIF_ID,
+  JFIF_THUMBNAIL_HEIGHT_AT,
+  JFIF_THUMBNAIL_WIDTH_AT,
+  MARKER_PREFIX,
+  MAX_IFD_ENTRIES,
+  PHOTOSHOP_ID,
+  RST0,
+  RST7,
+  SOI,
+  SOS,
+  TEM,
+  TIFF_HEADER_LENGTH,
+  TIFF_MAGIC,
+  TIFF_TAG,
+  TIFF_TYPE,
+  TIFF_TYPE_SIZE,
+  XMP_EXTENDED_ID,
+  XMP_STANDARD_ID,
+  appNumber,
+  isAppMarker,
+} from './parse';
 
-// Ported from editing-experiment packages/export (GPL-3.0-or-later). It is an allowlist: only
-// JFIF without a thumbnail, ICC, clean EXIF, clean XMP, clean Photoshop IRB and the Adobe marker
-// pass; anything that could hold a preview of the unretouched image fails closed.
+// Ported from editing-experiment packages/export (GPL-3.0-or-later).
 
-/** Where a preview/thumbnail or an unexpected metadata block was found. */
 export type PreviewFindingKind =
   | 'exif-ifd1'
   | 'exif-thumbnail-tags'
@@ -29,11 +65,9 @@ export type PreviewFindingKind =
 
 export interface PreviewFinding {
   kind: PreviewFindingKind;
-  /** Human-readable location, e.g. the TIFF offset or IRB resource id. */
   detail: string;
 }
 
-/** The encoded JPEG still contains a thumbnail or preview of the unretouched image. */
 export class EmbeddedPreviewError extends Error {
   readonly findings: PreviewFinding[];
 
@@ -45,59 +79,26 @@ export class EmbeddedPreviewError extends Error {
   }
 }
 
-const SOI = 0xffd8;
-const EOI = 0xd9;
-const SOS = 0xda;
+const SOI_WORD = (MARKER_PREFIX << 8) | SOI;
+const JPEG_STREAM_START = [MARKER_PREFIX, SOI, MARKER_PREFIX];
+const MAX_VISITED_IFDS = 64;
+const MAX_OFFSET_VALUES = 64;
 
-const EXIF_HEADER = Buffer.from('Exif\0\0', 'latin1');
-const XMP_STANDARD = 'http://ns.adobe.com/xap/1.0/';
-const XMP_EXTENDED = 'http://ns.adobe.com/xmp/extension/';
-const PHOTOSHOP_HEADER = 'Photoshop 3.0\0';
-const ICC_HEADER = 'ICC_PROFILE\0';
+const EXIF_HEADER = Buffer.from(EXIF_ID, 'latin1');
+const ICC_HEADER = Buffer.from(ICC_ID, 'latin1');
+const JFIF_HEADER = Buffer.from(JFIF_ID, 'latin1');
+const ADOBE_HEADER = Buffer.from(ADOBE_ID, 'latin1');
+const PHOTOSHOP_HEADER = Buffer.from(PHOTOSHOP_ID, 'latin1');
 
-const TYPE_SIZES: Record<number, number> = {
-  1: 1, // BYTE
-  2: 1, // ASCII
-  3: 2, // SHORT
-  4: 4, // LONG
-  5: 8, // RATIONAL
-  6: 1, // SBYTE
-  7: 1, // UNDEFINED
-  8: 2, // SSHORT
-  9: 4, // SLONG
-  10: 8, // SRATIONAL
-  11: 4, // FLOAT
-  12: 8, // DOUBLE
-  13: 4, // IFD
-};
-
-const TAG_EXIF_IFD = 0x8769;
-const TAG_GPS_IFD = 0x8825;
-const TAG_INTEROP_IFD = 0xa005;
-const TAG_SUB_IFDS = 0x014a;
-const TAG_JPEG_INTERCHANGE_FORMAT = 0x0201;
-const TAG_JPEG_INTERCHANGE_FORMAT_LENGTH = 0x0202;
-const TAG_STRIP_OFFSETS = 0x0111;
-const TAG_STRIP_BYTE_COUNTS = 0x0117;
-const TAG_JPEG_FROM_RAW = 0x002e;
-const TAG_PREVIEW_IMAGE = 0xc51b;
-
-/**
- * Finds anything that could carry a preview of the original image.
- *
- * This is an allowlist: only the metadata blocks an export is allowed to have
- * are accepted (JFIF with no thumbnail, ICC, clean EXIF, clean XMP, clean
- * Photoshop IRB). Unknown APPn segments, malformed metadata, a second SOI or
- * bytes after EOI all fail closed.
- */
+/** Allowlist: unknown APPn segments, malformed metadata, a second SOI or bytes after EOI fail. */
 export function inspectJpegPreviews(data: Uint8Array): PreviewFinding[] {
   const findings: PreviewFinding[] = [];
 
-  if (data.length < 4 || readU16BE(data, 0) !== SOI) {
+  if (data.length < 4 || readU16BE(data, 0) !== SOI_WORD) {
     throw new Error('Not a JPEG file (missing SOI marker)');
   }
 
-  const secondSoi = indexOfBytes(data, [0xff, 0xd8, 0xff], 2);
+  const secondSoi = indexOfBytes(data, JPEG_STREAM_START, 2);
   if (secondSoi >= 0) {
     findings.push({ kind: 'second-soi', detail: `second SOI at offset ${secondSoi}` });
   }
@@ -105,11 +106,11 @@ export function inspectJpegPreviews(data: Uint8Array): PreviewFinding[] {
   let offset = 2;
   let terminated = false;
   while (offset < data.length) {
-    if (data[offset] !== 0xff) {
+    if (data[offset] !== MARKER_PREFIX) {
       findings.push({ kind: 'malformed-jpeg', detail: `expected marker at offset ${offset}` });
       break;
     }
-    while (offset < data.length && data[offset] === 0xff) offset++;
+    while (offset < data.length && data[offset] === MARKER_PREFIX) offset++;
     if (offset >= data.length) {
       findings.push({ kind: 'malformed-jpeg', detail: 'truncated marker' });
       break;
@@ -127,7 +128,7 @@ export function inspectJpegPreviews(data: Uint8Array): PreviewFinding[] {
       }
       break;
     }
-    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    if (marker === TEM || (marker >= RST0 && marker <= RST7)) continue;
 
     if (offset + 2 > data.length) {
       findings.push({ kind: 'malformed-jpeg', detail: 'truncated segment header' });
@@ -141,7 +142,7 @@ export function inspectJpegPreviews(data: Uint8Array): PreviewFinding[] {
     const payload = data.subarray(offset + 2, offset + length);
     offset += length;
 
-    if (marker >= 0xe0 && marker <= 0xef) inspectAppSegment(marker, payload, findings);
+    if (isAppMarker(marker)) inspectAppSegment(marker, payload, findings);
 
     if (marker === SOS) {
       const eoi = findEoi(data, offset);
@@ -167,68 +168,60 @@ export function inspectJpegPreviews(data: Uint8Array): PreviewFinding[] {
   return dedupe(findings);
 }
 
-/** Reads a JPEG from disk and returns every embedded preview finding. */
 export async function findEmbeddedPreviews(jpegPath: string): Promise<PreviewFinding[]> {
   const data = await readFile(jpegPath);
   return inspectJpegPreviews(data);
 }
 
-/**
- * Throws {@link EmbeddedPreviewError} when the JPEG contains a thumbnail, a
- * preview or metadata that cannot be proven clean. Export runs this after the
- * metadata hook, so a hook that copies an original preview fails the export
- * instead of leaking it.
- */
 export async function assertNoEmbeddedPreviews(jpegPath: string): Promise<void> {
   const findings = await findEmbeddedPreviews(jpegPath);
   if (findings.length > 0) throw new EmbeddedPreviewError(jpegPath, findings);
 }
 
 function inspectAppSegment(marker: number, payload: Uint8Array, findings: PreviewFinding[]): void {
-  if (marker === 0xe0) {
+  if (marker === APP0) {
     inspectJfif(payload, findings);
     return;
   }
-  if (marker === 0xe1) {
+  if (marker === APP1) {
     inspectApp1(payload, findings);
     return;
   }
-  if (marker === 0xe2) {
+  if (marker === APP2) {
     inspectApp2(payload, findings);
     return;
   }
-  if (marker === 0xed) {
+  if (marker === APP13_PHOTOSHOP) {
     inspectApp13(payload, findings);
     return;
   }
   if (
-    marker === 0xee &&
-    startsWith(payload, Buffer.from('Adobe', 'latin1')) &&
-    payload.length === 12
+    marker === APP14 &&
+    startsWith(payload, ADOBE_HEADER) &&
+    payload.length === ADOBE_SEGMENT_LENGTH
   ) {
     return;
   }
   findings.push({
     kind: 'unexpected-app',
-    detail: `APP${marker - 0xe0} segment is not part of the export allowlist`,
+    detail: `APP${appNumber(marker)} segment is not part of the export allowlist`,
   });
 }
 
 function inspectJfif(payload: Uint8Array, findings: PreviewFinding[]): void {
-  if (!startsWith(payload, Buffer.from('JFIF\0', 'latin1'))) {
+  if (!startsWith(payload, JFIF_HEADER)) {
     findings.push({
       kind: 'unexpected-app0',
       detail: 'APP0 is not JFIF (JFXX and vendor APP0 blocks may carry previews)',
     });
     return;
   }
-  // Identifier (5), version (2), units (1), densities (4), thumbnail size (2).
-  if (payload.length < 14) {
+  if (payload.length < JFIF_HEADER_LENGTH) {
     findings.push({ kind: 'malformed-app', detail: 'truncated JFIF header' });
     return;
   }
-  const thumbnailWidth = payload[12]!;
-  const thumbnailHeight = payload[13]!;
+  const thumbnailWidth = payload[JFIF_THUMBNAIL_WIDTH_AT]!;
+  const thumbnailHeight = payload[JFIF_THUMBNAIL_HEIGHT_AT]!;
   if (thumbnailWidth !== 0 || thumbnailHeight !== 0) {
     findings.push({
       kind: 'jfif-thumbnail',
@@ -236,21 +229,20 @@ function inspectJfif(payload: Uint8Array, findings: PreviewFinding[]): void {
     });
     return;
   }
-  if (payload.length !== 14) {
+  if (payload.length !== JFIF_HEADER_LENGTH) {
     findings.push({ kind: 'malformed-app', detail: 'unexpected data after JFIF header' });
   }
 }
 
 function inspectApp2(payload: Uint8Array, findings: PreviewFinding[]): void {
-  if (!startsWith(payload, Buffer.from(ICC_HEADER, 'latin1'))) {
+  if (!startsWith(payload, ICC_HEADER)) {
     findings.push({
       kind: 'unexpected-app2',
       detail: 'APP2 is not an ICC profile (MPF and other APP2 blocks may carry previews)',
     });
     return;
   }
-  // Header (12), sequence number (1), profile count (1).
-  if (payload.length < 14) {
+  if (payload.length < ICC_HEADER_LENGTH) {
     findings.push({ kind: 'malformed-app', detail: 'truncated ICC profile header' });
   }
 }
@@ -272,7 +264,7 @@ function inspectApp1(payload: Uint8Array, findings: PreviewFinding[]): void {
 }
 
 function inspectApp13(payload: Uint8Array, findings: PreviewFinding[]): void {
-  if (!startsWith(payload, Buffer.from(PHOTOSHOP_HEADER, 'latin1'))) {
+  if (!startsWith(payload, PHOTOSHOP_HEADER)) {
     findings.push({
       kind: 'unexpected-app13',
       detail: 'APP13 is not a Photoshop IRB',
@@ -283,7 +275,7 @@ function inspectApp13(payload: Uint8Array, findings: PreviewFinding[]): void {
 }
 
 function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
-  if (tiff.length < 8) {
+  if (tiff.length < TIFF_HEADER_LENGTH) {
     findings.push({ kind: 'malformed-exif', detail: 'truncated TIFF header' });
     return;
   }
@@ -299,12 +291,12 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
   const u32 = (at: number): number | undefined =>
     little ? readU32LE(tiff, at) : readU32BE(tiff, at);
 
-  if (u16(2) !== 42) {
+  if (u16(2) !== TIFF_MAGIC) {
     findings.push({ kind: 'malformed-exif', detail: 'invalid TIFF magic' });
     return;
   }
   const ifd0 = u32(4);
-  if (ifd0 === undefined || ifd0 < 8 || ifd0 >= tiff.length) {
+  if (ifd0 === undefined || ifd0 < TIFF_HEADER_LENGTH || ifd0 >= tiff.length) {
     findings.push({ kind: 'malformed-exif', detail: `invalid IFD0 offset ${String(ifd0)}` });
     return;
   }
@@ -315,7 +307,7 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
   ];
 
   while (queue.length > 0) {
-    if (visited.size >= 64) {
+    if (visited.size >= MAX_VISITED_IFDS) {
       findings.push({ kind: 'malformed-exif', detail: 'too many IFDs' });
       return;
     }
@@ -337,7 +329,7 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
     }
 
     const count = u16(current.offset);
-    if (count === undefined || count > 512) {
+    if (count === undefined || count > MAX_IFD_ENTRIES) {
       findings.push({
         kind: 'malformed-exif',
         detail: `invalid entry count at TIFF offset ${current.offset}`,
@@ -345,7 +337,7 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
       continue;
     }
     const entriesStart = current.offset + 2;
-    const nextOffsetAt = entriesStart + count * 12;
+    const nextOffsetAt = entriesStart + count * IFD_ENTRY_SIZE;
     if (nextOffsetAt + 4 > tiff.length) {
       findings.push({
         kind: 'malformed-exif',
@@ -355,7 +347,7 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
     }
 
     for (let index = 0; index < count; index++) {
-      const entry = entriesStart + index * 12;
+      const entry = entriesStart + index * IFD_ENTRY_SIZE;
       const tag = u16(entry);
       const type = u16(entry + 2);
       const valueCount = u32(entry + 4);
@@ -367,19 +359,22 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
         break;
       }
 
-      if (tag === TAG_JPEG_INTERCHANGE_FORMAT || tag === TAG_JPEG_INTERCHANGE_FORMAT_LENGTH) {
+      if (
+        tag === TIFF_TAG.JPEG_INTERCHANGE_FORMAT ||
+        tag === TIFF_TAG.JPEG_INTERCHANGE_FORMAT_LENGTH
+      ) {
         findings.push({
           kind: 'exif-thumbnail-tags',
           detail: `tag 0x${tag.toString(16)} in ${current.label}`,
         });
       }
-      if (tag === TAG_JPEG_FROM_RAW) {
+      if (tag === TIFF_TAG.JPEG_FROM_RAW) {
         findings.push({ kind: 'exif-jpgfromraw', detail: `tag 0x002e in ${current.label}` });
       }
-      if (tag === TAG_PREVIEW_IMAGE) {
+      if (tag === TIFF_TAG.PREVIEW_IMAGE) {
         findings.push({ kind: 'exif-previewimage', detail: `tag 0xc51b in ${current.label}` });
       }
-      if (tag === TAG_STRIP_OFFSETS || tag === TAG_STRIP_BYTE_COUNTS) {
+      if (tag === TIFF_TAG.STRIP_OFFSETS || tag === TIFF_TAG.STRIP_BYTE_COUNTS) {
         if (current.thumbnailIfd) {
           findings.push({
             kind: 'exif-ifd1',
@@ -387,7 +382,7 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
           });
         }
       }
-      if (tag === TAG_EXIF_IFD || tag === TAG_GPS_IFD || tag === TAG_INTEROP_IFD) {
+      if (tag === TIFF_TAG.EXIF_IFD || tag === TIFF_TAG.GPS_IFD || tag === TIFF_TAG.INTEROP_IFD) {
         const offsets = readOffsets(tiff, little, type, valueCount, entry);
         if (offsets === undefined || offsets.length === 0) {
           findings.push({
@@ -397,7 +392,7 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
           continue;
         }
         for (const target of offsets) {
-          if (target < 8 || target >= tiff.length) {
+          if (target < TIFF_HEADER_LENGTH || target >= tiff.length) {
             findings.push({
               kind: 'malformed-exif',
               detail: `${labelForTag(tag)} offset ${target} is out of range`,
@@ -406,14 +401,14 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
           }
           queue.push({ offset: target, thumbnailIfd: false, label: labelForTag(tag) });
         }
-      } else if (tag === TAG_SUB_IFDS) {
+      } else if (tag === TIFF_TAG.SUB_IFDS) {
         const offsets = readOffsets(tiff, little, type, valueCount, entry);
         if (offsets === undefined || offsets.length === 0) {
           findings.push({ kind: 'malformed-exif', detail: 'invalid SubIFD pointer' });
           continue;
         }
         for (const target of offsets) {
-          if (target < 8 || target >= tiff.length) {
+          if (target < TIFF_HEADER_LENGTH || target >= tiff.length) {
             findings.push({
               kind: 'malformed-exif',
               detail: `SubIFD offset ${target} is out of range`,
@@ -431,7 +426,7 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
       continue;
     }
     if (next !== 0) {
-      if (next < 8 || next >= tiff.length) {
+      if (next < TIFF_HEADER_LENGTH || next >= tiff.length) {
         findings.push({
           kind: 'malformed-exif',
           detail: `${current.label} next IFD offset ${next} is out of range`,
@@ -442,9 +437,7 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
     }
   }
 
-  // Any JPEG stream inside EXIF (a maker note, an unlinked thumbnail, ...) is
-  // also a preview of the image and must not survive an export.
-  const embeddedAt = indexOfBytes(tiff, [0xff, 0xd8, 0xff], 0);
+  const embeddedAt = indexOfBytes(tiff, JPEG_STREAM_START, 0);
   if (embeddedAt >= 0) {
     findings.push({
       kind: 'exif-embedded-jpeg',
@@ -453,7 +446,6 @@ function inspectTiff(tiff: Uint8Array, findings: PreviewFinding[]): void {
   }
 }
 
-/** `undefined` means the value set is truncated or structurally invalid. */
 function readOffsets(
   tiff: Uint8Array,
   little: boolean,
@@ -461,8 +453,8 @@ function readOffsets(
   count: number,
   entry: number,
 ): number[] | undefined {
-  const unit = TYPE_SIZES[type];
-  if (unit === undefined || count === 0 || count > 64) return undefined;
+  const unit = TIFF_TYPE_SIZE[type];
+  if (unit === undefined || count === 0 || count > MAX_OFFSET_VALUES) return undefined;
   const size = unit * count;
   let base: number;
   if (size <= 4) {
@@ -477,11 +469,11 @@ function readOffsets(
   const offsets: number[] = [];
   for (let index = 0; index < count; index++) {
     const at = base + index * unit;
-    if (type === 3) {
+    if (type === TIFF_TYPE.SHORT) {
       const value = little ? readU16LE(tiff, at) : readU16BE(tiff, at);
       if (value === undefined) return undefined;
       offsets.push(value);
-    } else if (type === 4 || type === 13) {
+    } else if (type === TIFF_TYPE.LONG || type === TIFF_TYPE.IFD) {
       const value = little ? readU32LE(tiff, at) : readU32BE(tiff, at);
       if (value === undefined) return undefined;
       offsets.push(value);
@@ -500,14 +492,14 @@ function inspectPhotoshopIrbs(data: Uint8Array, findings: PreviewFinding[]): voi
 
   let offset = 0;
   while (offset < data.length) {
-    if (offset + 12 > data.length) {
+    if (offset + IRB_MIN_BLOCK_SIZE > data.length) {
       findings.push({
         kind: 'malformed-photoshop',
         detail: `truncated IRB block at offset ${offset}`,
       });
       return;
     }
-    if (latin1(data, offset, offset + 4) !== '8BIM') {
+    if (latin1(data, offset, offset + IRB_SIGNATURE.length) !== IRB_SIGNATURE) {
       findings.push({
         kind: 'malformed-photoshop',
         detail: `invalid IRB signature at offset ${offset}`,
@@ -520,8 +512,7 @@ function inspectPhotoshopIrbs(data: Uint8Array, findings: PreviewFinding[]): voi
       return;
     }
     const nameLength = data[offset + 6]!;
-    let nameFieldLength = 1 + nameLength;
-    if (nameFieldLength % 2 !== 0) nameFieldLength++;
+    const nameFieldLength = padToEven(1 + nameLength);
     const sizeAt = offset + 6 + nameFieldLength;
     const size = readU32BE(data, sizeAt);
     if (size === undefined) {
@@ -534,19 +525,17 @@ function inspectPhotoshopIrbs(data: Uint8Array, findings: PreviewFinding[]): voi
       return;
     }
 
-    // 0x0409: ThumbnailResource, 0x040c: ThumbnailResource (Photoshop 4).
-    if (resourceId === 0x0409 || resourceId === 0x040c) {
+    if (IRB_THUMBNAIL_RESOURCE_IDS.includes(resourceId)) {
       findings.push({
         kind: 'photoshop-thumbnail',
         detail: `IRB resource 0x${resourceId.toString(16)}`,
       });
     }
-    // XMP inside IRB can also carry a thumbnail.
-    if (resourceId === 0x0424) {
+    if (resourceId === IRB_XMP_RESOURCE_ID) {
       inspectXmp(data.subarray(dataAt, dataAt + size), findings);
     }
 
-    offset = dataAt + size + (size % 2);
+    offset = dataAt + padToEven(size);
   }
 }
 
@@ -577,6 +566,8 @@ function inspectXmp(body: Uint8Array, findings: PreviewFinding[]): void {
   }
 }
 
+const padToEven = (n: number): number => n + (n % 2);
+
 function decodeUtf16be(body: Uint8Array): string {
   if (body.length < 2) return '';
   const even = body.length - (body.length % 2);
@@ -587,20 +578,20 @@ function decodeUtf16be(body: Uint8Array): string {
 
 function xmpHeaderLength(payload: Uint8Array): number | undefined {
   const head = latin1(payload, 0, Math.min(payload.length, 64));
-  if (head.startsWith(XMP_STANDARD)) return XMP_STANDARD.length + 1;
-  if (head.startsWith(XMP_EXTENDED)) return XMP_EXTENDED.length + 1;
+  if (head.startsWith(XMP_STANDARD_ID)) return XMP_STANDARD_ID.length + 1;
+  if (head.startsWith(XMP_EXTENDED_ID)) return XMP_EXTENDED_ID.length + 1;
   return undefined;
 }
 
 function labelForTag(tag: number): string {
-  if (tag === TAG_EXIF_IFD) return 'ExifIFD';
-  if (tag === TAG_GPS_IFD) return 'GPSIFD';
+  if (tag === TIFF_TAG.EXIF_IFD) return 'ExifIFD';
+  if (tag === TIFF_TAG.GPS_IFD) return 'GPSIFD';
   return 'InteropIFD';
 }
 
 function findEoi(data: Uint8Array, from: number): number {
   for (let index = from; index + 1 < data.length; index++) {
-    if (data[index] === 0xff && data[index + 1] === 0xd9) return index;
+    if (data[index] === MARKER_PREFIX && data[index + 1] === EOI) return index;
   }
   return -1;
 }

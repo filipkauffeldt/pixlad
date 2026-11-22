@@ -8,12 +8,14 @@ import {
   APP13_PHOTOSHOP,
   APP14,
   APP2,
+  appNumber,
   COM,
   DQT,
   EOI,
   EXIF_ID,
   ICC_ID,
   IFD_ENTRY_SIZE,
+  IRB_MIN_BLOCK_SIZE,
   IRB_SIGNATURE,
   IRB_THUMBNAIL_RESOURCE_IDS,
   IRB_XMP_RESOURCE_ID,
@@ -21,6 +23,7 @@ import {
   JFIF_ID,
   JFIF_THUMBNAIL_HEIGHT_AT,
   JFIF_THUMBNAIL_WIDTH_AT,
+  isAppMarker,
   MARKER_PREFIX,
   MAX_IFD_ENTRIES,
   MPF_ID,
@@ -49,7 +52,6 @@ const latin1 = (b: Uint8Array, from = 0, to = b.length): string =>
 const startsWith = (b: Uint8Array, text: string): boolean => latin1(b, 0, text.length) === text;
 const padToEven = (n: number): number => n + (n % 2);
 
-const IRB_MIN_BLOCK_SIZE = 12;
 const MAX_VISITED_IFDS = 64;
 const MAX_SUB_IFDS = 16;
 const THUMBNAIL_TAGS: readonly number[] = [
@@ -130,8 +132,8 @@ export function scrubSegments(segments: readonly Segment[]): ScrubResult {
       if (startsWith(payload, ADOBE_ID) && payload.length === ADOBE_SEGMENT_LENGTH)
         kept.push(segment);
       else removed.push('unknown APP14');
-    } else if (marker >= APP0 && marker <= APP0 + 0xf) {
-      removed.push(`APP${marker - APP0}`);
+    } else if (isAppMarker(marker)) {
+      removed.push(`APP${appNumber(marker)}`);
     }
   }
   return { segments: kept, removed: [...new Set(removed)] };

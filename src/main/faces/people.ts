@@ -5,7 +5,7 @@
 import { join } from 'node:path';
 import * as ort from 'onnxruntime-node';
 import { clamp } from '../../shared/geometry';
-import type { Point, Rect } from '../../shared/types';
+import type { FaceKind, FaceTraits, Point, Rect } from '../../shared/types';
 import { detectFaces } from './detect';
 import { outlineModel } from './models';
 import { nonMaximumSuppression } from './nms';
@@ -23,18 +23,12 @@ export interface Box {
   h: number;
 }
 
-export interface Person {
-  box: Box;
+export interface Person extends FaceTraits<Box> {
   score: number;
   landmarks: Point[];
-  /** A head box holds hair and ears; a face box does not. */
-  kind: 'face' | 'head';
+  kind: FaceKind;
   /** Which pass found it. */
   from: 'yunet' | 'dehazed' | 'deimv2';
-  /** A detector saw a face here. */
-  confirmed?: boolean;
-  /** Eyes inside a head with no face of its own: a balaclava's eyeholes. */
-  eyes?: Box[];
 }
 
 const YUNET = 'face_detection_yunet_2026may.onnx';

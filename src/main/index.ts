@@ -28,6 +28,7 @@ import {
   type PreviewPatch,
   type Settings,
 } from '../shared/ipc';
+import { TOP_BAR_HEIGHT } from '../shared/layout';
 import {
   opHasAddedArea,
   type DetectOptions,
@@ -140,9 +141,6 @@ function onPhoto<T>(id: string, job: () => Promise<T>): Promise<T> {
 
 /** The window's own colour, matching --bg, so it never flashes the other theme while loading. */
 const windowBackground = (): string => (nativeTheme.shouldUseDarkColors ? '#0e0e0f' : '#ececea');
-
-/** The top bar's height, matching --topbar-h: the window buttons are drawn at the same height. */
-const TOP_BAR_HEIGHT = 56;
 
 /** Windows and Linux draw their window buttons over the top bar, in the page's colours. */
 const buttonsOverlay = (): { color: string; symbolColor: string; height: number } => ({

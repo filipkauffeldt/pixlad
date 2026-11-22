@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { closeWithoutAsking, launch, openPhotos, tempDir, type Launched, writePhoto } from './app';
+import {
+  closeWithoutAsking,
+  launch,
+  openAbout,
+  openPhotos,
+  tempDir,
+  type Launched,
+  writePhoto,
+} from './app';
 
 let running: Launched | undefined;
 afterEach(async () => {
@@ -15,10 +23,8 @@ describe('About', () => {
     const { page } = running;
     await openPhotos(page, [file]);
 
-    await page.click('[data-testid="settings"]');
-    await page.click('[data-testid="open-about"]');
+    await openAbout(page);
     const about = page.locator('[data-testid="about"]');
-    await about.waitFor();
     // The test build has no PIXLAD_VERSION, so it shows the fallback.
     await page.getByText('Version dev', { exact: true }).waitFor();
     expect(await about.innerText()).toContain('Copyright © 2026 Filip Kauffeldt');

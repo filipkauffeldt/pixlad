@@ -2,9 +2,8 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Page } from '@playwright/test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { launch, tempDir, type Launched } from './app';
+import { launch, openAbout, tempDir, type Launched } from './app';
 
 let running: Launched | undefined;
 let server: Server;
@@ -91,12 +90,6 @@ const start = async (
     env: { PIXLAD_TEST_UPDATES: JSON.stringify({ url: base, version: '0.2.0', platform }) },
   });
   return running;
-};
-
-const openAbout = async (page: Page): Promise<void> => {
-  await page.click('[data-testid="settings"]');
-  await page.click('[data-testid="open-about"]');
-  await page.locator('[data-testid="about"]').waitFor();
 };
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 300));

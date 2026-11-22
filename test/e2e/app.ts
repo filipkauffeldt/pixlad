@@ -57,6 +57,13 @@ export async function launch(
   return { app, page, userData };
 }
 
+/** Open About from Settings. */
+export async function openAbout(page: Page): Promise<void> {
+  await page.click('[data-testid="settings"]');
+  await page.click('[data-testid="open-about"]');
+  await page.locator('[data-testid="about"]').waitFor();
+}
+
 /** Choose what a drag does: faces, or a drawn area as a rectangle or a lasso. */
 export async function pickTool(page: Page, tool: 'faces' | 'rect' | 'lasso'): Promise<void> {
   await page.click(`[data-target="${tool === 'faces' ? 'faces' : 'area'}"]`);

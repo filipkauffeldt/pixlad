@@ -8,6 +8,7 @@ import {
   dragOnPhoto,
   launch,
   movePointerOffAreas,
+  openAbout,
   openPhotos,
   pickTool,
   tempDir,
@@ -426,10 +427,7 @@ describe('the new shortcuts under a dialog', () => {
     },
     {
       name: 'About',
-      open: async (page) => {
-        await page.click('[data-testid="settings"]');
-        await page.click('[data-testid="open-about"]');
-      },
+      open: openAbout,
       selector: '[data-testid="about"]',
     },
     {

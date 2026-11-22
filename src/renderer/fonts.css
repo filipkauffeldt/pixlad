@@ -1,7 +1,6 @@
 /*
- * Inter and JetBrains Mono, both SIL OFL 1.1, bundled from the @fontsource-variable
- * packages. Only the Latin subsets are listed: the app has no need for the other
- * scripts, and unlisted subsets are not copied into the build.
+ * Inter and JetBrains Mono, both SIL OFL 1.1, bundled from the @fontsource-variable packages.
+ * Unlisted subsets are not copied into the build.
  */
 @font-face {
   font-family: 'Inter Variable';

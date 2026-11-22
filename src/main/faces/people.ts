@@ -65,7 +65,7 @@ const area = (b: Box): number => b.w * b.h;
  * Whether `face` sits where a face would in `head`: the middle half across, the 20-70% band down.
  * A weak box lower down is a chin and a scarf.
  */
-function holdsFace(head: Person, face: Person): boolean {
+export function holdsFace(head: Person, face: Person): boolean {
   const h = head.box;
   const cx = face.box.x + face.box.w / 2;
   const cy = face.box.y + face.box.h / 2;
@@ -126,7 +126,7 @@ function tensor(img: Img, win: Box, scale: number, stretch: boolean) {
  * Tiles with 20% overlap over a copy whose long edge is at most `maxEdge`, and with `whole` the
  * whole region at 640 px too.
  */
-function windows(
+export function windows(
   region: Box,
   maxEdge: number,
   tiles: boolean,
@@ -206,7 +206,7 @@ async function deimv2(
 }
 
 /** Drop boxes that lie mostly (60%+) inside a larger box. */
-function withoutFragments<T extends { box: Box }>(dets: T[]): T[] {
+export function withoutFragments<T extends { box: Box }>(dets: T[]): T[] {
   const kept: T[] = [];
   for (const d of [...dets].sort((a, b) => area(b.box) - area(a.box))) {
     if (!kept.some((k) => inside(d.box, k.box))) kept.push(d);
@@ -455,7 +455,7 @@ async function yunetPyramid(
  * something of a matching size there. Only with enough detections for the median to mean
  * something.
  */
-function notOversized(people: Person[], witnesses: readonly Person[]): Person[] {
+export function notOversized(people: Person[], witnesses: readonly Person[]): Person[] {
   if (people.length < 8) return people;
   const median = people.map((p) => area(p.box)).sort((a, b) => a - b)[people.length >> 1]!;
   return people.filter((d) => {
@@ -481,7 +481,7 @@ function notOversized(people: Person[], witnesses: readonly Person[]): Person[] 
  * DEIMv2 also calls a face (it sometimes calls a face behind a fist a hand too), and a face YuNet is
  * sure of (0.8 and up).
  */
-function notHands(people: Person[], hands: readonly Box[], faces: readonly Box[]): Person[] {
+export function notHands(people: Person[], hands: readonly Box[], faces: readonly Box[]): Person[] {
   return people.filter((p) => {
     if (faces.some((f) => overlap(f, p.box) >= 0.5 * Math.min(area(p.box), area(f)))) return true;
     if (p.from === 'yunet' && p.score >= 0.8) return true;
@@ -494,7 +494,7 @@ function notHands(people: Person[], hands: readonly Box[], faces: readonly Box[]
  * and a big face holding the centres of two or more smaller faces is a loose box over several
  * people. What is left goes through `onePerPerson`.
  */
-function oneFacePerPerson(faces: Person[]): Person[] {
+export function oneFacePerPerson(faces: Person[]): Person[] {
   const loose = faces.filter(
     (d) =>
       faces.filter((o) => o !== d && area(o.box) < area(d.box) / 2 && centreIn(o.box, d.box))
@@ -516,7 +516,7 @@ function oneFacePerPerson(faces: Person[]): Person[] {
  * dropped, and the kept one takes its confirmation, landmarks and eyes. A loose box over two people
  * (more than 4x a face) keeps both.
  */
-function onePerPerson(people: Person[]): Person[] {
+export function onePerPerson(people: Person[]): Person[] {
   const kept: Person[] = [];
   for (const d of [...people].sort((a, b) => area(b.box) - area(a.box))) {
     const k = kept.findIndex(

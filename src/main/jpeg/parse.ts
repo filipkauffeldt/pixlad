@@ -10,7 +10,6 @@ export const ZIGZAG = new Uint8Array([
 
 export interface Segment {
   marker: number;
-  /** Segment payload without the marker and the length field. */
   payload: Uint8Array;
 }
 
@@ -22,7 +21,6 @@ export interface ComponentInfo {
 }
 
 export interface FrameHeader {
-  /** SOF marker: 0xC0 baseline, 0xC1 extended sequential, 0xC2 progressive. */
   sof: number;
   progressive: boolean;
   precision: number;
@@ -35,7 +33,6 @@ export interface FrameHeader {
 
 export interface ParsedHeader {
   frame: FrameHeader;
-  /** Every segment before the first SOS, in file order. */
   segments: Segment[];
   /** Offset of the first SOS marker (the 0xFF byte). */
   scanStart: number;
@@ -46,18 +43,47 @@ export interface ParsedHeader {
   hasJfif: boolean;
 }
 
+const MARKER_PREFIX = 0xff;
+const TEM = 0x01;
+const SOF2_PROGRESSIVE = 0xc2;
+const DHT = 0xc4;
+const JPG = 0xc8;
+const DAC = 0xcc;
 const SOF_UNSUPPORTED = new Set([0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
+const RST0 = 0xd0;
+const RST7 = 0xd7;
+const SOI = 0xd8;
+const EOI = 0xd9;
+const SOS = 0xda;
+const DQT = 0xdb;
+const APP0 = 0xe0;
+const APP1 = 0xe1;
+const APP2 = 0xe2;
+const APP14 = 0xee;
 
-/** Whether the bytes start like a JPEG (SOI followed by a marker). */
+const JFIF_ID = 'JFIF\0';
+const EXIF_ID = 'Exif\0\0';
+const ICC_ID = 'ICC_PROFILE\0';
+const ADOBE_ID = 'Adobe';
+const ADOBE_TRANSFORM_OFFSET = 11;
+const ADOBE_TRANSFORM_NONE = 0;
+const RGB_COMPONENT_IDS = [0x52, 0x47, 0x42];
+const ORIENTATION_TAG = 0x0112;
+const DEFAULT_ORIENTATION = 1;
+const MAX_IFD_ENTRIES = 512;
+const IFD_ENTRY_SIZE = 12;
+
+const startsWithId = (payload: Uint8Array, id: string): boolean =>
+  Buffer.from(payload.subarray(0, id.length)).toString('latin1') === id;
+
 export const looksLikeJpeg = (data: Uint8Array): boolean =>
-  data.length >= 4 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
+  data.length >= 4 && data[0] === MARKER_PREFIX && data[1] === SOI && data[2] === MARKER_PREFIX;
 
-/** Read the Orientation tag (0x0112) of the first EXIF segment, 1 when absent or invalid. */
 export function exifOrientation(segments: readonly Segment[]): number {
   for (const { marker, payload } of segments) {
-    if (marker !== 0xe1 || payload.length < 14) continue;
-    if (Buffer.from(payload.subarray(0, 6)).toString('latin1') !== 'Exif\0\0') continue;
-    const tiff = payload.subarray(6);
+    if (marker !== APP1 || payload.length < 14) continue;
+    if (!startsWithId(payload, EXIF_ID)) continue;
+    const tiff = payload.subarray(EXIF_ID.length);
     const little = tiff[0] === 0x49 && tiff[1] === 0x49;
     if (!little && !(tiff[0] === 0x4d && tiff[1] === 0x4d)) continue;
     const view = new DataView(tiff.buffer, tiff.byteOffset, tiff.byteLength);
@@ -65,115 +91,127 @@ export function exifOrientation(segments: readonly Segment[]): number {
     const u32 = (at: number): number => (at + 4 <= tiff.length ? view.getUint32(at, little) : 0);
     const ifd = u32(4);
     const count = u16(ifd);
-    for (let i = 0; i < count && i < 512; i++) {
-      const entry = ifd + 2 + i * 12;
-      if (u16(entry) === 0x0112) {
+    for (let i = 0; i < count && i < MAX_IFD_ENTRIES; i++) {
+      const entry = ifd + 2 + i * IFD_ENTRY_SIZE;
+      if (u16(entry) === ORIENTATION_TAG) {
         const value = u16(entry + 8);
-        return value >= 1 && value <= 8 ? value : 1;
+        return value >= 1 && value <= 8 ? value : DEFAULT_ORIENTATION;
       }
     }
-    return 1;
+    return DEFAULT_ORIENTATION;
   }
-  return 1;
+  return DEFAULT_ORIENTATION;
 }
 
-/** Parse markers up to the first SOS. Refuses CMYK and anything this app does not handle. */
+const isStandalone = (marker: number): boolean =>
+  marker === 0 || marker === SOI || marker === TEM || (marker >= RST0 && marker <= RST7);
+
+const isFrameMarker = (marker: number): boolean =>
+  marker >= 0xc0 && marker <= 0xcf && marker !== DHT && marker !== JPG && marker !== DAC;
+
+function storesRgbDirectly(
+  frame: FrameHeader,
+  hasAdobe: boolean,
+  adobeTransform: number | undefined,
+  hasJfif: boolean,
+): boolean {
+  if (frame.components.length !== 3) return false;
+  const rgbIds = frame.components.every((c, i) => c.id === RGB_COMPONENT_IDS[i]);
+  return adobeTransform === ADOBE_TRANSFORM_NONE || (rgbIds && !hasJfif && !hasAdobe);
+}
+
+function parseFrame(marker: number, payload: Uint8Array): FrameHeader {
+  const precision = payload[0]!;
+  const height = (payload[1]! << 8) | payload[2]!;
+  const width = (payload[3]! << 8) | payload[4]!;
+  const count = payload[5]!;
+  if (precision !== 8) throw new JpegError('unsupported', `has ${precision}-bit samples`);
+  if (width === 0 || height === 0) throw new JpegError('unsupported', 'has no size in its header');
+  if (count === 4) {
+    throw new JpegError('cmyk', 'is a CMYK JPEG, and editing it would change its colours');
+  }
+  if (count !== 1 && count !== 3)
+    throw new JpegError('unsupported', `has ${count} colour components`);
+  const components: ComponentInfo[] = [];
+  for (let i = 0; i < count; i++) {
+    const at = 6 + i * 3;
+    const hv = payload[at + 1]!;
+    components.push({ id: payload[at]!, h: hv >> 4, v: hv & 15, tq: payload[at + 2]! });
+  }
+  if (components.some((c) => c.h < 1 || c.h > 4 || c.v < 1 || c.v > 4)) {
+    throw new JpegError('corrupt', 'has invalid sampling factors');
+  }
+  return {
+    sof: marker,
+    progressive: marker === SOF2_PROGRESSIVE,
+    precision,
+    width,
+    height,
+    components,
+    hmax: Math.max(...components.map((c) => c.h)),
+    vmax: Math.max(...components.map((c) => c.v)),
+  };
+}
+
+function readQuantTables(payload: Uint8Array, into: Map<number, Uint16Array>): void {
+  for (let at = 0; at < payload.length;) {
+    const pq = payload[at]! >> 4;
+    const id = payload[at]! & 15;
+    at++;
+    const table = new Uint16Array(64);
+    for (let i = 0; i < 64; i++) {
+      if (pq === 0) table[ZIGZAG[i]!] = payload[at++]!;
+      else {
+        table[ZIGZAG[i]!] = (payload[at]! << 8) | payload[at + 1]!;
+        at += 2;
+      }
+    }
+    into.set(id, table);
+  }
+}
+
 export function parseHeader(data: Uint8Array): ParsedHeader {
   if (!looksLikeJpeg(data)) throw new JpegError('not-jpeg', 'is not a JPEG file');
   const segments: Segment[] = [];
   const quant = new Map<number, Uint16Array>();
   let frame: FrameHeader | undefined;
   let hasAdobe = false;
-  let adobeTransform = -1;
+  let adobeTransform: number | undefined;
   let hasJfif = false;
   let pos = 2;
   for (;;) {
-    while (pos < data.length && data[pos] !== 0xff) pos++;
-    while (pos < data.length && data[pos] === 0xff) pos++;
+    while (pos < data.length && data[pos] !== MARKER_PREFIX) pos++;
+    while (pos < data.length && data[pos] === MARKER_PREFIX) pos++;
     if (pos >= data.length) throw new JpegError('corrupt', 'is truncated before the image data');
     const marker = data[pos++]!;
-    if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0)
-      continue;
-    if (marker === 0xd9) throw new JpegError('corrupt', 'has no image data');
+    if (isStandalone(marker)) continue;
+    if (marker === EOI) throw new JpegError('corrupt', 'has no image data');
     if (pos + 2 > data.length) throw new JpegError('corrupt', 'is truncated');
     const length = (data[pos]! << 8) | data[pos + 1]!;
     if (length < 2 || pos + length > data.length) throw new JpegError('corrupt', 'is truncated');
     const payload = data.subarray(pos + 2, pos + length);
-    if (marker === 0xda) {
+    if (marker === SOS) {
       if (!frame) throw new JpegError('corrupt', 'has image data before its frame header');
-      if (frame.components.length === 3) {
-        const ids = frame.components.map((c) => c.id).join(',');
-        const rgbIds = ids === '82,71,66'; // 'R','G','B'
-        if ((hasAdobe && adobeTransform === 0) || (rgbIds && !hasJfif && !hasAdobe)) {
-          throw new JpegError('unsupported', 'stores RGB directly instead of YCbCr');
-        }
+      if (storesRgbDirectly(frame, hasAdobe, adobeTransform, hasJfif)) {
+        throw new JpegError('unsupported', 'stores RGB directly instead of YCbCr');
       }
       const orientation = exifOrientation(segments);
       return { frame, segments, scanStart: pos - 2, quant, orientation, hasAdobe, hasJfif };
     }
     pos += length;
 
-    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+    if (isFrameMarker(marker)) {
       if (SOF_UNSUPPORTED.has(marker)) {
         throw new JpegError('unsupported', 'uses arithmetic, lossless or hierarchical JPEG coding');
       }
       if (frame) throw new JpegError('unsupported', 'has more than one frame');
-      const precision = payload[0]!;
-      const height = (payload[1]! << 8) | payload[2]!;
-      const width = (payload[3]! << 8) | payload[4]!;
-      const count = payload[5]!;
-      if (precision !== 8) throw new JpegError('unsupported', `has ${precision}-bit samples`);
-      if (width === 0 || height === 0)
-        throw new JpegError('unsupported', 'has no size in its header');
-      if (count === 4) {
-        throw new JpegError('cmyk', 'is a CMYK JPEG, and editing it would change its colours');
-      }
-      if (count !== 1 && count !== 3)
-        throw new JpegError('unsupported', `has ${count} colour components`);
-      const components: ComponentInfo[] = [];
-      for (let i = 0; i < count; i++) {
-        const at = 6 + i * 3;
-        const hv = payload[at + 1]!;
-        components.push({ id: payload[at]!, h: hv >> 4, v: hv & 15, tq: payload[at + 2]! });
-      }
-      if (components.some((c) => c.h < 1 || c.h > 4 || c.v < 1 || c.v > 4)) {
-        throw new JpegError('corrupt', 'has invalid sampling factors');
-      }
-      frame = {
-        sof: marker,
-        progressive: marker === 0xc2,
-        precision,
-        width,
-        height,
-        components,
-        hmax: Math.max(...components.map((c) => c.h)),
-        vmax: Math.max(...components.map((c) => c.v)),
-      };
-    } else if (marker === 0xdb) {
-      for (let at = 0; at < payload.length;) {
-        const pq = payload[at]! >> 4;
-        const id = payload[at]! & 15;
-        at++;
-        const table = new Uint16Array(64);
-        for (let i = 0; i < 64; i++) {
-          if (pq === 0) table[ZIGZAG[i]!] = payload[at++]!;
-          else {
-            table[ZIGZAG[i]!] = (payload[at]! << 8) | payload[at + 1]!;
-            at += 2;
-          }
-        }
-        quant.set(id, table);
-      }
-    } else if (
-      marker === 0xee &&
-      Buffer.from(payload.subarray(0, 5)).toString('latin1') === 'Adobe'
-    ) {
+      frame = parseFrame(marker, payload);
+    } else if (marker === DQT) {
+      readQuantTables(payload, quant);
+    } else if (marker === APP14 && startsWithId(payload, ADOBE_ID)) {
       hasAdobe = true;
-      adobeTransform = payload[11] ?? -1;
-    } else if (
-      marker === 0xe0 &&
-      Buffer.from(payload.subarray(0, 5)).toString('latin1') === 'JFIF\0'
-    ) {
+      adobeTransform = payload[ADOBE_TRANSFORM_OFFSET];
+    } else if (marker === APP0 && startsWithId(payload, JFIF_ID)) {
       hasJfif = true;
     }
     segments.push({ marker, payload });
@@ -183,7 +221,6 @@ export function parseHeader(data: Uint8Array): ParsedHeader {
 export interface HeaderSummary {
   width: number;
   height: number;
-  /** Size after EXIF orientation. */
   orientedWidth: number;
   orientedHeight: number;
   orientation: number;
@@ -203,28 +240,22 @@ export function summarize(header: ParsedHeader): HeaderSummary {
     orientation: header.orientation,
     progressive: header.frame.progressive,
     components: header.frame.components.length,
-    hasIcc: header.segments.some(
-      (s) =>
-        s.marker === 0xe2 &&
-        Buffer.from(s.payload.subarray(0, 12)).toString('latin1') === 'ICC_PROFILE\0',
-    ),
+    hasIcc: header.segments.some((s) => s.marker === APP2 && startsWithId(s.payload, ICC_ID)),
   };
 }
 
-/** The ICC profile, reassembled from its APP2 chunks, or undefined. */
 export function iccProfile(segments: readonly Segment[]): Buffer | undefined {
   const chunks: Array<{ seq: number; data: Uint8Array }> = [];
   for (const { marker, payload } of segments) {
-    if (marker !== 0xe2 || payload.length < 14) continue;
-    if (Buffer.from(payload.subarray(0, 12)).toString('latin1') !== 'ICC_PROFILE\0') continue;
-    chunks.push({ seq: payload[12]!, data: payload.subarray(14) });
+    if (marker !== APP2 || payload.length < 14) continue;
+    if (!startsWithId(payload, ICC_ID)) continue;
+    chunks.push({ seq: payload[ICC_ID.length]!, data: payload.subarray(ICC_ID.length + 2) });
   }
   if (chunks.length === 0) return undefined;
   chunks.sort((a, b) => a.seq - b.seq);
   return Buffer.concat(chunks.map((c) => c.data));
 }
 
-/** EXIF orientation: stored pixel (x, y) to its place in the upright image. */
 export function storedToOriented(
   orientation: number,
   x: number,
@@ -252,7 +283,6 @@ export function storedToOriented(
   }
 }
 
-/** The inverse: a pixel of the upright image to the stored pixel it came from. */
 export function orientedToStored(
   orientation: number,
   ox: number,

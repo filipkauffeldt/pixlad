@@ -543,10 +543,7 @@ export function EditBar({ photo }: { photo: PhotoState | undefined }) {
           onPointerUp={(e) => e.currentTarget.blur()}
         />
       </label>
-      <label
-        className="control"
-        title="How far the mosaic grows beyond each detected face, as a share of the face's size"
-      >
+      <label className="control" title="Extra mosaic around each face">
         <span className="label">Padding</span>
         <NumberField
           key={`pad-${Math.round((photo?.facePadding ?? 0.15) * 100)}`}

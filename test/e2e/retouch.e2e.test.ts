@@ -12,6 +12,7 @@ import {
   pickTool,
   tempDir,
   type Launched,
+  waitForExport,
   writePhoto,
 } from './app';
 
@@ -209,7 +210,7 @@ describe('drawing with the real mouse', () => {
     await drag(page, [0.3, 0.2], [0.7, 0.6]);
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.keyboard.press('Control+e');
-    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
+    await waitForExport(page);
     await answerRemove(page, 'keep');
     expect((await readdir(dir)).sort()).toEqual(['_DSC1234.JPG', '_DSC1234_edit.JPG']);
     expect(Buffer.compare(await readFile(file), bytes)).toBe(0);

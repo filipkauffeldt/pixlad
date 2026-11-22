@@ -10,6 +10,7 @@ import {
   openPhotos,
   tempDir,
   type Launched,
+  waitForExport,
   writePhoto,
 } from './app';
 
@@ -60,7 +61,7 @@ describe('the first export', () => {
     await page.waitForSelector('[data-testid="export-choice"]');
     await page.click('[data-testid="export-choice-suffix"]');
     await page.keyboard.press('Enter');
-    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30_000 });
+    await waitForExport(page);
     await answerRemove(page, 'keep');
     expect((await readdir(dir)).sort()).toEqual(['_DSC1234.JPG', '_DSC1234_edit.JPG']);
     const saved = JSON.parse(await readFile(join(userData, 'settings.json'), 'utf8')) as object;

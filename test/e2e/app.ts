@@ -182,6 +182,14 @@ export async function writePhoto(
 export const dialogMessages = (app: ElectronApplication): Promise<string[]> =>
   app.evaluate(() => (globalThis as { __dialogs?: DialogStubs }).__dialogs!.closeAsked);
 
+/** Wait for the export badge, which appears once the app has written the file. */
+export const waitForExport = (page: Page): Promise<unknown> =>
+  page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30_000 });
+
+/** Wait for the question that offers to remove exported photos from the session. */
+export const waitForRemoveQuestion = (page: Page): Promise<unknown> =>
+  page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30_000 });
+
 /** The question after an export, as the app shows it. */
 export const removeQuestion = (page: Page): Promise<string> =>
   page.locator('[data-testid="remove-exported"] h2').innerText();

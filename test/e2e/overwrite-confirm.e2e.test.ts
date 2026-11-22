@@ -9,6 +9,7 @@ import {
   openPhotos,
   tempDir,
   type Launched,
+  waitForExport,
   writePhoto,
 } from './app';
 
@@ -54,7 +55,7 @@ describe('confirming Replace original', () => {
 
     await page.click('[data-testid="export"]');
     await page.click('[data-testid="overwrite-confirm-replace"]');
-    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30_000 });
+    await waitForExport(page);
     expect(Buffer.compare(await readFile(file), before)).not.toBe(0);
     expect(await readdir(dir)).toEqual(['one.jpg']);
   });
@@ -96,7 +97,7 @@ describe('confirming Replace original', () => {
     await page.waitForSelector(dialog);
     await page.check('[data-testid="overwrite-confirm-dont-ask"]');
     await page.click('[data-testid="overwrite-confirm-replace"]');
-    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30_000 });
+    await waitForExport(page);
     await answerRemove(page, 'keep');
 
     await page.keyboard.press('ArrowRight');

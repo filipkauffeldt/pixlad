@@ -24,7 +24,9 @@ import {
   stubCloseDialog,
   tempDir,
   type Launched,
+  waitForExport,
   waitForPhoto,
+  waitForRemoveQuestion,
   writePhoto,
 } from './app';
 
@@ -571,7 +573,7 @@ describe('after an export', () => {
     running = await launch();
     const { page } = running;
     await exportOne(page, 'single.jpg', dir);
-    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    await waitForRemoveQuestion(page);
     expect(await removeQuestion(page)).toBe('Remove single.jpg from the session?');
     await answerRemove(page, 'remove');
     await page.waitForSelector('[data-testid="empty"]');
@@ -583,11 +585,11 @@ describe('after an export', () => {
     running = await launch();
     const { page } = running;
     await exportOne(page, 'kept.jpg', dir);
-    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    await waitForRemoveQuestion(page);
     expect(await removeQuestion(page)).toBe('Remove kept.jpg from the session?');
     await answerRemove(page, 'keep');
     await page.waitForSelector('[data-testid="remove-exported"]', { state: 'detached' });
-    await page.waitForSelector('[data-testid="badge-exported"]');
+    await waitForExport(page);
     expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
   });
 
@@ -597,7 +599,7 @@ describe('after an export', () => {
     running = await launch({ userData });
     const { page } = running;
     await exportOne(page, 'first.jpg', dir);
-    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    await waitForRemoveQuestion(page);
     await page.check('[data-testid="remove-exported-dont-ask"]');
     await answerRemove(page, 'remove');
     await page.waitForSelector('[data-testid="empty"]');
@@ -629,7 +631,7 @@ describe('after an export', () => {
     running = await launch({ userData });
     const { page } = running;
     await exportOne(page, 'escape-ticked.jpg', dir);
-    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    await waitForRemoveQuestion(page);
     await page.check('[data-testid="remove-exported-dont-ask"]');
     await page.keyboard.press('Escape');
     await page.waitForSelector('[data-testid="remove-exported"]', { state: 'detached' });
@@ -656,7 +658,7 @@ describe('after an export', () => {
     running = await launch({ userData });
     const { page } = running;
     await exportOne(page, 'stays.jpg', dir);
-    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
+    await waitForExport(page);
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(await page.locator('[data-testid="remove-exported"]').count()).toBe(0);
     expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
@@ -668,10 +670,10 @@ describe('after an export', () => {
     running = await launch({ userData });
     const { page } = running;
     await exportOne(page, 'plain.jpg', dir);
-    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    await waitForRemoveQuestion(page);
     expect(await page.isChecked('[data-testid="remove-exported-dont-ask"]')).toBe(false);
     await answerRemove(page, 'keep');
-    await page.waitForSelector('[data-testid="badge-exported"]');
+    await waitForExport(page);
     await page.click('[data-testid="settings"]');
     expect(await page.isChecked('[data-testid="after-export-ask"]')).toBe(true);
   });
@@ -681,7 +683,7 @@ describe('after an export', () => {
     running = await launch();
     const { page } = running;
     await exportOne(page, 'escaped.jpg', dir);
-    await page.waitForSelector('[data-testid="remove-exported"]', { timeout: 30000 });
+    await waitForRemoveQuestion(page);
     await page.keyboard.press('Delete');
     expect(await page.locator('[data-testid="photo"]').count()).toBe(1);
     await page.keyboard.press('Escape');
@@ -767,7 +769,7 @@ describe('overwriting the original', () => {
     await page.waitForSelector('[data-testid="mosaic-patch"]');
     await page.keyboard.press('Control+e');
     await page.click('[data-testid="overwrite-confirm-replace"]');
-    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
+    await waitForExport(page);
 
     expect(await readdir(dir)).toEqual(['over.jpg']);
     expect(Buffer.compare(await readFile(file), before)).not.toBe(0);
@@ -812,7 +814,7 @@ describe('nothing survives the session', () => {
       [0.5, 0.5],
     ]);
     await page.keyboard.press('Control+e');
-    await page.waitForSelector('[data-testid="badge-exported"]', { timeout: 30000 });
+    await waitForExport(page);
     await closeWithoutAsking(running);
     running = undefined;
 

@@ -4,7 +4,6 @@ import { join, resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '../..');
 const dist = join(root, 'dist');
 
-/** The product name, read from the one place it is set. */
 function productName(): string {
   const config = readFileSync(join(root, 'electron-builder.yml'), 'utf8');
   const match = /^productName:\s*(.+?)\s*$/m.exec(config);
@@ -16,7 +15,6 @@ function packageName(): string {
   return (JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { name: string }).name;
 }
 
-/** Where electron-builder leaves the unpacked app for this OS, next to the installer. */
 export function packagedExecutable(): string {
   const candidates: Record<string, string> = {
     darwin: join(dist, 'mac-arm64', `${productName()}.app`, 'Contents', 'MacOS', productName()),
@@ -32,7 +30,6 @@ export function packagedExecutable(): string {
   return path;
 }
 
-/** The AppImage that electron-builder leaves in dist/ on Linux. */
 export function packagedAppImage(): string {
   const names = existsSync(dist) ? readdirSync(dist) : [];
   const name = names.find((file) => file.endsWith('.AppImage'));

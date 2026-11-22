@@ -5,16 +5,11 @@ import { isMac } from './flips';
 import { Icon } from './Icon';
 import { actions, hasMosaic, useApp, type PhotoState } from './store';
 
-/** A thumbnail and the gap after it. */
 const THUMB = 76;
-const ITEM = THUMB + 8;
-/** Room at the ends, so the current photo's frame is never cut off. */
+const GAP = 8;
+const ITEM = THUMB + GAP;
 const EDGE = 8;
 
-/**
- * The photo's state, as one badge in its corner: failed, exported or has a mosaic. An export
- * under way runs a line along the bottom instead.
- */
 function Badges({ photo, waiting }: { photo: PhotoState; waiting: boolean }) {
   if (waiting) {
     return (
@@ -64,7 +59,6 @@ function Badges({ photo, waiting }: { photo: PhotoState; waiting: boolean }) {
   return null;
 }
 
-/** A virtualised strip: only the thumbnails in view exist, so hundreds of photos stay cheap. */
 export function Strip() {
   const app = useApp();
   const scroller = useRef<HTMLDivElement>(null);
@@ -84,8 +78,6 @@ export function Strip() {
     };
   }, []);
 
-  // A plain vertical wheel over the strip scrolls it sideways: a vertical wheel has nowhere
-  // else to go here. Horizontal wheel and trackpad movement are left to the browser.
   useEffect(() => {
     const element = scroller.current;
     if (!element) return;
@@ -105,10 +97,9 @@ export function Strip() {
     return () => element.removeEventListener('wheel', onWheel);
   }, []);
 
-  const content = app.photos.length * ITEM - 8;
+  const content = app.photos.length * ITEM - GAP;
   const start = EDGE;
 
-  // Keep the current photo in view when stepping with the arrow keys.
   useEffect(() => {
     const element = scroller.current;
     const index = app.photos.findIndex((p) => p.info.id === app.currentId);
@@ -122,7 +113,6 @@ export function Strip() {
 
   const first = Math.max(0, Math.floor((range.left - start) / ITEM) - 2);
   const last = Math.min(app.photos.length, Math.ceil((range.left + range.width) / ITEM) + 2);
-  // A few photos sit centred, with Add after them; more than fit scroll, and Add stays at the end.
   return (
     <div className="stripBar">
       <div

@@ -312,8 +312,8 @@ function ThemePicker() {
   );
 }
 
-const AFTER_EXPORT: Array<{ choice: AfterExport; label: string; note: string }> = [
-  { choice: 'ask', label: 'Ask', note: 'Asks after each export.' },
+const AFTER_EXPORT: Array<{ choice: AfterExport; label: string; note?: string }> = [
+  { choice: 'ask', label: 'Ask' },
   { choice: 'keep', label: 'Keep', note: 'The exported photos stay in the session.' },
   {
     choice: 'remove',

@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExportOutcome, PhotoInfo } from '../src/shared/ipc';
 import { actions, getState } from '../src/renderer/store';
 
-/** The renderer's store with a stand-in for what the preload exposes. */
-function stubApi(exportPhoto: (id: string) => Promise<ExportOutcome>) {
+function stubPreloadApi(exportPhoto: (id: string) => Promise<ExportOutcome>) {
   const api = {
     addPaths: vi.fn(async (paths: string[]) => ({
       photos: paths.map((path): PhotoInfo => ({
@@ -32,8 +31,7 @@ const ok = (id: string): ExportOutcome => ({
   overwrote: false,
 });
 
-/** Add photos that each carry a mosaic. */
-async function sessionWith(ids: string[]): Promise<void> {
+async function sessionWithMosaickedPhotos(ids: string[]): Promise<void> {
   await actions.addPaths(ids);
   for (const id of ids) {
     actions.select(id);
@@ -48,12 +46,10 @@ beforeEach(() => {
 });
 afterEach(async () => {
   await actions.setAfterExport('ask').catch(() => undefined);
-  // Leave the shared store empty for the next test.
   if (getState().removeQuestion) actions.answerRemove(false);
   await settle();
   for (const photo of getState().photos) {
     actions.remove(photo.info.id);
-    // A photo with unexported areas asks first; the answer here is yes.
     if (getState().removePhotoQuestion) actions.answerRemovePhoto(true);
   }
   vi.unstubAllGlobals();
@@ -61,8 +57,8 @@ afterEach(async () => {
 
 describe('Export all', () => {
   it('exports every photo and reports the count', async () => {
-    const api = stubApi(async (id) => ok(id));
-    await sessionWith(['a', 'b', 'c']);
+    const api = stubPreloadApi(async (id) => ok(id));
+    await sessionWithMosaickedPhotos(['a', 'b', 'c']);
     const done = actions.exportAll();
     await settle();
     actions.answerRemove(false);
@@ -73,14 +69,14 @@ describe('Export all', () => {
 
   it('cancels after the photo being written: it finishes, the rest are left', async () => {
     let finishFirst!: () => void;
-    const api = stubApi((id) =>
+    const api = stubPreloadApi((id) =>
       id === 'a'
         ? new Promise((resolve) => {
             finishFirst = () => resolve(ok(id));
           })
         : Promise.resolve(ok(id)),
     );
-    await sessionWith(['a', 'b', 'c']);
+    await sessionWithMosaickedPhotos(['a', 'b', 'c']);
     const done = actions.exportAll();
     await settle();
     expect(getState().batch).toMatchObject({ done: 0, finished: false, cancelling: false });
@@ -89,7 +85,6 @@ describe('Export all', () => {
     expect(getState().batch?.cancelling).toBe(true);
     finishFirst();
     await settle();
-    // The removal question covers the one photo that was exported.
     expect(getState().removeQuestion).toEqual({ count: 1, name: 'a.jpg' });
     actions.answerRemove(true);
     await done;
@@ -107,14 +102,14 @@ describe('Export all', () => {
 
   it('keeps photos that were exported before the cancel', async () => {
     let finishSecond!: () => void;
-    stubApi((id) =>
+    stubPreloadApi((id) =>
       id === 'b'
         ? new Promise((resolve) => {
             finishSecond = () => resolve(ok(id));
           })
         : Promise.resolve(ok(id)),
     );
-    await sessionWith(['a', 'b', 'c']);
+    await sessionWithMosaickedPhotos(['a', 'b', 'c']);
     const done = actions.exportAll();
     await settle();
     expect(getState().batch).toMatchObject({ done: 1, ok: 1 });
@@ -128,7 +123,7 @@ describe('Export all', () => {
   });
 
   it('ignores Cancel when no batch is running', () => {
-    stubApi(async (id) => ok(id));
+    stubPreloadApi(async (id) => ok(id));
     const before = getState().batch;
     actions.cancelExportAll();
     expect(getState().batch).toBe(before);
@@ -136,15 +131,14 @@ describe('Export all', () => {
 });
 
 describe('the question after an export', () => {
-  /** Export one photo and return what the app asked, if it did. */
-  async function exportOne(): Promise<void> {
-    await sessionWith(['a']);
+  async function exportOnePhoto(): Promise<void> {
+    await sessionWithMosaickedPhotos(['a']);
     await actions.exportAll();
   }
 
   it('asks by default, and Don’t ask again saves the answer given', async () => {
-    const api = stubApi(async (id) => ok(id));
-    await sessionWith(['a']);
+    const api = stubPreloadApi(async (id) => ok(id));
+    await sessionWithMosaickedPhotos(['a']);
     const done = actions.exportAll();
     await settle();
     expect(getState().removeQuestion).toEqual({ count: 1, name: 'a.jpg' });
@@ -153,13 +147,12 @@ describe('the question after an export', () => {
     expect(api.setAfterExport).toHaveBeenCalledWith('remove');
     expect(getState().afterExport).toBe('remove');
     expect(getState().photos).toEqual([]);
-    // The photos were exported, so removing them loses nothing and does not ask.
     expect(getState().removePhotoQuestion).toBeUndefined();
   });
 
   it('saves Keep when that is the answer given with Don’t ask again', async () => {
-    const api = stubApi(async (id) => ok(id));
-    await sessionWith(['a']);
+    const api = stubPreloadApi(async (id) => ok(id));
+    await sessionWithMosaickedPhotos(['a']);
     const done = actions.exportAll();
     await settle();
     actions.answerRemove(false, true);
@@ -170,8 +163,8 @@ describe('the question after an export', () => {
   });
 
   it('saves nothing when Don’t ask again is not ticked', async () => {
-    const api = stubApi(async (id) => ok(id));
-    await sessionWith(['a']);
+    const api = stubPreloadApi(async (id) => ok(id));
+    await sessionWithMosaickedPhotos(['a']);
     const done = actions.exportAll();
     await settle();
     actions.answerRemove(true);
@@ -181,32 +174,33 @@ describe('the question after an export', () => {
   });
 
   it('keeps the photos without asking when set to keep', async () => {
-    stubApi(async (id) => ok(id));
+    stubPreloadApi(async (id) => ok(id));
     await actions.setAfterExport('keep');
-    await exportOne();
+    await exportOnePhoto();
     expect(getState().removeQuestion).toBeUndefined();
     expect(getState().photos.map((p) => p.status)).toEqual(['exported']);
   });
 
   it('removes the exported photos without asking when set to remove', async () => {
-    stubApi(async (id) => ok(id));
+    stubPreloadApi(async (id) => ok(id));
     await actions.setAfterExport('remove');
-    await exportOne();
+    await exportOnePhoto();
     expect(getState().removeQuestion).toBeUndefined();
     expect(getState().removePhotoQuestion).toBeUndefined();
     expect(getState().photos).toEqual([]);
   });
 
   it('still leaves out a photo edited after its export when set to remove', async () => {
-    stubApi(async (id) => {
-      // Drawn while the export runs.
+    const editDuringExport = (): void => {
       actions.addShape({ type: 'rect', x: 0.6, y: 0.6, w: 0.2, h: 0.2 }, 'add');
+    };
+    stubPreloadApi(async (id) => {
+      editDuringExport();
       return ok(id);
     });
     await actions.setAfterExport('remove');
-    await exportOne();
+    await exportOnePhoto();
     expect(getState().photos.map((p) => p.info.id)).toEqual(['a']);
-    // Leaving it out is not asking: the question about losing edits never opens by itself.
     expect(getState().removePhotoQuestion).toBeUndefined();
   });
 });

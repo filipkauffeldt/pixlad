@@ -2,13 +2,9 @@
 // Copyright (C) 2026 Filip Kauffeldt
 import type { Notice } from '../shared/ipc';
 
-/** Exactly the generator's rule: licence texts have shorter or longer `=` lines of their own. */
+// Exactly 79: licence texts hold shorter and longer `=` lines of their own.
 const RULE = /^={79}$/;
 
-/**
- * The sections of THIRD_PARTY_NOTICES.txt, as scripts/third-party-notices.ts writes them: a rule,
- * the title line (and a homepage for npm packages), a rule, then the text up to the next rule.
- */
 export function parseNotices(text: string): Notice[] {
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   const notices: Notice[] = [];

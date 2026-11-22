@@ -13,7 +13,11 @@ afterEach(async () => {
   running = undefined;
 });
 
-async function dragAcrossPhoto(page: Page, from: [number, number], to: [number, number]): Promise<void> {
+async function dragAcrossPhoto(
+  page: Page,
+  from: [number, number],
+  to: [number, number],
+): Promise<void> {
   const box = await page.locator('[data-testid="photo"]').boundingBox();
   if (!box) throw new Error('no photo on screen');
   const at = (p: [number, number]): [number, number] => [

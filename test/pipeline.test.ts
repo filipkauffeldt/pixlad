@@ -57,9 +57,7 @@ describe('export', () => {
     let diffFarFromMosaic = 0;
     for (let x = 0; x < 40; x++)
       for (let y = 0; y < 240; y++)
-        diffFarFromMosaic += Math.abs(
-          out.data[(y * 320 + x) * 3]! - src.data[(y * 320 + x) * 3]!,
-        );
+        diffFarFromMosaic += Math.abs(out.data[(y * 320 + x) * 3]! - src.data[(y * 320 + x) * 3]!);
     expect(diffFarFromMosaic).toBe(0);
     expect(Math.abs((await stat(result.path)).mtimeMs - (await stat(source)).mtimeMs)).toBeLessThan(
       1,

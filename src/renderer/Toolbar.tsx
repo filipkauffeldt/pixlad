@@ -219,7 +219,7 @@ const EXPORT_TARGETS: Array<{ target: ExportTarget; label: string; note: string 
     label: 'New copy',
     note: 'Saves a copy with _edit in its name. The original stays as it is.',
   },
-  { target: 'overwrite', label: 'Replace', note: 'Writes over the original. Cannot be undone.' },
+  { target: 'overwrite', label: 'Replace', note: 'Writes over the original' },
 ];
 
 const THEMES: Array<{ theme: Theme; label: string; icon: ReactNode }> = [

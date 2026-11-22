@@ -66,17 +66,82 @@ export const APP13_PHOTOSHOP = 0xed;
 export const APP14 = 0xee;
 export const COM = 0xfe;
 
-const JFIF_ID = 'JFIF\0';
-const EXIF_ID = 'Exif\0\0';
-const ICC_ID = 'ICC_PROFILE\0';
-const ADOBE_ID = 'Adobe';
-const ADOBE_TRANSFORM_OFFSET = 11;
+export const JFIF_ID = 'JFIF\0';
+export const EXIF_ID = 'Exif\0\0';
+export const ICC_ID = 'ICC_PROFILE\0';
+export const ADOBE_ID = 'Adobe';
+export const PHOTOSHOP_ID = 'Photoshop 3.0\0';
+export const XMP_STANDARD_ID = 'http://ns.adobe.com/xap/1.0/';
+export const XMP_EXTENDED_ID = 'http://ns.adobe.com/xmp/extension/';
+export const MPF_ID = 'MPF\0';
+
+const JFIF_VERSION_SIZE = 2;
+const JFIF_UNITS_SIZE = 1;
+const JFIF_DENSITY_SIZE = 4;
+export const JFIF_THUMBNAIL_WIDTH_AT =
+  JFIF_ID.length + JFIF_VERSION_SIZE + JFIF_UNITS_SIZE + JFIF_DENSITY_SIZE;
+export const JFIF_THUMBNAIL_HEIGHT_AT = JFIF_THUMBNAIL_WIDTH_AT + 1;
+export const JFIF_HEADER_LENGTH = JFIF_THUMBNAIL_HEIGHT_AT + 1;
+
+const ICC_SEQUENCE_AT = ICC_ID.length;
+const ICC_COUNT_SIZE = 1;
+export const ICC_HEADER_LENGTH = ICC_SEQUENCE_AT + 1 + ICC_COUNT_SIZE;
+
+export const ADOBE_SEGMENT_LENGTH = 12;
+const ADOBE_TRANSFORM_AT = 11;
 const ADOBE_TRANSFORM_NONE = 0;
 const RGB_COMPONENT_IDS = [0x52, 0x47, 0x42];
-const ORIENTATION_TAG = 0x0112;
+
+export const TIFF_HEADER_LENGTH = 8;
+export const IFD_ENTRY_SIZE = 12;
+export const MAX_IFD_ENTRIES = 512;
 const DEFAULT_ORIENTATION = 1;
-const MAX_IFD_ENTRIES = 512;
-const IFD_ENTRY_SIZE = 12;
+
+export const TIFF_TYPE = {
+  BYTE: 1,
+  ASCII: 2,
+  SHORT: 3,
+  LONG: 4,
+  RATIONAL: 5,
+  SBYTE: 6,
+  UNDEFINED: 7,
+  SSHORT: 8,
+  SLONG: 9,
+  SRATIONAL: 10,
+  FLOAT: 11,
+  DOUBLE: 12,
+  IFD: 13,
+} as const;
+
+export const TIFF_TYPE_SIZE: Record<number, number> = {
+  [TIFF_TYPE.BYTE]: 1,
+  [TIFF_TYPE.ASCII]: 1,
+  [TIFF_TYPE.SHORT]: 2,
+  [TIFF_TYPE.LONG]: 4,
+  [TIFF_TYPE.RATIONAL]: 8,
+  [TIFF_TYPE.SBYTE]: 1,
+  [TIFF_TYPE.UNDEFINED]: 1,
+  [TIFF_TYPE.SSHORT]: 2,
+  [TIFF_TYPE.SLONG]: 4,
+  [TIFF_TYPE.SRATIONAL]: 8,
+  [TIFF_TYPE.FLOAT]: 4,
+  [TIFF_TYPE.DOUBLE]: 8,
+  [TIFF_TYPE.IFD]: 4,
+};
+
+export const TIFF_TAG = {
+  ORIENTATION: 0x0112,
+  STRIP_OFFSETS: 0x0111,
+  STRIP_BYTE_COUNTS: 0x0117,
+  SUB_IFDS: 0x014a,
+  JPEG_INTERCHANGE_FORMAT: 0x0201,
+  JPEG_INTERCHANGE_FORMAT_LENGTH: 0x0202,
+  JPEG_FROM_RAW: 0x002e,
+  PREVIEW_IMAGE: 0xc51b,
+  EXIF_IFD: 0x8769,
+  GPS_IFD: 0x8825,
+  INTEROP_IFD: 0xa005,
+} as const;
 
 const startsWithId = (payload: Uint8Array, id: string): boolean =>
   Buffer.from(payload.subarray(0, id.length)).toString('latin1') === id;
@@ -86,7 +151,7 @@ export const looksLikeJpeg = (data: Uint8Array): boolean =>
 
 export function exifOrientation(segments: readonly Segment[]): number {
   for (const { marker, payload } of segments) {
-    if (marker !== APP1 || payload.length < 14) continue;
+    if (marker !== APP1 || payload.length < EXIF_ID.length + TIFF_HEADER_LENGTH) continue;
     if (!startsWithId(payload, EXIF_ID)) continue;
     const tiff = payload.subarray(EXIF_ID.length);
     const little = tiff[0] === 0x49 && tiff[1] === 0x49;
@@ -98,7 +163,7 @@ export function exifOrientation(segments: readonly Segment[]): number {
     const count = u16(ifd);
     for (let i = 0; i < count && i < MAX_IFD_ENTRIES; i++) {
       const entry = ifd + 2 + i * IFD_ENTRY_SIZE;
-      if (u16(entry) === ORIENTATION_TAG) {
+      if (u16(entry) === TIFF_TAG.ORIENTATION) {
         const value = u16(entry + 8);
         return value >= 1 && value <= 8 ? value : DEFAULT_ORIENTATION;
       }
@@ -215,7 +280,7 @@ export function parseHeader(data: Uint8Array): ParsedHeader {
       readQuantTables(payload, quant);
     } else if (marker === APP14 && startsWithId(payload, ADOBE_ID)) {
       hasAdobe = true;
-      adobeTransform = payload[ADOBE_TRANSFORM_OFFSET];
+      adobeTransform = payload[ADOBE_TRANSFORM_AT];
     } else if (marker === APP0 && startsWithId(payload, JFIF_ID)) {
       hasJfif = true;
     }
@@ -252,9 +317,9 @@ export function summarize(header: ParsedHeader): HeaderSummary {
 export function iccProfile(segments: readonly Segment[]): Buffer | undefined {
   const chunks: Array<{ seq: number; data: Uint8Array }> = [];
   for (const { marker, payload } of segments) {
-    if (marker !== APP2 || payload.length < 14) continue;
+    if (marker !== APP2 || payload.length < ICC_HEADER_LENGTH) continue;
     if (!startsWithId(payload, ICC_ID)) continue;
-    chunks.push({ seq: payload[ICC_ID.length]!, data: payload.subarray(ICC_ID.length + 2) });
+    chunks.push({ seq: payload[ICC_SEQUENCE_AT]!, data: payload.subarray(ICC_HEADER_LENGTH) });
   }
   if (chunks.length === 0) return undefined;
   chunks.sort((a, b) => a.seq - b.seq);

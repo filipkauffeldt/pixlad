@@ -43,10 +43,13 @@ export interface EpResult {
   found: { faces: Box[]; people: Box[]; traced: number };
   /** Median milliseconds per run of each model on its own. */
   models: Record<string, { input: string; ms: number }>;
+  /** Models the provider could not load, which ran on the CPU instead. */
+  onCpu: string[];
 }
 
 const usage = new Map<string, { ms: number; runs: number }>();
 const opened: ort.InferenceSession[] = [];
+const onCpu = new Set<string>();
 
 function providerOptions(ep: string): ort.InferenceSession.SessionOptions {
   const options: ort.InferenceSession.SessionOptions = {
@@ -80,8 +83,16 @@ function useProvider(ep: string): void {
   const create = ort.InferenceSession.create.bind(ort.InferenceSession);
   Object.assign(ort.InferenceSession, {
     create: async (path: string, options?: ort.InferenceSession.SessionOptions) => {
-      const session = await create(path, { ...options, ...providerOptions(ep) });
-      timeRuns(session, MODEL_NAMES[basename(path)] ?? basename(path));
+      const name = MODEL_NAMES[basename(path)] ?? basename(path);
+      let session: ort.InferenceSession;
+      try {
+        session = await create(path, { ...options, ...providerOptions(ep) });
+      } catch (cause) {
+        if (ep === 'cpu') throw cause;
+        session = await create(path, { ...options, ...providerOptions('cpu') });
+        onCpu.add(name);
+      }
+      timeRuns(session, name);
       opened.push(session);
       return session;
     },
@@ -211,5 +222,6 @@ export async function measure(
     warm: all.slice(1),
     found,
     models,
+    onCpu: [...onCpu],
   };
 }

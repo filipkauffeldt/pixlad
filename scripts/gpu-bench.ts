@@ -51,7 +51,7 @@ function runProvider(ep: string, photo: string, passes: number): Promise<EpResul
     proc.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
     proc.stderr.on('data', (chunk: Buffer) => {
       pending += chunk.toString();
-      const lines = pending.split('\n');
+      const lines = pending.split(/\r?\n/);
       pending = lines.pop() ?? '';
       for (const line of lines) {
         if (line.startsWith(PROGRESS)) console.error(`  ${ep}: ${line.slice(PROGRESS.length)}`);
@@ -61,7 +61,7 @@ function runProvider(ep: string, photo: string, passes: number): Promise<EpResul
     proc.on('close', (code) => {
       const line = stdout.split('\n').find((l) => l.startsWith(RESULT));
       if (line) return done(JSON.parse(line.slice(RESULT.length)) as EpResult);
-      const lines = stderr.trim().split('\n');
+      const lines = stderr.trim().split(/\r?\n/);
       const reason = (lines.find((l) => /^\s*\w*Error:/.test(l)) ?? lines.at(-1))?.trim();
       done(`exited with code ${code}${reason ? `: ${reason}` : ''}`);
     });
@@ -199,7 +199,12 @@ function report(photo: string, results: Map<string, EpResult | string>): void {
       'Note: you are not in the render group, so WebGPU ran on a software renderer, not the GPU.',
     );
   }
-  for (const [ep, r] of results) if (typeof r === 'string') console.log(`${ep} failed: ${r}`);
+  for (const [ep, r] of results) {
+    if (typeof r === 'string') console.log(`${ep} failed: ${r}`);
+    else if (r.onCpu.length > 0) {
+      console.log(`${ep} could not load ${r.onCpu.join(', ')}; those ran on the CPU.`);
+    }
+  }
   if (ok.length === 0) return;
 
   const cell = (r: EpResult | string, pick: (r: EpResult) => number, base?: number): string =>
@@ -327,7 +332,7 @@ async function checkOne(ep: string, model: string, setting: CheckSetting): Promi
     const message = cause instanceof Error ? cause.message : String(cause);
     outcome = message
       .replace(/^.*tid\([0-9a-f]+\)\s*/is, '')
-      .split('\n')[0]!
+      .split(/\r?\n/)[0]!
       .slice(0, 60);
   }
   process.stdout.write(`${RESULT}${outcome}\n`, () => process.exit(0));

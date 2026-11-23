@@ -60,8 +60,9 @@ function runProvider(ep: string, photo: string, passes: number): Promise<EpResul
     proc.on('close', (code) => {
       const line = stdout.split('\n').find((l) => l.startsWith(RESULT));
       if (line) return done(JSON.parse(line.slice(RESULT.length)) as EpResult);
-      const tail = stderr.trim().split('\n').slice(-3).join(' / ');
-      done(`exited with code ${code}${tail ? `: ${tail}` : ''}`);
+      const lines = stderr.trim().split('\n');
+      const reason = (lines.find((l) => /^\s*\w*Error:/.test(l)) ?? lines.at(-1))?.trim();
+      done(`exited with code ${code}${reason ? `: ${reason}` : ''}`);
     });
   });
 }

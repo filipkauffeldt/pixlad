@@ -4,6 +4,7 @@
 // Times Find all faces and Outlines on one photo, on the CPU and on every GPU execution provider
 // this ONNX Runtime build offers here, and prints the timings as tables.
 //   pnpm bench:gpu <photo.jpg> [--ep cpu,webgpu] [--runs 3]
+//   pnpm bench:gpu --check dml     loads each model on one provider with a few settings
 // Each provider runs in its own process, so a driver that crashes takes only its own column down.
 import { execFileSync, spawn } from 'node:child_process';
 import { accessSync, constants, existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -275,9 +276,97 @@ function report(photo: string, results: Map<string, EpResult | string>): void {
   );
 }
 
+const CHECK_MODELS: { name: string; file: string; input: string; dims: number[] }[] = [
+  {
+    name: 'YuNet',
+    file: 'face_detection_yunet_2026may.onnx',
+    input: 'input',
+    dims: [1, 3, 640, 640],
+  },
+  { name: 'DEIMv2-N', file: 'deimv2-n-wholebody34.onnx', input: 'images', dims: [1, 3, 640, 640] },
+  { name: 'DEIMv2-S', file: 'deimv2-s-wholebody34.onnx', input: 'images', dims: [1, 3, 640, 640] },
+  { name: 'Selfie segmenter', file: 'selfie-multiclass.onnx', input: '', dims: [1, 256, 256, 3] },
+];
+
+const CHECK_SETTINGS = {
+  'as benchmarked': {
+    graphOptimizationLevel: 'all',
+    enableMemPattern: false,
+    executionMode: 'sequential',
+  },
+  'basic optimizations': {
+    graphOptimizationLevel: 'basic',
+    enableMemPattern: false,
+    executionMode: 'sequential',
+  },
+  'no optimizations': {
+    graphOptimizationLevel: 'disabled',
+    enableMemPattern: false,
+    executionMode: 'sequential',
+  },
+  'ONNX Runtime defaults': {},
+} as const;
+type CheckSetting = keyof typeof CHECK_SETTINGS;
+
+async function checkOne(ep: string, model: string, setting: CheckSetting): Promise<void> {
+  const ort = await import('onnxruntime-node');
+  const spec = CHECK_MODELS.find((m) => m.name === model)!;
+  let outcome: string;
+  try {
+    const session = await ort.InferenceSession.create(join(modelsDir, spec.file), {
+      ...CHECK_SETTINGS[setting],
+      executionProviders: [ep],
+      logSeverityLevel: 3,
+    });
+    const data = new Float32Array(spec.dims.reduce((a, b) => a * b));
+    const input = new ort.Tensor('float32', data, spec.dims);
+    const start = performance.now();
+    await session.run({ [spec.input || session.inputNames[0]!]: input });
+    outcome = `ok, first run ${seconds(performance.now() - start)}`;
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    outcome = message
+      .replace(/^.*tid\([0-9a-f]+\)\s*/is, '')
+      .split('\n')[0]!
+      .slice(0, 60);
+  }
+  process.stdout.write(`${RESULT}${outcome}\n`, () => process.exit(0));
+}
+
+/** Each model and setting in its own process, so one failure cannot spoil the next. */
+async function check(ep: string): Promise<void> {
+  const settings = Object.keys(CHECK_SETTINGS) as CheckSetting[];
+  const rows: string[][] = [];
+  for (const model of CHECK_MODELS) {
+    const row = [model.name];
+    for (const setting of settings) {
+      console.error(`  ${ep}: ${model.name}, ${setting}`);
+      const outcome = await new Promise<string>((done) => {
+        const proc = spawn(
+          process.execPath,
+          [fileURLToPath(import.meta.url), '--check-one', ep, model.name, setting],
+          { stdio: ['ignore', 'pipe', 'ignore'] },
+        );
+        let stdout = '';
+        proc.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
+        proc.on('close', (code) => {
+          const line = stdout.split('\n').find((l) => l.startsWith(RESULT));
+          done(line ? line.slice(RESULT.length) : `crashed (exit code ${code})`);
+        });
+      });
+      row.push(outcome);
+    }
+    rows.push(row);
+  }
+  console.log(`\nLoading each model on ${ep} and running it once\n`);
+  console.log(table(['Model', ...settings], rows));
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args[0] === '--child') return child(args[1]!, args[2]!, Number(args[3]));
+  if (args[0] === '--check-one') return checkOne(args[1]!, args[2]!, args[3] as CheckSetting);
+  if (args[0] === '--check') return check(args[1] ?? 'dml');
 
   const option = (name: string): string | undefined => {
     const at = args.indexOf(name);
@@ -290,7 +379,9 @@ async function main(): Promise<void> {
   const passes = Number(option('--runs') ?? 3);
   const photo = args[0] && resolve(args[0]);
   if (!photo || !existsSync(photo) || !Number.isInteger(passes) || passes < 1) {
-    console.error('Usage: pnpm bench:gpu <photo.jpg> [--ep cpu,webgpu] [--runs 3]');
+    console.error(
+      'Usage: pnpm bench:gpu <photo.jpg> [--ep cpu,webgpu] [--runs 3], or pnpm bench:gpu --check dml',
+    );
     process.exit(1);
   }
   if (!existsSync(join(modelsDir, 'deimv2-s-wholebody34.onnx'))) {

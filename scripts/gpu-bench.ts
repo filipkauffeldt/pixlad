@@ -424,10 +424,10 @@ async function main(): Promise<void> {
   };
   const epOption = option('--ep');
   const passes = Number(option('--runs') ?? 3);
-  const only = (option('--models') ?? '')
-    .split(',')
-    .map((m) => m.trim().toLowerCase())
-    .filter(Boolean);
+  // PowerShell hands an unquoted `cpu,dml` over as `cpu dml`.
+  const list = (value: string | undefined): string[] =>
+    (value ?? '').split(/[\s,]+/).filter(Boolean);
+  const only = list(option('--models')).map((m) => m.toLowerCase());
   const photo = args[0] && resolve(args[0]);
   if (!photo || !existsSync(photo) || !Number.isInteger(passes) || passes < 1) {
     console.error(
@@ -443,8 +443,15 @@ async function main(): Promise<void> {
   const { listSupportedBackends } = await import('onnxruntime-node');
   const available = listSupportedBackends();
   const eps = epOption
-    ? epOption.split(',').map((e) => e.trim())
+    ? list(epOption)
     : ['cpu', ...available.filter((b) => b.bundled && b.name !== 'cpu').map((b) => b.name)];
+  const unknown = eps.filter((ep) => !available.some((b) => b.name === ep));
+  if (unknown.length > 0) {
+    console.error(
+      `Unknown provider: ${unknown.join(', ')}. This build has ${available.map((b) => b.name).join(', ')}.`,
+    );
+    process.exit(1);
+  }
   console.error(
     `Providers in this build: ${available.map((b) => b.name + (b.bundled ? '' : ' (not bundled)')).join(', ')}`,
   );

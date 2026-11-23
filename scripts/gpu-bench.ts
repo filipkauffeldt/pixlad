@@ -3,7 +3,7 @@
 //
 // Times Find all faces and Outlines on one photo, on the CPU and on every GPU execution provider
 // this ONNX Runtime build offers here, and prints the timings as tables.
-//   pnpm bench:gpu <photo.jpg> [--ep cpu,webgpu] [--runs 3]
+//   pnpm bench:gpu <photo.jpg> [--ep cpu,webgpu] [--runs 3] [--models selfie,yunet]
 //   pnpm bench:gpu --check dml     loads each model on one provider with a few settings
 // Each provider runs in its own process, so a driver that crashes takes only its own column down.
 import { execFileSync, spawn } from 'node:child_process';
@@ -12,6 +12,7 @@ import { arch, availableParallelism, cpus, platform, totalmem } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Box } from '../src/main/faces/people.ts';
+import type { Point } from '../src/shared/types.ts';
 import type { EpResult, measure, Pass, Step } from './gpu-bench-run.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -19,7 +20,7 @@ const modelsDir = join(root, 'resources', 'models');
 const RESULT = '@@result ';
 const PROGRESS = '@@ ';
 
-async function child(ep: string, photo: string, passes: number): Promise<void> {
+async function child(ep: string, photo: string, passes: number, only: string[]): Promise<void> {
   const { createServer, createServerModuleRunner } = await import('vite');
   const server = await createServer({
     configFile: false,
@@ -32,17 +33,22 @@ async function child(ep: string, photo: string, passes: number): Promise<void> {
   const bench = await runner.import<{ measure: typeof measure }>(
     join(root, 'scripts', 'gpu-bench-run.ts'),
   );
-  const result = await bench.measure(ep, photo, modelsDir, passes, (line) =>
+  const result = await bench.measure(ep, photo, modelsDir, passes, only, (line) =>
     process.stderr.write(`${PROGRESS}${line}\n`),
   );
   process.stdout.write(`${RESULT}${JSON.stringify(result)}\n`, () => process.exit(0));
 }
 
-function runProvider(ep: string, photo: string, passes: number): Promise<EpResult | string> {
+function runProvider(
+  ep: string,
+  photo: string,
+  passes: number,
+  only: string[],
+): Promise<EpResult | string> {
   return new Promise((done) => {
     const proc = spawn(
       process.execPath,
-      [fileURLToPath(import.meta.url), '--child', ep, photo, String(passes)],
+      [fileURLToPath(import.meta.url), '--child', ep, photo, String(passes), only.join(',')],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
     let stdout = '';
@@ -167,13 +173,35 @@ function matching(boxes: Box[], reference: Box[]): number {
   return n;
 }
 
+/**
+ * How far the outlines `r` traced lie from the CPU's, for the people both found in the same place:
+ * the largest and the median distance between matching outline points.
+ */
+function outlineShift(r: EpResult, cpu: EpResult): string {
+  const worst: number[] = [];
+  r.found.outlines.forEach((outline, i) => {
+    const reference = cpu.found.outlines[i];
+    const box = r.found.people[i];
+    const cpuBox = cpu.found.people[i];
+    if (!outline || !reference || !box || !cpuBox || iou(box, cpuBox) < 0.9) return;
+    if (outline.length !== reference.length) return worst.push(Infinity);
+    worst.push(
+      Math.max(
+        ...outline.map((p: Point, k) => Math.hypot(p.x - reference[k]!.x, p.y - reference[k]!.y)),
+      ),
+    );
+  });
+  if (worst.length === 0) return 'none to compare';
+  return `${Math.max(...worst).toFixed(1)} px (median ${median(worst).toFixed(1)} px, ${worst.length} outlines)`;
+}
+
 const STEP_NAMES: Record<Step, string> = {
   findFaces: 'Find all faces',
   findPeople: 'Outlines: find people',
   trace: 'Outlines: trace',
 };
 
-function report(photo: string, results: Map<string, EpResult | string>): void {
+function report(photo: string, results: Map<string, EpResult | string>, only: string[]): void {
   const eps = [...results.keys()];
   const ok = [...results.values()].filter((r): r is EpResult => typeof r !== 'string');
   const cpu = ok.find((r) => r.ep === 'cpu');
@@ -197,6 +225,11 @@ function report(photo: string, results: Map<string, EpResult | string>): void {
   if (linuxGpuBlocked()) {
     console.log(
       'Note: you are not in the render group, so WebGPU ran on a software renderer, not the GPU.',
+    );
+  }
+  if (only.length > 0) {
+    console.log(
+      `Only models matching ${only.join(', ')} ran on the GPU providers; the rest on the CPU.`,
     );
   }
   for (const [ep, r] of results) {
@@ -269,6 +302,13 @@ function report(photo: string, results: Map<string, EpResult | string>): void {
           ...eps.map((ep) => found(results.get(ep)!, (r) => r.found.faces)),
         ],
         ['People (Outlines)', ...eps.map((ep) => found(results.get(ep)!, (r) => r.found.people))],
+        [
+          'Outline shape, largest shift from CPU',
+          ...eps.map((ep) => {
+            const r = results.get(ep)!;
+            return typeof r === 'string' ? 'failed' : r === cpu ? '' : outlineShift(r, cpu);
+          }),
+        ],
         [
           'Outlines traced',
           ...eps.map((ep) => {
@@ -369,7 +409,9 @@ async function check(ep: string): Promise<void> {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args[0] === '--child') return child(args[1]!, args[2]!, Number(args[3]));
+  if (args[0] === '--child') {
+    return child(args[1]!, args[2]!, Number(args[3]), args[4] ? args[4].split(',') : []);
+  }
   if (args[0] === '--check-one') return checkOne(args[1]!, args[2]!, args[3] as CheckSetting);
   if (args[0] === '--check') return check(args[1] ?? 'dml');
 
@@ -382,10 +424,14 @@ async function main(): Promise<void> {
   };
   const epOption = option('--ep');
   const passes = Number(option('--runs') ?? 3);
+  const only = (option('--models') ?? '')
+    .split(',')
+    .map((m) => m.trim().toLowerCase())
+    .filter(Boolean);
   const photo = args[0] && resolve(args[0]);
   if (!photo || !existsSync(photo) || !Number.isInteger(passes) || passes < 1) {
     console.error(
-      'Usage: pnpm bench:gpu <photo.jpg> [--ep cpu,webgpu] [--runs 3], or pnpm bench:gpu --check dml',
+      'Usage: pnpm bench:gpu <photo.jpg> [--ep cpu,webgpu] [--runs 3] [--models selfie], or pnpm bench:gpu --check dml',
     );
     process.exit(1);
   }
@@ -405,8 +451,8 @@ async function main(): Promise<void> {
   console.error(`Benchmarking ${eps.join(', ')} on ${basename(photo)}, ${passes} runs each`);
 
   const results = new Map<string, EpResult | string>();
-  for (const ep of eps) results.set(ep, await runProvider(ep, photo, passes));
-  report(photo, results);
+  for (const ep of eps) results.set(ep, await runProvider(ep, photo, passes, only));
+  report(photo, results, only);
 }
 
 await main();

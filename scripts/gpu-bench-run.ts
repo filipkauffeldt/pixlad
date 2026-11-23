@@ -7,7 +7,7 @@
 import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import * as ort from 'onnxruntime-node';
-import type { Rect } from '../src/shared/types';
+import type { Point, Rect } from '../src/shared/types';
 import { detectFaces } from '../src/main/faces/detect';
 import { OUTLINE_MODELS, outlineModel } from '../src/main/faces/models';
 import { traceOutlines, type TraceItem } from '../src/main/faces/outlines';
@@ -40,7 +40,7 @@ export interface EpResult {
   openMs: number;
   cold: Pass;
   warm: Pass[];
-  found: { faces: Box[]; people: Box[]; traced: number };
+  found: { faces: Box[]; people: Box[]; traced: number; outlines: (Point[] | null)[] };
   /** Median milliseconds per run of each model on its own. */
   models: Record<string, { input: string; ms: number }>;
   /** Models the provider could not load, which ran on the CPU instead. */
@@ -79,16 +79,19 @@ function timeRuns(session: ort.InferenceSession, name: string): void {
   });
 }
 
-function useProvider(ep: string): void {
+/** Puts the models whose name contains one of `only` (all with none) on `ep`, the rest on the CPU. */
+function useProvider(ep: string, only: readonly string[]): void {
   const create = ort.InferenceSession.create.bind(ort.InferenceSession);
   Object.assign(ort.InferenceSession, {
     create: async (path: string, options?: ort.InferenceSession.SessionOptions) => {
       const name = MODEL_NAMES[basename(path)] ?? basename(path);
+      const wanted = only.length === 0 || only.some((o) => name.toLowerCase().includes(o));
+      const target = wanted ? ep : 'cpu';
       let session: ort.InferenceSession;
       try {
-        session = await create(path, { ...options, ...providerOptions(ep) });
+        session = await create(path, { ...options, ...providerOptions(target) });
       } catch (cause) {
-        if (ep === 'cpu') throw cause;
+        if (target === 'cpu') throw cause;
         session = await create(path, { ...options, ...providerOptions('cpu') });
         onCpu.add(name);
       }
@@ -146,10 +149,11 @@ export async function measure(
   photoPath: string,
   modelsDir: string,
   passes: number,
+  only: readonly string[],
   progress: (line: string) => void,
 ): Promise<EpResult> {
   ort.env.logLevel = 'error';
-  useProvider(ep);
+  useProvider(ep, only);
 
   const openStart = performance.now();
   const decoded = decodeCoefficients(await readFile(photoPath));
@@ -166,7 +170,7 @@ export async function measure(
   const yunetPath = join(modelsDir, YUNET);
 
   const all: Pass[] = [];
-  let found: EpResult['found'] = { faces: [], people: [], traced: 0 };
+  let found: EpResult['found'] = { faces: [], people: [], traced: 0, outlines: [] };
   for (let pass = 0; pass <= passes; pass++) {
     progress(pass === 0 ? 'first run (loads the models)' : `run ${pass} of ${passes}`);
     usage.clear();
@@ -192,6 +196,7 @@ export async function measure(
       })),
       people: people.value.map((p) => p.box),
       traced: traced.value.filter((o) => o !== undefined).length,
+      outlines: traced.value.map((o) => o ?? null),
     };
   }
 

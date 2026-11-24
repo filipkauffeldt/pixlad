@@ -4,6 +4,7 @@
 // Times Find all faces and Outlines on one photo, on the CPU and on every GPU execution provider
 // this ONNX Runtime build offers here, and prints the timings as tables.
 //   pnpm bench:gpu <photo.jpg> [--ep cpu,webgpu] [--runs 3] [--models selfie,yunet]
+// A column can switch on speedups under test (src/main/faces/experiments.ts): --ep cpu,cpu+dehaze
 //   pnpm bench:gpu --check dml     loads each model on one provider with a few settings
 // Each provider runs in its own process, so a driver that crashes takes only its own column down.
 import { execFileSync, spawn } from 'node:child_process';
@@ -13,6 +14,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Box } from '../src/main/faces/people.ts';
 import type { Point } from '../src/shared/types.ts';
+import { experiments } from '../src/main/faces/experiments.ts';
 import type { EpResult, measure, Pass, Step } from './gpu-bench-run.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -275,7 +277,7 @@ function report(photo: string, results: Map<string, EpResult | string>, only: st
   console.log('\nEach model on its own, median time per run\n');
   console.log(
     table(
-      ['Model', 'Input', 'Runs per photo', ...eps],
+      ['Model', 'Input', 'Runs, all three steps', ...eps],
       models.map((m) => [
         m,
         first!.models[m]!.input,
@@ -445,10 +447,16 @@ async function main(): Promise<void> {
   const eps = epOption
     ? list(epOption)
     : ['cpu', ...available.filter((b) => b.bundled && b.name !== 'cpu').map((b) => b.name)];
-  const unknown = eps.filter((ep) => !available.some((b) => b.name === ep));
+  const unknown = eps.flatMap((column) => {
+    const [ep = '', ...tries] = column.split('+');
+    return [
+      ...(available.some((b) => b.name === ep) ? [] : [ep]),
+      ...tries.filter((t) => !(t in experiments)),
+    ];
+  });
   if (unknown.length > 0) {
     console.error(
-      `Unknown provider: ${unknown.join(', ')}. This build has ${available.map((b) => b.name).join(', ')}.`,
+      `Unknown: ${unknown.join(', ')}. Providers: ${available.map((b) => b.name).join(', ')}. Speedups: ${Object.keys(experiments).join(', ')}.`,
     );
     process.exit(1);
   }

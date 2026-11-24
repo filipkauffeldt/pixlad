@@ -9,6 +9,7 @@ import { basename, join } from 'node:path';
 import * as ort from 'onnxruntime-node';
 import type { Point, Rect } from '../src/shared/types';
 import { detectFaces } from '../src/main/faces/detect';
+import { experiments, type Experiment } from '../src/main/faces/experiments';
 import { OUTLINE_MODELS, outlineModel } from '../src/main/faces/models';
 import { traceOutlines, type TraceItem } from '../src/main/faces/outlines';
 import { findPeople, type Box, type Person } from '../src/main/faces/people';
@@ -144,8 +145,9 @@ function randomTensor(dims: number[]): ort.Tensor {
   return new ort.Tensor('float32', data, dims);
 }
 
+/** `column` is a provider with speedups to switch on, such as `cpu+dehaze+buffers`. */
 export async function measure(
-  ep: string,
+  column: string,
   photoPath: string,
   modelsDir: string,
   passes: number,
@@ -153,6 +155,8 @@ export async function measure(
   progress: (line: string) => void,
 ): Promise<EpResult> {
   ort.env.logLevel = 'error';
+  const [ep = 'cpu', ...tries] = column.split('+');
+  for (const t of tries) experiments[t as Experiment] = true;
   useProvider(ep, only);
 
   const openStart = performance.now();
@@ -219,7 +223,7 @@ export async function measure(
 
   await Promise.all(opened.map((s) => s.release()));
   return {
-    ep,
+    ep: column,
     width: img.width,
     height: img.height,
     openMs,

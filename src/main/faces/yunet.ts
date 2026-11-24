@@ -3,6 +3,7 @@
 import * as ort from 'onnxruntime-node';
 import type { Point } from '../../shared/types';
 import type { PixelRect } from '../../shared/geometry';
+import { experiments } from './experiments';
 
 const STRIDES = [8, 16, 32] as const;
 
@@ -35,6 +36,44 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+/** Input arrays from finished runs, by length, most recently used last. */
+const spare = new Map<number, Float32Array[]>();
+
+function takeArray(length: number): { data: Float32Array; reused: boolean } {
+  const data = experiments.buffers ? spare.get(length)?.pop() : undefined;
+  return data ? { data, reused: true } : { data: new Float32Array(length), reused: false };
+}
+
+/** A few arrays of the last few sizes: tiles mostly share one size, so that is all that gets reused. */
+function giveBack(data: Float32Array): void {
+  if (!experiments.buffers) return;
+  const list = spare.get(data.length) ?? [];
+  spare.delete(data.length);
+  if (list.length < 2) list.push(data);
+  spare.set(data.length, list);
+  while (spare.size > 4) spare.delete(spare.keys().next().value!);
+}
+
+/** Zero what a reused array holds outside the `width` x `height` picture in each plane. */
+function clearPadding(
+  data: Float32Array,
+  width: number,
+  height: number,
+  paddedWidth: number,
+  paddedHeight: number,
+): void {
+  const plane = paddedWidth * paddedHeight;
+  for (let c = 0; c < 3; c++) {
+    const base = c * plane;
+    if (width < paddedWidth) {
+      for (let y = 0; y < height; y++) {
+        data.fill(0, base + y * paddedWidth + width, base + (y + 1) * paddedWidth);
+      }
+    }
+    data.fill(0, base + height * paddedWidth, base + plane);
+  }
+}
+
 /**
  * Build the NCHW float tensor YuNet expects: BGR, 0..255, no mean subtraction
  * (matches OpenCV's `blobFromImage` on a BGR image), zero-padded to a multiple
@@ -48,11 +87,12 @@ function buildInput(
   sourceY: number,
   width: number,
   height: number,
-): { tensor: ort.Tensor; paddedWidth: number; paddedHeight: number } {
+): { tensor: ort.Tensor; data: Float32Array; paddedWidth: number; paddedHeight: number } {
   const paddedWidth = padTo32(width);
   const paddedHeight = padTo32(height);
   const plane = paddedWidth * paddedHeight;
-  const data = new Float32Array(plane * 3);
+  const { data, reused } = takeArray(plane * 3);
+  if (reused) clearPadding(data, width, height, paddedWidth, paddedHeight);
   for (let y = 0; y < height; y++) {
     const sourceRow = ((sourceY + y) * sourceWidth + sourceX) * 4;
     const destinationRow = y * paddedWidth;
@@ -65,7 +105,7 @@ function buildInput(
     }
   }
   const tensor = new ort.Tensor('float32', data, [1, 3, paddedHeight, paddedWidth]);
-  return { tensor, paddedWidth, paddedHeight };
+  return { tensor, data, paddedWidth, paddedHeight };
 }
 
 /** Decode YuNet's stride-8/16/32 heads into candidates in model-input pixels. */
@@ -133,7 +173,7 @@ export async function runYuNet(
   scoreThreshold: number,
 ): Promise<FaceCandidate[]> {
   const session = await loadSession(modelPath);
-  const { tensor, paddedWidth, paddedHeight } = buildInput(
+  const { tensor, data, paddedWidth, paddedHeight } = buildInput(
     rgba,
     sourceWidth,
     sourceHeight,
@@ -142,6 +182,10 @@ export async function runYuNet(
     width,
     height,
   );
-  const outputs = await session.run({ input: tensor });
-  return decodeYuNetOutputs(outputs, paddedWidth, paddedHeight, scoreThreshold);
+  try {
+    const outputs = await session.run({ input: tensor });
+    return decodeYuNetOutputs(outputs, paddedWidth, paddedHeight, scoreThreshold);
+  } finally {
+    giveBack(data);
+  }
 }

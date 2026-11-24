@@ -9,12 +9,13 @@ import { basename, join } from 'node:path';
 import * as ort from 'onnxruntime-node';
 import type { Point, Rect } from '../src/shared/types';
 import { detectFaces } from '../src/main/faces/detect';
-import { experiments, type Experiment } from '../src/main/faces/experiments';
+import { experiments, parallel, type Experiment } from '../src/main/faces/experiments';
 import { OUTLINE_MODELS, outlineModel } from '../src/main/faces/models';
 import { traceOutlines, type TraceItem } from '../src/main/faces/outlines';
 import { findPeople, type Box, type Person } from '../src/main/faces/people';
 import { decodeCoefficients } from '../src/main/jpeg/decode';
 import { decodePlanes, planesToRgba } from '../src/main/jpeg/pixels';
+import { modelPool, type ModelPool } from './gpu-bench-parallel';
 
 const YUNET = 'face_detection_yunet_2026may.onnx';
 
@@ -145,18 +146,47 @@ function randomTensor(dims: number[]): ort.Tensor {
   return new ort.Tensor('float32', data, dims);
 }
 
-/** `column` is a provider with speedups to switch on, such as `cpu+dehaze+buffers`. */
-export async function measure(
+export interface PassResult {
+  pass: Pass;
+  found: EpResult['found'];
+}
+
+export interface Column {
+  width: number;
+  height: number;
+  openMs: number;
+  /** One run of all three steps; the first loads the models. */
+  pass(): Promise<PassResult>;
+  /** Each model on its own, then everything is released. */
+  finish(): Promise<Pick<EpResult, 'models' | 'onCpu'>>;
+}
+
+/**
+ * Sets up one benchmark column: a provider with speedups to switch on, such as `cpu+dehaze` or
+ * `cpu+parallel3` (three model copies in worker threads, always on the CPU).
+ */
+export async function prepare(
   column: string,
   photoPath: string,
   modelsDir: string,
-  passes: number,
   only: readonly string[],
-  progress: (line: string) => void,
-): Promise<EpResult> {
+): Promise<Column> {
   ort.env.logLevel = 'error';
   const [ep = 'cpu', ...tries] = column.split('+');
-  for (const t of tries) experiments[t as Experiment] = true;
+  let pool: ModelPool | undefined;
+  for (const t of tries) {
+    const copies = /^parallel(\d+)$/.exec(t)?.[1];
+    if (copies) {
+      pool = modelPool(Number(copies), import.meta.dirname, (path, runs, ms) => {
+        const name = MODEL_NAMES[basename(path)] ?? basename(path);
+        const entry = usage.get(name) ?? { ms: 0, runs: 0 };
+        entry.ms += ms;
+        entry.runs += runs;
+        usage.set(name, entry);
+      });
+      parallel.runMany = pool.runMany;
+    } else experiments[t as Experiment] = true;
+  }
   useProvider(ep, only);
 
   const openStart = performance.now();
@@ -173,64 +203,66 @@ export async function measure(
   const whole: Rect = { type: 'rect', x: 0, y: 0, w: 1, h: 1 };
   const yunetPath = join(modelsDir, YUNET);
 
-  const all: Pass[] = [];
-  let found: EpResult['found'] = { faces: [], people: [], traced: 0, outlines: [] };
-  for (let pass = 0; pass <= passes; pass++) {
-    progress(pass === 0 ? 'first run (loads the models)' : `run ${pass} of ${passes}`);
-    usage.clear();
-    const faces = await step(() =>
-      detectFaces(img.rgba, img.width, img.height, whole, { modelPath: yunetPath }),
-    );
-    const people = await step(() => findPeople(img, whole, modelsDir));
-    const traced = await step(() => traceOutlines(img, people.value.map(traceItem), modelsDir));
-    all.push({
-      steps: {
-        findFaces: { ms: faces.ms, modelMs: faces.modelMs },
-        findPeople: { ms: people.ms, modelMs: people.modelMs },
-        trace: { ms: traced.ms, modelMs: traced.modelMs },
-      },
-      runs: Object.fromEntries([...usage].map(([name, u]) => [name, u.runs])),
-    });
-    found = {
-      faces: faces.value.map((f) => ({
-        x: f.box.x * img.width,
-        y: f.box.y * img.height,
-        w: f.box.w * img.width,
-        h: f.box.h * img.height,
-      })),
-      people: people.value.map((p) => p.box),
-      traced: traced.value.filter((o) => o !== undefined).length,
-      outlines: traced.value.map((o) => o ?? null),
-    };
-  }
-
-  progress('each model on its own');
-  const yunet = await ort.InferenceSession.create(yunetPath, { graphOptimizationLevel: 'all' });
-  const heads = await outlineModel(modelsDir, 'heads');
-  const smallHeads = await outlineModel(modelsDir, 'smallHeads');
-  const segmenter = await outlineModel(modelsDir, 'segmenter');
-  const detr = randomTensor([1, 3, 640, 640]);
-  const selfie = randomTensor([1, 256, 256, 3]);
-  const models: EpResult['models'] = {
-    YuNet: { input: '640×640', ms: await timeAlone(() => yunet.run({ input: detr })) },
-    'DEIMv2-N': { input: '640×640', ms: await timeAlone(() => smallHeads.run({ images: detr })) },
-    'DEIMv2-S': { input: '640×640', ms: await timeAlone(() => heads.run({ images: detr }), 5) },
-    'Selfie segmenter': {
-      input: '256×256',
-      ms: await timeAlone(() => segmenter.run({ [segmenter.inputNames[0]!]: selfie })),
-    },
-  };
-
-  await Promise.all(opened.map((s) => s.release()));
   return {
-    ep: column,
     width: img.width,
     height: img.height,
     openMs,
-    cold: all[0]!,
-    warm: all.slice(1),
-    found,
-    models,
-    onCpu: [...onCpu],
+    async pass() {
+      usage.clear();
+      const faces = await step(() =>
+        detectFaces(img.rgba, img.width, img.height, whole, { modelPath: yunetPath }),
+      );
+      const people = await step(() => findPeople(img, whole, modelsDir));
+      const traced = await step(() => traceOutlines(img, people.value.map(traceItem), modelsDir));
+      return {
+        pass: {
+          steps: {
+            findFaces: { ms: faces.ms, modelMs: faces.modelMs },
+            findPeople: { ms: people.ms, modelMs: people.modelMs },
+            trace: { ms: traced.ms, modelMs: traced.modelMs },
+          },
+          runs: Object.fromEntries([...usage].map(([name, u]) => [name, u.runs])),
+        },
+        found: {
+          faces: faces.value.map((f) => ({
+            x: f.box.x * img.width,
+            y: f.box.y * img.height,
+            w: f.box.w * img.width,
+            h: f.box.h * img.height,
+          })),
+          people: people.value.map((p) => p.box),
+          traced: traced.value.filter((o) => o !== undefined).length,
+          outlines: traced.value.map((o) => o ?? null),
+        },
+      };
+    },
+    async finish() {
+      const yunet = await ort.InferenceSession.create(yunetPath, {
+        graphOptimizationLevel: 'all',
+      });
+      const heads = await outlineModel(modelsDir, 'heads');
+      const smallHeads = await outlineModel(modelsDir, 'smallHeads');
+      const segmenter = await outlineModel(modelsDir, 'segmenter');
+      const detr = randomTensor([1, 3, 640, 640]);
+      const selfie = randomTensor([1, 256, 256, 3]);
+      const models: EpResult['models'] = {
+        YuNet: { input: '640×640', ms: await timeAlone(() => yunet.run({ input: detr })) },
+        'DEIMv2-N': {
+          input: '640×640',
+          ms: await timeAlone(() => smallHeads.run({ images: detr })),
+        },
+        'DEIMv2-S': {
+          input: '640×640',
+          ms: await timeAlone(() => heads.run({ images: detr }), 5),
+        },
+        'Selfie segmenter': {
+          input: '256×256',
+          ms: await timeAlone(() => segmenter.run({ [segmenter.inputNames[0]!]: selfie })),
+        },
+      };
+      await Promise.all(opened.map((s) => s.release()));
+      await pool?.close();
+      return { models, onCpu: [...onCpu] };
+    },
   };
 }

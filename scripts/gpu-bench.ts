@@ -4,10 +4,13 @@
 // Times Find all faces and Outlines on one photo, on the CPU and on every GPU execution provider
 // this ONNX Runtime build offers here, and prints the timings as tables.
 //   pnpm bench:gpu <photo.jpg> [--ep cpu,webgpu] [--runs 3] [--models selfie,yunet]
-// A column can switch on speedups under test (src/main/faces/experiments.ts): --ep cpu,cpu+dehaze
+// A column can switch on speedups under test (src/main/faces/experiments.ts): --ep cpu,cpu+dehaze;
+// cpu+parallel3 runs the segmenter and DEIMv2 tiles on three model copies in worker threads.
 //   pnpm bench:gpu --check dml     loads each model on one provider with a few settings
-// Each provider runs in its own process, so a driver that crashes takes only its own column down.
+// Each column runs in its own process, so a driver that crashes takes only its own column down,
+// and the columns take turns, one run each.
 import { execFileSync, spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import { accessSync, constants, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { arch, availableParallelism, cpus, platform, totalmem } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -15,14 +18,22 @@ import { fileURLToPath } from 'node:url';
 import type { Box } from '../src/main/faces/people.ts';
 import type { Point } from '../src/shared/types.ts';
 import { experiments } from '../src/main/faces/experiments.ts';
-import type { EpResult, measure, Pass, Step } from './gpu-bench-run.ts';
+import type { EpResult, Pass, PassResult, prepare, Step } from './gpu-bench-run.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const modelsDir = join(root, 'resources', 'models');
 const RESULT = '@@result ';
-const PROGRESS = '@@ ';
 
-async function child(ep: string, photo: string, passes: number, only: string[]): Promise<void> {
+const MARK = '@@';
+
+interface Ready {
+  width: number;
+  height: number;
+  openMs: number;
+}
+
+/** One column's process: sets the column up, then answers `pass` and `finish` on stdin. */
+async function child(column: string, photo: string, only: string[]): Promise<void> {
   const { createServer, createServerModuleRunner } = await import('vite');
   const server = await createServer({
     configFile: false,
@@ -32,48 +43,132 @@ async function child(ep: string, photo: string, passes: number, only: string[]):
     server: { middlewareMode: true, hmr: false, ws: false, watch: null },
   });
   const runner = createServerModuleRunner(server.environments.ssr, { hmr: false });
-  const bench = await runner.import<{ measure: typeof measure }>(
+  const { prepare: setUp } = await runner.import<{ prepare: typeof prepare }>(
     join(root, 'scripts', 'gpu-bench-run.ts'),
   );
-  const result = await bench.measure(ep, photo, modelsDir, passes, only, (line) =>
-    process.stderr.write(`${PROGRESS}${line}\n`),
-  );
-  process.stdout.write(`${RESULT}${JSON.stringify(result)}\n`, () => process.exit(0));
+  const send = (value: unknown): Promise<void> =>
+    new Promise((done) => process.stdout.write(`${MARK}${JSON.stringify(value)}\n`, () => done()));
+  const bench = await setUp(column, photo, modelsDir, only);
+  await send({ width: bench.width, height: bench.height, openMs: bench.openMs } satisfies Ready);
+  for await (const line of createInterface({ input: process.stdin })) {
+    if (line === 'pass') await send(await bench.pass());
+    if (line === 'finish') {
+      await send(await bench.finish());
+      process.exit(0);
+    }
+  }
 }
 
-function runProvider(
-  ep: string,
+interface Running {
+  /** Sends `command` (if any) and waits for the column's next answer. */
+  ask(command?: string): Promise<unknown>;
+}
+
+function start(column: string, photo: string, only: string[]): Running {
+  const proc = spawn(
+    process.execPath,
+    [fileURLToPath(import.meta.url), '--child', column, photo, only.join(',')],
+    { stdio: ['pipe', 'pipe', 'pipe'] },
+  );
+  proc.stdin.on('error', () => undefined);
+  let stdout = '';
+  let stderr = '';
+  let failure: string | undefined;
+  const answers: unknown[] = [];
+  let waiting: { resolve(value: unknown): void; reject(error: Error): void } | undefined;
+  proc.stdout.on('data', (chunk: Buffer) => {
+    const lines = (stdout + chunk.toString()).split(/\r?\n/);
+    stdout = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith(MARK)) continue;
+      const value: unknown = JSON.parse(line.slice(MARK.length));
+      if (waiting) waiting.resolve(value);
+      else answers.push(value);
+      waiting = undefined;
+    }
+  });
+  proc.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+  proc.on('close', (code) => {
+    const lines = stderr.trim().split(/\r?\n/);
+    const reason = (lines.find((l) => /^\s*\w*Error:/.test(l)) ?? lines.at(-1))?.trim();
+    failure = `exited with code ${code}${reason ? `: ${reason}` : ''}`;
+    waiting?.reject(new Error(failure));
+    waiting = undefined;
+  });
+  return {
+    ask(command) {
+      if (answers.length > 0) return Promise.resolve(answers.shift());
+      if (failure) return Promise.reject(new Error(failure));
+      if (command) proc.stdin.write(`${command}\n`);
+      return new Promise((resolve, reject) => (waiting = { resolve, reject }));
+    },
+  };
+}
+
+/**
+ * Every column in its own process, run in turns: one pass of each, starting with a different
+ * column each time, so a laptop slowing down as it warms up slows every column alike.
+ */
+async function runColumns(
+  columns: string[],
   photo: string,
   passes: number,
   only: string[],
-): Promise<EpResult | string> {
-  return new Promise((done) => {
-    const proc = spawn(
-      process.execPath,
-      [fileURLToPath(import.meta.url), '--child', ep, photo, String(passes), only.join(',')],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
-    );
-    let stdout = '';
-    let stderr = '';
-    let pending = '';
-    proc.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
-    proc.stderr.on('data', (chunk: Buffer) => {
-      pending += chunk.toString();
-      const lines = pending.split(/\r?\n/);
-      pending = lines.pop() ?? '';
-      for (const line of lines) {
-        if (line.startsWith(PROGRESS)) console.error(`  ${ep}: ${line.slice(PROGRESS.length)}`);
-        else stderr += `${line}\n`;
-      }
-    });
-    proc.on('close', (code) => {
-      const line = stdout.split('\n').find((l) => l.startsWith(RESULT));
-      if (line) return done(JSON.parse(line.slice(RESULT.length)) as EpResult);
-      const lines = stderr.trim().split(/\r?\n/);
-      const reason = (lines.find((l) => /^\s*\w*Error:/.test(l)) ?? lines.at(-1))?.trim();
-      done(`exited with code ${code}${reason ? `: ${reason}` : ''}`);
-    });
-  });
+): Promise<Map<string, EpResult | string>> {
+  const running = new Map(columns.map((c) => [c, start(c, photo, only)]));
+  const failures = new Map<string, string>();
+  const ready = new Map<string, Ready>();
+  const runs = new Map<string, PassResult[]>(columns.map((c) => [c, []]));
+  const finished = new Map<string, Pick<EpResult, 'models' | 'onCpu'>>();
+  const ask = async <T>(column: string, command?: string): Promise<T | undefined> => {
+    if (failures.has(column)) return undefined;
+    try {
+      return (await running.get(column)!.ask(command)) as T;
+    } catch (cause) {
+      failures.set(column, cause instanceof Error ? cause.message : String(cause));
+      return undefined;
+    }
+  };
+
+  console.error('  opening the photo in each column');
+  for (const c of columns) {
+    const r = await ask<Ready>(c);
+    if (r) ready.set(c, r);
+  }
+  for (let pass = 0; pass <= passes; pass++) {
+    for (let i = 0; i < columns.length; i++) {
+      const c = columns[(i + pass) % columns.length]!;
+      if (failures.has(c)) continue;
+      console.error(`  ${pass === 0 ? 'first run' : `run ${pass} of ${passes}`}: ${c}`);
+      const r = await ask<PassResult>(c, 'pass');
+      if (r) runs.get(c)!.push(r);
+    }
+  }
+  for (const c of columns) {
+    if (failures.has(c)) continue;
+    console.error(`  each model on its own: ${c}`);
+    const r = await ask<Pick<EpResult, 'models' | 'onCpu'>>(c, 'finish');
+    if (r) finished.set(c, r);
+  }
+
+  return new Map(
+    columns.map((c): [string, EpResult | string] => {
+      const failure = failures.get(c);
+      if (failure) return [c, failure];
+      const [cold, ...warm] = runs.get(c)!;
+      return [
+        c,
+        {
+          ep: c,
+          ...ready.get(c)!,
+          cold: cold!.pass,
+          warm: warm.map((r) => r.pass),
+          found: (warm.at(-1) ?? cold)!.found,
+          ...finished.get(c)!,
+        },
+      ];
+    }),
+  );
 }
 
 function gpuNames(): string {
@@ -411,9 +506,7 @@ async function check(ep: string): Promise<void> {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args[0] === '--child') {
-    return child(args[1]!, args[2]!, Number(args[3]), args[4] ? args[4].split(',') : []);
-  }
+  if (args[0] === '--child') return child(args[1]!, args[2]!, args[3] ? args[3].split(',') : []);
   if (args[0] === '--check-one') return checkOne(args[1]!, args[2]!, args[3] as CheckSetting);
   if (args[0] === '--check') return check(args[1] ?? 'dml');
 
@@ -451,12 +544,12 @@ async function main(): Promise<void> {
     const [ep = '', ...tries] = column.split('+');
     return [
       ...(available.some((b) => b.name === ep) ? [] : [ep]),
-      ...tries.filter((t) => !(t in experiments)),
+      ...tries.filter((t) => !(t in experiments) && !/^parallel\d+$/.test(t)),
     ];
   });
   if (unknown.length > 0) {
     console.error(
-      `Unknown: ${unknown.join(', ')}. Providers: ${available.map((b) => b.name).join(', ')}. Speedups: ${Object.keys(experiments).join(', ')}.`,
+      `Unknown: ${unknown.join(', ')}. Providers: ${available.map((b) => b.name).join(', ')}. Speedups: ${Object.keys(experiments).join(', ')}, parallel2, parallel3, ….`,
     );
     process.exit(1);
   }
@@ -465,9 +558,7 @@ async function main(): Promise<void> {
   );
   console.error(`Benchmarking ${eps.join(', ')} on ${basename(photo)}, ${passes} runs each`);
 
-  const results = new Map<string, EpResult | string>();
-  for (const ep of eps) results.set(ep, await runProvider(ep, photo, passes, only));
-  report(photo, results, only);
+  report(photo, await runColumns(eps, photo, passes, only), only);
 }
 
 await main();

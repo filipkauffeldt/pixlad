@@ -7,8 +7,8 @@ import * as ort from 'onnxruntime-node';
 import { clamp } from '../../shared/geometry';
 import type { Point, Rect } from '../../shared/types';
 import { detectFaces } from './detect';
-import { experiments } from './experiments';
-import { outlineModel } from './models';
+import { batchSize, experiments, runAll } from './experiments';
+import { OUTLINE_OPTIONS, outlineModel, outlinePath, type OutlineModel } from './models';
 import { nonMaximumSuppression } from './nms';
 
 export interface Img {
@@ -164,41 +164,56 @@ interface Parts {
 async function deimv2(
   img: Img,
   region: Box,
-  session: ort.InferenceSession,
+  modelsDir: string,
+  model: OutlineModel,
   maxEdge: number,
   tiles: boolean,
   whole: boolean,
 ): Promise<Parts> {
+  const session = await outlineModel(modelsDir, model);
   const heads: Person[] = [];
   const parts: Parts = { heads: [], faces: [], eyes: [], hands: [] };
-  for (const { win, scale, whole: stretched } of windows(region, maxEdge, tiles, whole)) {
+  const all = windows(region, maxEdge, tiles, whole);
+  for (let start = 0; start < all.length; start += batchSize()) {
+    const batch = all.slice(start, start + batchSize());
     // Tiles keep their aspect and are padded; the whole region is stretched, as the model was
     // trained.
-    const { t, tw, th } = tensor(img, win, scale, stretched);
-    const out = (await session.run({ images: t })).label_xyxy_score!;
-    const d = out.data as Float32Array;
-    const fx = (N / tw) * win.w;
-    const fy = (N / th) * win.h;
-    const found: Person[] = [];
-    for (let i = 0; i < out.dims[1]!; i++) {
-      const cls = Math.round(d[i * 6]!);
-      const score = d[i * 6 + 5]!;
-      const part = cls === FACE || cls === EYE;
-      if ((cls !== HEAD && !HANDS.has(cls) && !part) || score < (part ? 0.3 : 0.35)) continue;
-      const x0 = d[i * 6 + 1]! * fx;
-      const y0 = d[i * 6 + 2]! * fy;
-      const box = {
-        x: win.x + x0,
-        y: win.y + y0,
-        w: d[i * 6 + 3]! * fx - x0,
-        h: d[i * 6 + 4]! * fy - y0,
-      };
-      if (cls === FACE) parts.faces.push(box);
-      else if (cls === EYE) parts.eyes.push(box);
-      else if (cls !== HEAD) parts.hands.push(box);
-      else found.push({ box, score, landmarks: [], kind: 'head', from: 'deimv2' });
-    }
-    heads.push(...nonMaximumSuppression(found, 0.5));
+    const inputs = batch.map(({ win, scale, whole: stretched }) =>
+      tensor(img, win, scale, stretched),
+    );
+    const outputs = await runAll(
+      session,
+      outlinePath(modelsDir, model),
+      OUTLINE_OPTIONS,
+      inputs.map(({ t }) => ({ images: t })),
+    );
+    batch.forEach(({ win }, k) => {
+      const { tw, th } = inputs[k]!;
+      const out = outputs[k]!.label_xyxy_score!;
+      const d = out.data as Float32Array;
+      const fx = (N / tw) * win.w;
+      const fy = (N / th) * win.h;
+      const found: Person[] = [];
+      for (let i = 0; i < out.dims[1]!; i++) {
+        const cls = Math.round(d[i * 6]!);
+        const score = d[i * 6 + 5]!;
+        const part = cls === FACE || cls === EYE;
+        if ((cls !== HEAD && !HANDS.has(cls) && !part) || score < (part ? 0.3 : 0.35)) continue;
+        const x0 = d[i * 6 + 1]! * fx;
+        const y0 = d[i * 6 + 2]! * fy;
+        const box = {
+          x: win.x + x0,
+          y: win.y + y0,
+          w: d[i * 6 + 3]! * fx - x0,
+          h: d[i * 6 + 4]! * fy - y0,
+        };
+        if (cls === FACE) parts.faces.push(box);
+        else if (cls === EYE) parts.eyes.push(box);
+        else if (cls !== HEAD) parts.hands.push(box);
+        else found.push({ box, score, landmarks: [], kind: 'head', from: 'deimv2' });
+      }
+      heads.push(...nonMaximumSuppression(found, 0.5));
+    });
   }
   // Heads in a crowd overlap a lot: plain NMS across tiles, not a union merge. A head cut by a tile
   // edge leaves a fragment inside the whole head found elsewhere; drop those.
@@ -612,15 +627,8 @@ export async function findPeople(img: Img, region: Rect, modelsDir: string): Pro
   const maxEdge = (2560 * Math.max(px.w, px.h)) / Math.max(img.width, img.height);
   // DEIMv2-S once over the whole area, and the ~8x cheaper DEIMv2-N in tiles for the heads too
   // small for that (in smoke, half hidden by a fist).
-  const found = await deimv2(img, px, await outlineModel(modelsDir, 'heads'), maxEdge, false, true);
-  const more = await deimv2(
-    img,
-    px,
-    await outlineModel(modelsDir, 'smallHeads'),
-    maxEdge,
-    true,
-    false,
-  );
+  const found = await deimv2(img, px, modelsDir, 'heads', maxEdge, false, true);
+  const more = await deimv2(img, px, modelsDir, 'smallHeads', maxEdge, true, false);
   const heads = [
     ...found.heads,
     ...more.heads.filter(

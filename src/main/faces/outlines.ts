@@ -4,7 +4,8 @@
 // segmenter. Boxes and points are in photo pixels.
 import * as ort from 'onnxruntime-node';
 import type { Point } from '../../shared/types';
-import { outlineModel } from './models';
+import { batchSize, runAll } from './experiments';
+import { OUTLINE_OPTIONS, outlineModel, outlinePath } from './models';
 import type { Box, Img } from './people';
 
 /** The segmenter's input edge. */
@@ -78,11 +79,26 @@ function sample(img: Img, crop: Crop): Float32Array {
   return data;
 }
 
-/** The label of each pixel of the crop: the segmenter's most likely class. */
-async function segment(img: Img, crop: Crop, session: ort.InferenceSession): Promise<Uint8Array> {
-  const input = new ort.Tensor('float32', sample(img, crop), [1, SEG, SEG, 3]);
-  const out = await session.run({ [session.inputNames[0]!]: input });
-  const scores = out[session.outputNames[0]!]!.data as Float32Array;
+/** The label of each pixel of each crop: the segmenter's most likely class. */
+async function segment(
+  img: Img,
+  crops: readonly Crop[],
+  session: ort.InferenceSession,
+  modelsDir: string,
+): Promise<Uint8Array[]> {
+  const feeds = crops.map((crop) => ({
+    [session.inputNames[0]!]: new ort.Tensor('float32', sample(img, crop), [1, SEG, SEG, 3]),
+  }));
+  const outputs = await runAll(
+    session,
+    outlinePath(modelsDir, 'segmenter'),
+    OUTLINE_OPTIONS,
+    feeds,
+  );
+  return outputs.map((out) => labelsOf(out[session.outputNames[0]!]!.data as Float32Array));
+}
+
+function labelsOf(scores: Float32Array): Uint8Array {
   const labels = new Uint8Array(SEG * SEG);
   for (let p = 0; p < SEG * SEG; p++) {
     let best = 0;
@@ -389,22 +405,32 @@ export async function traceOutlines(
   const traced = items
     .map((item, i) => ({ item, i, crop: framing(item.box, item.kind, item.angle) }))
     .filter(({ item }) => Math.max(item.box.w, item.box.h) >= MIN_TRACE_PX);
-  for (const job of sharedCrops(traced.map((t) => t.crop))) {
-    const labels = await segment(img, job.crop, session);
-    for (const k of job.members) {
-      const { item, i, crop } = traced[k]!;
-      const own = job.members.length === 1 ? labels : resample(labels, job.crop, crop);
-      const outline = outlineFromLabels(
-        item,
-        crop,
-        own,
-        items.filter((o) => o !== item),
-      );
-      out[i] =
-        outline === null
-          ? null
-          : (outline ?? (item.confirmed ? undefined : item.eyes ? eyeholes(item.eyes) : null));
-    }
+  const jobs = sharedCrops(traced.map((t) => t.crop));
+  for (let start = 0; start < jobs.length; start += batchSize()) {
+    const batch = jobs.slice(start, start + batchSize());
+    const labelled = await segment(
+      img,
+      batch.map((job) => job.crop),
+      session,
+      modelsDir,
+    );
+    batch.forEach((job, j) => {
+      const labels = labelled[j]!;
+      for (const k of job.members) {
+        const { item, i, crop } = traced[k]!;
+        const own = job.members.length === 1 ? labels : resample(labels, job.crop, crop);
+        const outline = outlineFromLabels(
+          item,
+          crop,
+          own,
+          items.filter((o) => o !== item),
+        );
+        out[i] =
+          outline === null
+            ? null
+            : (outline ?? (item.confirmed ? undefined : item.eyes ? eyeholes(item.eyes) : null));
+      }
+    });
   }
   return out;
 }

@@ -7,6 +7,7 @@ import * as ort from 'onnxruntime-node';
 import { clamp } from '../../shared/geometry';
 import type { Point, Rect } from '../../shared/types';
 import { detectFaces } from './detect';
+import { experiments } from './experiments';
 import { outlineModel } from './models';
 import { nonMaximumSuppression } from './nms';
 
@@ -294,7 +295,7 @@ async function yunet(
  * spread, interpolated between tiles, which takes the coloured haze out and gives faces behind it
  * their contrast back.
  */
-function dehaze(img: Img, tile = 96, spread = 2.2): Img {
+export function dehaze(img: Img, tile = 96, spread = 2.2): Img {
   const { width: W, height: H, rgba } = img;
   const tx = Math.ceil(W / tile);
   const ty = Math.ceil(H / tile);
@@ -323,6 +324,7 @@ function dehaze(img: Img, tile = 96, spread = 2.2): Img {
       sd[t * 3 + k] = Math.max(6, Math.sqrt(Math.max(0, sq[t * 3 + k]! / n[t]! - m * m)));
     }
   }
+  if (experiments.dehaze) return stretch(img, tile, spread, tx, ty, mean, sd);
   const lerp = (
     arr: Float32Array,
     corners: number[],
@@ -352,6 +354,60 @@ function dehaze(img: Img, tile = 96, spread = 2.2): Img {
       for (let k = 0; k < 3; k++) {
         const m = lerp(mean, corners, wx, wy, k);
         const s = lerp(sd, corners, wx, wy, k);
+        out[i + k] = Math.max(0, Math.min(255, 128 + ((rgba[i + k]! - m) * 128) / (spread * s)));
+      }
+      out[i + 3] = 255;
+    }
+  }
+  return { rgba: out, width: W, height: H };
+}
+
+/**
+ * The pixel pass of `dehaze`, with the tile lookups worked out once per column and per row. The
+ * arithmetic is the same, in the same order, so the result is the same to the byte.
+ */
+function stretch(
+  img: Img,
+  tile: number,
+  spread: number,
+  tx: number,
+  ty: number,
+  mean: Float32Array,
+  sd: Float32Array,
+): Img {
+  const { width: W, height: H, rgba } = img;
+  const x0s = new Int32Array(W);
+  const x1s = new Int32Array(W);
+  const wxs = new Float64Array(W);
+  for (let x = 0; x < W; x++) {
+    const fx = Math.min(tx - 1, Math.max(0, (x + 0.5) / tile - 0.5));
+    const x0 = Math.floor(fx);
+    x0s[x] = x0;
+    x1s[x] = Math.min(tx - 1, x0 + 1);
+    wxs[x] = fx - x0;
+  }
+  const out = new Uint8Array(rgba.length);
+  for (let y = 0; y < H; y++) {
+    const fy = Math.min(ty - 1, Math.max(0, (y + 0.5) / tile - 0.5));
+    const y0 = Math.floor(fy);
+    const y1 = Math.min(ty - 1, y0 + 1);
+    const wy = fy - y0;
+    const top = y0 * tx;
+    const bottom = y1 * tx;
+    for (let x = 0; x < W; x++) {
+      const wx = wxs[x]!;
+      const a = (top + x0s[x]!) * 3;
+      const b = (top + x1s[x]!) * 3;
+      const c = (bottom + x0s[x]!) * 3;
+      const d = (bottom + x1s[x]!) * 3;
+      const i = (y * W + x) * 4;
+      for (let k = 0; k < 3; k++) {
+        const m =
+          (mean[a + k]! * (1 - wx) + mean[b + k]! * wx) * (1 - wy) +
+          (mean[c + k]! * (1 - wx) + mean[d + k]! * wx) * wy;
+        const s =
+          (sd[a + k]! * (1 - wx) + sd[b + k]! * wx) * (1 - wy) +
+          (sd[c + k]! * (1 - wx) + sd[d + k]! * wx) * wy;
         out[i + k] = Math.max(0, Math.min(255, 128 + ((rgba[i + k]! - m) * 128) / (spread * s)));
       }
       out[i + 3] = 255;

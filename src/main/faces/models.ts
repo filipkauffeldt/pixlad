@@ -16,6 +16,19 @@ export type OutlineModel = keyof typeof OUTLINE_MODELS;
 /** Measured faster than the default (all cores) for these models. */
 const THREADS = Math.max(1, Math.min(4, Math.floor(availableParallelism() / 2)));
 
+export const OUTLINE_OPTIONS: ort.InferenceSession.SessionOptions = {
+  executionProviders: ['cpu'],
+  graphOptimizationLevel: 'all',
+  intraOpNumThreads: THREADS,
+  // No memory pool: the pool grows to the largest run so far and keeps it. Without it,
+  // memory follows the current run, and the speed is the same.
+  enableCpuMemArena: false,
+  enableMemPattern: false,
+};
+
+export const outlinePath = (modelsDir: string, model: OutlineModel): string =>
+  join(modelsDir, OUTLINE_MODELS[model]);
+
 const sessions = new Map<OutlineModel, Promise<ort.InferenceSession>>();
 
 /** The session for one of the outline models in `modelsDir`, loaded on first use. */
@@ -25,21 +38,13 @@ export function outlineModel(
 ): Promise<ort.InferenceSession> {
   let session = sessions.get(model);
   if (!session) {
-    const path = join(modelsDir, OUTLINE_MODELS[model]);
+    const path = outlinePath(modelsDir, model);
     if (!existsSync(path)) {
       throw new Error(
         `The face model ${OUTLINE_MODELS[model]} is missing. Run "pnpm fetch-model".`,
       );
     }
-    session = ort.InferenceSession.create(path, {
-      executionProviders: ['cpu'],
-      graphOptimizationLevel: 'all',
-      intraOpNumThreads: THREADS,
-      // No memory pool: the pool grows to the largest run so far and keeps it. Without it,
-      // memory follows the current run, and the speed is the same.
-      enableCpuMemArena: false,
-      enableMemPattern: false,
-    });
+    session = ort.InferenceSession.create(path, OUTLINE_OPTIONS);
     sessions.set(model, session);
     session.catch(() => sessions.delete(model));
   }
